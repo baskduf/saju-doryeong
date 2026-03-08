@@ -7,7 +7,7 @@ type ProfilePayload = {
   name: string;
   birthDate: Date;
   birthTime?: string;
-  calendarType: "solar" | "lunar";
+  calendarType: "solar" | "lunar" | "unknown";
   sajuData: unknown;
 };
 

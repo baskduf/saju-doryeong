@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 
-export type CalendarType = "solar" | "lunar";
+export type CalendarType = "solar" | "lunar" | "unknown";
 
 export const PROFILE_SELECT = {
   userId: true,
@@ -163,13 +163,9 @@ function parseBirthTime(value: unknown): { ok: true; birthTime?: string } | { ok
 }
 
 function parseCalendarType(value: unknown): { ok: true; calendarType: CalendarType } | { ok: false; message: string } {
-  if (value === undefined || value === null || value === "") {
-    return { ok: true, calendarType: "solar" };
-  }
-
   const text = coerceToText(value);
   if (!text) {
-    return { ok: false, message: "calendarType은 문자열이어야 합니다. solar/lunar 또는 양력/음력을 사용해 주세요." };
+    return { ok: false, message: "calendarType(양력/음력/모른다)는 필수입니다." };
   }
 
   const normalized = text.normalize("NFKC").toLowerCase();
@@ -179,7 +175,10 @@ function parseCalendarType(value: unknown): { ok: true; calendarType: CalendarTy
   if (["lunar", "음력", "음"].includes(normalized)) {
     return { ok: true, calendarType: "lunar" };
   }
-  return { ok: false, message: "calendarType은 solar/lunar 또는 양력/음력만 허용됩니다." };
+  if (["unknown", "모른다", "모름", "잘모름", "모르겠음"].includes(normalized)) {
+    return { ok: true, calendarType: "unknown" };
+  }
+  return { ok: false, message: "calendarType은 양력/음력/모른다(또는 solar/lunar/unknown)만 허용됩니다." };
 }
 
 function normalizeToPercent(values: number[]): number[] {

@@ -81,7 +81,6 @@ export default async function FortuneDetailPage({ params }: PageProps) {
         </header>
 
         <section className={styles.scoreBox}>
-          <Image src="/card.png" alt="" width={220} height={220} className={styles.cardSeal} aria-hidden />
           <p className={styles.scoreLabel}>오늘의 운세 점수</p>
           <p className={styles.scoreValue}>{fortune.score}</p>
           <p className={styles.scoreGrade}>{fortune.grade}</p>

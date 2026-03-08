@@ -1,4 +1,6 @@
 .container {
+  position: relative;
+  isolation: isolate;
   min-height: 100vh;
   padding: 28px 18px 44px;
   background:
@@ -10,6 +12,17 @@
     "Nanum Myeongjo",
     "Noto Serif KR",
     serif;
+}
+
+.container::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: url("/background.png") center/cover no-repeat;
+  opacity: 0.25;
+  mix-blend-mode: soft-light;
+  pointer-events: none;
 }
 
 .paper {
@@ -102,17 +115,6 @@
   background: linear-gradient(140deg, rgba(255, 246, 226, 0.94), rgba(250, 232, 197, 0.9));
   text-align: center;
   overflow: hidden;
-}
-
-.cardSeal {
-  position: absolute;
-  top: -70px;
-  right: -60px;
-  width: 220px;
-  height: auto;
-  opacity: 0.14;
-  pointer-events: none;
-  filter: sepia(0.35);
 }
 
 .scoreLabel {

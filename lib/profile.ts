@@ -29,6 +29,31 @@ export function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+function coerceToText(value: unknown): string | undefined {
+  if (isNonEmptyString(value)) {
+    return value.trim();
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  const keys = ["value", "origin", "date", "time", "expression"];
+  for (const key of keys) {
+    const picked = coerceToText(record[key]);
+    if (picked) {
+      return picked;
+    }
+  }
+
+  return undefined;
+}
+
 export function hasDatabaseUrl(): boolean {
   return Boolean(process.env.DATABASE_URL || process.env.POSTGRES_PRISMA_URL);
 }
@@ -49,11 +74,12 @@ function toIsoDateString(date: Date): string {
 }
 
 function parseBirthDate(value: unknown): { ok: true; date: Date } | { ok: false; message: string } {
-  if (!isNonEmptyString(value)) {
+  const text = coerceToText(value);
+  if (!text) {
     return { ok: false, message: "birthDate는 필수입니다. 예: 1995-10-21 또는 19951021" };
   }
 
-  const raw = value.trim().normalize("NFKC");
+  const raw = text.normalize("NFKC");
   const parts = raw.match(/\d+/g) ?? [];
 
   let year: number;
@@ -91,11 +117,13 @@ function parseBirthTime(value: unknown): { ok: true; birthTime?: string } | { ok
   if (value === undefined || value === null || value === "") {
     return { ok: true, birthTime: undefined };
   }
-  if (!isNonEmptyString(value)) {
+
+  const text = coerceToText(value);
+  if (!text) {
     return { ok: false, message: "birthTime은 문자열이어야 합니다. 예: 14:30" };
   }
 
-  const normalized = value.trim().normalize("NFKC").toLowerCase();
+  const normalized = text.normalize("NFKC").toLowerCase();
   if (["unknown", "none", "미상", "없음"].includes(normalized)) {
     return { ok: true, birthTime: undefined };
   }
@@ -119,11 +147,13 @@ function parseCalendarType(value: unknown): { ok: true; calendarType: CalendarTy
   if (value === undefined || value === null || value === "") {
     return { ok: true, calendarType: "solar" };
   }
-  if (!isNonEmptyString(value)) {
+
+  const text = coerceToText(value);
+  if (!text) {
     return { ok: false, message: "calendarType은 문자열이어야 합니다. solar/lunar 또는 양력/음력을 사용해 주세요." };
   }
 
-  const normalized = value.trim().toLowerCase();
+  const normalized = text.normalize("NFKC").toLowerCase();
   if (["solar", "양력", "양"].includes(normalized)) {
     return { ok: true, calendarType: "solar" };
   }

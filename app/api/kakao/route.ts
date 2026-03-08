@@ -98,6 +98,50 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value as Record<string, unknown>;
 }
 
+function readStringValue(value: unknown): string | undefined {
+  if (isNonEmptyString(value)) {
+    return value.trim();
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const parsed = readStringValue(entry);
+      if (parsed) return parsed;
+    }
+    return undefined;
+  }
+
+  const record = asRecord(value);
+  if (!record) return undefined;
+
+  const candidates = [record.value, record.origin, record.date, record.time, record.expression];
+  for (const candidate of candidates) {
+    const parsed = readStringValue(candidate);
+    if (parsed) return parsed;
+  }
+
+  return undefined;
+}
+
+function summarizeForCard(value: unknown): string {
+  const parsed = readStringValue(value);
+  if (parsed) return parsed;
+
+  if (value === undefined) return "<undefined>";
+  if (value === null) return "<null>";
+
+  try {
+    const text = JSON.stringify(value);
+    return text.length > 80 ? `${text.slice(0, 80)}...` : text;
+  } catch {
+    return "<unserializable>";
+  }
+}
+
 function getKakaoUserId(payload: unknown): string | undefined {
   const root = asRecord(payload);
   if (!root) return undefined;
@@ -117,10 +161,8 @@ function getKakaoUserId(payload: unknown): string | undefined {
 
 function pickFirstString(source: Record<string, unknown>, keys: string[]): string | undefined {
   for (const key of keys) {
-    const value = source[key];
-    if (isNonEmptyString(value)) {
-      return value.trim();
-    }
+    const parsed = readStringValue(source[key]);
+    if (parsed) return parsed;
   }
   return undefined;
 }
@@ -131,10 +173,11 @@ function extractKakaoActionParams(payload: unknown): {
   birthDate?: string;
   birthTime?: string;
   calendarType?: string;
+  debugLines: string[];
 } {
   const root = asRecord(payload);
   if (!root) {
-    return { hasAny: false };
+    return { hasAny: false, debugLines: ["payload=<empty>"] };
   }
 
   const action = asRecord(root.action);
@@ -151,9 +194,9 @@ function extractKakaoActionParams(payload: unknown): {
   if (detailParams) {
     for (const [key, value] of Object.entries(detailParams)) {
       if (merged[key] !== undefined) continue;
-      const detailParam = asRecord(value);
-      if (isNonEmptyString(detailParam?.value)) {
-        merged[key] = detailParam.value;
+      const parsed = readStringValue(value);
+      if (parsed) {
+        merged[key] = parsed;
       }
     }
   }
@@ -162,6 +205,12 @@ function extractKakaoActionParams(payload: unknown): {
   const birthDate = pickFirstString(merged, ["birthDate", "birth_date", "birthday", "dateOfBirth", "생년월일"]);
   const birthTime = pickFirstString(merged, ["birthTime", "birth_time", "timeOfBirth", "출생시간"]);
   const calendarType = pickFirstString(merged, ["calendarType", "calendar_type", "calendar", "음양력", "력"]);
+  const debugLines = [
+    `birthDate=${summarizeForCard(actionParams.birthDate ?? requestParams?.birthDate ?? detailParams?.birthDate)}`,
+    `birthTime=${summarizeForCard(actionParams.birthTime ?? requestParams?.birthTime ?? detailParams?.birthTime)}`,
+    `calendarType=${summarizeForCard(actionParams.calendarType ?? requestParams?.calendarType ?? detailParams?.calendarType)}`,
+    `name=${summarizeForCard(actionParams.name ?? requestParams?.name ?? detailParams?.name)}`,
+  ];
 
   return {
     hasAny: Boolean(name || birthDate || birthTime || calendarType),
@@ -169,14 +218,18 @@ function extractKakaoActionParams(payload: unknown): {
     birthDate,
     birthTime,
     calendarType,
+    debugLines,
   };
 }
 
-function createRegistrationGuideCard(errorMessage?: string): KakaoBasicCardResponse {
+function createRegistrationGuideCard(errorMessage?: string, debugLines?: string[]): KakaoBasicCardResponse {
   const lines = errorMessage
     ? [
         "사주 정보를 읽는 중 막힌 부분이 있소.",
         errorMessage,
+        "",
+        "수신값 확인:",
+        ...(debugLines ?? []),
         "",
         "입력 예시: 생년월일 1995-10-21, 출생시간 14:30, 달력 양력",
       ]
@@ -276,7 +329,7 @@ export async function POST(request: NextRequest) {
         calendarType: registrationParams.calendarType,
       });
       if (!parsed.ok) {
-        return NextResponse.json(createRegistrationGuideCard(parsed.message));
+        return NextResponse.json(createRegistrationGuideCard(parsed.message, registrationParams.debugLines));
       }
 
       const storedProfile = await upsertProfile({

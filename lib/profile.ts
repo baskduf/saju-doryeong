@@ -128,20 +128,26 @@ function parseBirthTime(value: unknown): { ok: true; birthTime?: string } | { ok
     return { ok: true, birthTime: undefined };
   }
 
-  const colonParts = normalized.split(":");
-  if (colonParts.length === 2 || colonParts.length === 3) {
-    const [hourText, minuteText] = colonParts;
-    if (/^\d{1,2}$/.test(hourText) && /^\d{2}$/.test(minuteText)) {
-      const hour = Number(hourText);
-      const minute = Number(minuteText);
-      if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
-        return { ok: true, birthTime: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}` };
-      }
-      return { ok: false, message: "birthTime 시간 값이 유효하지 않습니다. 예: 00:00~23:59" };
+  const timeMatch = normalized.match(/(\d{1,2}):(\d{2})(?::\d{2})?/);
+  if (timeMatch) {
+    const hour = Number(timeMatch[1]);
+    const minute = Number(timeMatch[2]);
+    if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+      return { ok: true, birthTime: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}` };
     }
+    return { ok: false, message: "birthTime 시간 값이 유효하지 않습니다. 예: 00:00~23:59" };
   }
 
   const digits = normalized.replace(/[^\d]/g, "");
+  if (digits.length === 6) {
+    const hour = Number(digits.slice(0, 2));
+    const minute = Number(digits.slice(2, 4));
+    if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+      return { ok: true, birthTime: `${digits.slice(0, 2)}:${digits.slice(2, 4)}` };
+    }
+    return { ok: false, message: "birthTime 시간 값이 유효하지 않습니다. 예: 00:00~23:59" };
+  }
+
   if (digits.length < 3 || digits.length > 4) {
     return { ok: false, message: "birthTime 형식이 올바르지 않습니다. 예: 14:30 또는 1430" };
   }

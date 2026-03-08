@@ -18,15 +18,16 @@
   content: "";
   position: fixed;
   inset: 0;
-  z-index: -1;
+  z-index: 0;
   background: url("/background.png") center/cover no-repeat;
-  opacity: 0.25;
+  opacity: 0.32;
   mix-blend-mode: soft-light;
   pointer-events: none;
 }
 
 .paper {
   position: relative;
+  z-index: 1;
   max-width: 1020px;
   margin: 0 auto;
   border: 1px solid rgba(243, 215, 166, 0.45);

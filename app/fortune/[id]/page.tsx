@@ -1,0 +1,89 @@
+import { notFound } from "next/navigation";
+import { generateDailyFortune } from "../../../lib/fortune";
+import { prisma } from "../../../lib/prisma";
+import { FiveElementsChart } from "./FiveElementsChart";
+import styles from "./page.module.css";
+
+type PageProps = {
+  params: { id: string };
+};
+
+function formatKoreanDate(date: Date): string {
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "long",
+  }).format(date);
+}
+
+export default async function FortuneDetailPage({ params }: PageProps) {
+  const { id } = params;
+  const profile = await prisma.sajuProfile.findUnique({
+    where: { userId: id },
+    select: {
+      userId: true,
+      name: true,
+      birthDate: true,
+      sajuData: true,
+    },
+  });
+
+  if (!profile) {
+    notFound();
+  }
+
+  const today = new Date();
+  const fortune = generateDailyFortune({
+    userId: profile.userId,
+    birthDate: profile.birthDate,
+    sajuData: profile.sajuData,
+    date: today,
+  });
+
+  return (
+    <main className={styles.container}>
+      <section className={styles.paper}>
+        <div className={styles.headerRow}>
+          <div>
+            <p className={styles.label}>운세도령 상세 풀이</p>
+            <h1 className={styles.title}>{profile.name ? `${profile.name} 님의 금일 점괘` : "금일 점괘"}</h1>
+            <p className={styles.date}>{formatKoreanDate(today)}</p>
+          </div>
+          <div className={styles.mascot} aria-hidden>
+            <div className={styles.mascotHat} />
+            <div className={styles.mascotFace} />
+          </div>
+        </div>
+
+        <div className={styles.scoreBox}>
+          <p className={styles.scoreLabel}>오늘의 운세 점수</p>
+          <p className={styles.scoreValue}>{fortune.score}</p>
+          <p className={styles.scoreGrade}>{fortune.grade}</p>
+        </div>
+
+        <section className={styles.section}>
+          <h2>도령의 한마디</h2>
+          <p>{fortune.headline}</p>
+          <p>{fortune.detail}</p>
+          <p>{fortune.summary}</p>
+          <p>{fortune.caution}</p>
+        </section>
+
+        <section className={styles.section}>
+          <h2>사주 오행 그래프</h2>
+          <FiveElementsChart elements={fortune.elements} />
+        </section>
+
+        <section className={styles.section}>
+          <h2>오늘의 추천 행동</h2>
+          <ul className={styles.actions}>
+            {fortune.recommendedActions.map((action) => (
+              <li key={action}>{action}</li>
+            ))}
+          </ul>
+        </section>
+      </section>
+    </main>
+  );
+}

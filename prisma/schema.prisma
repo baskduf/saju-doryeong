@@ -1,0 +1,20 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model SajuProfile {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  name         String?
+  birthDate    DateTime
+  birthTime    String?
+  calendarType String   @default("solar")
+  sajuData     Json
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}

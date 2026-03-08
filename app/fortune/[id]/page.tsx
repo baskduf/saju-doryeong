@@ -67,7 +67,6 @@ export default async function FortuneDetailPage({ params }: PageProps) {
     <main className={styles.container}>
       <section className={styles.paper}>
         <header className={styles.hero}>
-          <div className={styles.heroBackdrop} aria-hidden />
           <div className={styles.heroText}>
             <p className={styles.label}>운세도령 상세 풀이</p>
             <h1 className={styles.title}>{profile.name ? `${profile.name} 님의 금일 점괘` : "금일 점괘"}</h1>
@@ -75,6 +74,9 @@ export default async function FortuneDetailPage({ params }: PageProps) {
             <p className={styles.birthMeta}>
               출생 {formatBirthDate(profile.birthDate)} · {birthTimeLabel} · {calendarLabel}
             </p>
+          </div>
+          <div className={styles.heroVisual}>
+            <Image src="/card.png" alt="운세 카드 일러스트" width={360} height={360} className={styles.heroCard} priority />
           </div>
         </header>
 

@@ -29,24 +29,15 @@
 
 .hero {
   position: relative;
-  display: block;
+  display: grid;
+  grid-template-columns: 1.12fr 0.88fr;
+  gap: 20px;
+  align-items: center;
   border: 1px solid rgba(165, 103, 35, 0.28);
   border-radius: 24px;
   padding: 26px;
   background: linear-gradient(140deg, rgba(255, 248, 233, 0.74), rgba(255, 239, 206, 0.62));
   overflow: hidden;
-}
-
-.heroBackdrop {
-  position: absolute;
-  right: -90px;
-  top: -60px;
-  width: 280px;
-  height: 280px;
-  background: url("/card.png") center/contain no-repeat;
-  opacity: 0.18;
-  filter: sepia(0.45);
-  pointer-events: none;
 }
 
 .heroText {
@@ -83,6 +74,23 @@
   border: 1px solid rgba(120, 65, 23, 0.32);
   color: #60391a;
   font-size: 13px;
+}
+
+.heroVisual {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.heroCard {
+  width: min(100%, 320px);
+  height: auto;
+  border-radius: 22px;
+  border: 1px solid rgba(165, 98, 31, 0.34);
+  box-shadow:
+    0 14px 28px rgba(64, 34, 14, 0.2),
+    inset 0 0 0 1px rgba(255, 247, 230, 0.58);
+  background: rgba(255, 249, 238, 0.66);
 }
 
 .scoreBox {
@@ -162,7 +170,13 @@
   }
 
   .hero {
+    grid-template-columns: 1fr;
     padding: 22px;
+    gap: 16px;
+  }
+
+  .heroVisual {
+    justify-content: flex-start;
   }
 }
 

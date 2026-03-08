@@ -76,11 +76,6 @@ export default async function FortuneDetailPage({ params }: PageProps) {
               출생 {formatBirthDate(profile.birthDate)} · {birthTimeLabel} · {calendarLabel}
             </p>
           </div>
-
-          <div className={styles.heroVisual}>
-            <Image src="/logo-Photoroom.png" alt="운세도령" width={108} height={108} className={styles.logo} priority />
-            <Image src="/people.png" alt="운세도령 일러스트" width={360} height={360} className={styles.people} priority />
-          </div>
         </header>
 
         <section className={styles.scoreBox}>

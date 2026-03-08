@@ -150,3 +150,128 @@
   2. `npm run prisma:push`
   3. `/api/profile`로 테스트 계정 1건 등록
   4. `POST /api/kakao`에서 프로필 존재 시 BasicCard + 상세 링크 정상 응답 확인
+
+## 9) 2026-03-08 최신 진행 내역 (현재 기준)
+
+- 저장소/배포 상태:
+  - 로컬은 Git 저장소로 초기화되어 있음.
+  - 원격 `origin`은 `https://github.com/baskduf/saju-doryeong`에 연결되어 있음.
+  - 최근 커밋이 `main`에 push된 상태.
+
+- Vercel:
+  - `saju-doryeong` 프로젝트를 CLI로 재연결 후 프로덕션 재배포 완료.
+  - 프로덕션 도메인 alias:
+    - `https://saju-doryeong.vercel.app`
+  - 환경변수 재설정 완료(Production/Preview/Development):
+    - `DATABASE_URL`
+    - `DATABASE_URL_UNPOOLED`
+    - `POSTGRES_PRISMA_URL`
+    - `NEXT_PUBLIC_APP_URL`
+
+- API 실검증(프로덕션):
+  - `GET /api/profile?userId=kakao-test-1` → `404` (DB 연결 정상, 데이터 미존재)
+  - `POST /api/profile`로 테스트 유저 생성 가능 확인
+  - `POST /api/kakao` 응답 정상 확인(BasicCard + 상세 링크)
+
+- 카카오 테스트 payload 연동:
+  - 사용자가 전달한 payload에서 `userRequest.user.id = "465203"` 확인.
+  - `userId: 465203` 프로필 등록 완료.
+  - 동일 payload로 `/api/kakao` 재호출 시 운세 카드 정상 반환 확인.
+  - 상세 링크 예시:
+    - `https://saju-doryeong.vercel.app/fortune/465203`
+
+- 코드/동작 관련 참고:
+  - `lib/prisma.ts`는 `DATABASE_URL`이 없고 `POSTGRES_PRISMA_URL`이 있으면 fallback 매핑하도록 보강돼 있음.
+  - `/api/profile`는 GET 조회/POST upsert 구현 완료.
+  - `/api/kakao`는 프로필 미등록 시 안내 카드, 등록 시 운세 카드 반환.
+
+- 현재 로컬 워크트리 주의사항:
+  - `.gitignore`가 `vercel link` 과정에서 수정됨 (`.vercel` 관련 항목 추가).
+  - 민감정보가 포함된 임시 env pull 파일(`.env.vercel.production`)은 정리 완료.
+
+- 즉시 다음 작업(운영 전):
+  1. 카카오 관리자센터에서 해당 블록 저장/배포(개발 채널 → 운영 채널) 완료 확인
+  2. 실제 사용자별 사주 데이터 등록 플로우 설계
+     - 현재는 `/api/profile` 직접 호출로 등록
+  3. 임시 등록된 테스트 사용자 데이터(`465203`, `kakao-test-1`)를 운영 정책에 맞게 정리
+  4. 보안상 DB 자격증명(노출된 값) 회전 권장
+
+## 10) 2026-03-08 추가 진행 내역 (카카오 등록 플로우 구현/배포)
+
+- 기능 구현:
+  - 카카오 대화형 등록 플로우 구현 완료.
+  - `/api/kakao`에서 아래 3가지 분기 처리:
+    1. 프로필 없음 + 등록 파라미터 없음: 등록 유도 카드 반환
+    2. 프로필 없음 + 등록 파라미터 있음: 프로필 저장 후 즉시 운세 카드 반환
+    3. 프로필 있음: 기존처럼 즉시 운세 카드 반환
+  - 카카오 파라미터 추출 대상:
+    - `action.params`
+    - `action.detailParams`
+    - `userRequest.params`
+  - 지원 파라미터 키:
+    - `birthDate`, `birthTime`, `calendarType`, `name`
+
+- 공통 유틸 분리:
+  - 신규 파일: `/lib/profile.ts`
+  - 포함 내용:
+    - 프로필 검증 파서(`birthDate`, `birthTime`, `calendarType`)
+    - DB URL 존재 확인
+    - 프로필 조회/업서트 공통 함수
+    - 초기 `sajuData` 생성(`kakao-onboarding-v1`, 오행 비율 생성)
+  - `/app/api/profile/route.ts`는 공통 유틸을 사용하도록 리팩터링.
+
+- 오류 처리 보강:
+  - `/api/kakao`, `/api/profile`에 DB 오류 503 처리 추가:
+    - 연결 오류(`P1001`)
+    - 테이블 미생성(`P2021`)
+  - 사용자에게 일반 500 대신 서비스 준비/일시 오류 안내 메시지 반환.
+
+- DB/스키마 운영 반영:
+  - 기존 `public` 스키마 데이터 손실 위험을 피하기 위해 DB URL을 스키마 분리:
+    - `schema=saju_doryeong` 적용
+    - 대상: `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `POSTGRES_PRISMA_URL`
+  - `npm run prisma:push` 성공:
+    - datasource: PostgreSQL `schema "saju_doryeong"`
+
+- Vercel 반영:
+  - 환경변수(Production/Preview/Development) 3종 DB URL 모두 `schema=saju_doryeong` 적용 완료.
+  - 배포 차단 이슈 확인:
+    - 에러: `COMMIT_AUTHOR_REQUIRED` / "no git user associated with the commit"
+    - 원인: 기존 커밋 작성자 이메일 `wb@MacBook-Air.local` 미매핑
+  - 해결:
+    - 작성자 이메일이 Vercel 계정과 매핑되는 빈 커밋 생성
+      - 커밋: `3f99105 chore: deploy trigger for vercel author check`
+    - 이후 프로덕션 배포 성공 및 alias 반영:
+      - `https://saju-doryeong.vercel.app`
+
+- 프로덕션 E2E 검증:
+  - 미등록 호출:
+    - 등록 유도 카드 + `사주 등록` quick reply 확인
+  - 등록 파라미터 호출:
+    - 저장 즉시 운세 카드 반환 확인
+  - 재호출:
+    - 등록 단계 없이 즉시 운세 카드 반환 확인
+  - 입력 오류 호출:
+    - 유효성 오류 안내 카드 반환 확인
+  - 상세 링크:
+    - `webLinkUrl`이 실제 도메인(`https://saju-doryeong.vercel.app/fortune/{userId}`)으로 생성됨 확인
+
+- 테스트 데이터 정리:
+  - 삭제 완료 userId:
+    - `kakao-flow-20260308`
+    - `kakao-flow-20260308-b`
+    - `prod-onboard-20260308-z`
+  - 확인 결과: `remaining=0`
+
+- Git 상태:
+  - 기능 커밋 완료:
+    - `6726e3a feat: add kakao onboarding profile registration flow`
+  - 원격 반영:
+    - `origin/main` push 완료
+  - 참고:
+    - 로컬에 여전히 별도 변경 파일 존재(`.gitignore`, `HANDOFF.md`)
+
+- 카카오 관리자센터 등록 시 체크포인트:
+  1. 스킬 서버 URL: `https://saju-doryeong.vercel.app/api/kakao`
+  2. 등록 블록 파라미터 키: `birthDate`, `birthTime`, `calendarType`, `name`
+  3. 블록 저장/배포 후 실제 채널에서 미등록→등록→재호출 순으로 검증

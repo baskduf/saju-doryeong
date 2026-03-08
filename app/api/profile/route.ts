@@ -55,10 +55,14 @@ function parsePayload(payload: unknown): { ok: true; data: ProfilePayload } | { 
   };
 }
 
+function hasDatabaseUrl(): boolean {
+  return Boolean(process.env.DATABASE_URL || process.env.POSTGRES_PRISMA_URL);
+}
+
 export async function GET(request: NextRequest) {
   try {
-    if (!process.env.DATABASE_URL) {
-      return NextResponse.json({ error: "DATABASE_URL이 설정되지 않았습니다." }, { status: 503 });
+    if (!hasDatabaseUrl()) {
+      return NextResponse.json({ error: "DATABASE_URL(또는 POSTGRES_PRISMA_URL)이 설정되지 않았습니다." }, { status: 503 });
     }
 
     const userId = request.nextUrl.searchParams.get("userId");
@@ -93,8 +97,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    if (!process.env.DATABASE_URL) {
-      return NextResponse.json({ error: "DATABASE_URL이 설정되지 않았습니다." }, { status: 503 });
+    if (!hasDatabaseUrl()) {
+      return NextResponse.json({ error: "DATABASE_URL(또는 POSTGRES_PRISMA_URL)이 설정되지 않았습니다." }, { status: 503 });
     }
 
     const payload = await request.json();

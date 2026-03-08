@@ -76,6 +76,10 @@ function getKakaoUserId(payload: unknown): string | undefined {
   return undefined;
 }
 
+function hasDatabaseUrl(): boolean {
+  return Boolean(process.env.DATABASE_URL || process.env.POSTGRES_PRISMA_URL);
+}
+
 export async function POST(request: NextRequest) {
   try {
     const payload = await request.json();
@@ -90,7 +94,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!process.env.DATABASE_URL) {
+    if (!hasDatabaseUrl()) {
       return NextResponse.json(
         createBasicCard({
           title: "운세도령",

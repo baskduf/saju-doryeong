@@ -36,6 +36,18 @@ npm run prisma:push
 npm run dev
 ```
 
+## Vercel DB (Prisma) 설정
+
+1. Vercel 프로젝트에 Postgres Storage를 연결합니다.
+2. Vercel 환경변수의 `POSTGRES_PRISMA_URL` 값을 앱의 `DATABASE_URL`로 사용합니다.
+3. 로컬에서는 `cp .env.example .env.local` 후 `DATABASE_URL`에 같은 값을 넣습니다.
+4. 이후 스키마 반영:
+
+```bash
+npm run prisma:generate
+npm run prisma:push
+```
+
 ## 주요 경로
 
 - 카카오 스킬 API: `/app/api/kakao/route.ts`

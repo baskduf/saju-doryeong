@@ -54,14 +54,28 @@ function parseBirthDate(value: unknown): { ok: true; date: Date } | { ok: false;
   }
 
   const raw = value.trim();
-  const digits = raw.replace(/[^\d]/g, "");
-  if (digits.length !== 8) {
-    return { ok: false, message: "birthDate 형식이 올바르지 않습니다. 예: 1995-10-21" };
+  const parts = raw.match(/\d+/g) ?? [];
+
+  let year: number;
+  let month: number;
+  let day: number;
+
+  const [first, second, third] = parts;
+  if (first && second && third && first.length === 4) {
+    year = Number(first);
+    month = Number(second);
+    day = Number(third);
+  } else {
+    const digits = raw.replace(/[^\d]/g, "");
+    if (digits.length !== 8) {
+      return { ok: false, message: "birthDate 형식이 올바르지 않습니다. 예: 1995-10-21" };
+    }
+
+    year = Number(digits.slice(0, 4));
+    month = Number(digits.slice(4, 6));
+    day = Number(digits.slice(6, 8));
   }
 
-  const year = Number(digits.slice(0, 4));
-  const month = Number(digits.slice(4, 6));
-  const day = Number(digits.slice(6, 8));
   const date = new Date(Date.UTC(year, month - 1, day));
 
   const isValid =

@@ -17,6 +17,9 @@ type KakaoBasicCardResponse = {
       basicCard: {
         title: string;
         description: string;
+        thumbnail: {
+          imageUrl: string;
+        };
         buttons?: Array<{
           action: "webLink";
           label: string;
@@ -45,8 +48,11 @@ function createBasicCard(params: {
   title: string;
   description: string;
   webLinkUrl?: string;
+  thumbnailUrl?: string;
   quickReplies?: KakaoQuickReply[];
 }): KakaoBasicCardResponse {
+  const baseUrl = resolveAppBaseUrl();
+
   return {
     version: "2.0",
     template: {
@@ -55,6 +61,9 @@ function createBasicCard(params: {
           basicCard: {
             title: params.title,
             description: params.description,
+            thumbnail: {
+              imageUrl: params.thumbnailUrl ?? `${baseUrl}/kakao-card-thumbnail.svg`,
+            },
             buttons: params.webLinkUrl
               ? [
                   {
@@ -76,6 +85,10 @@ function createBasicCard(params: {
       ],
     },
   };
+}
+
+function resolveAppBaseUrl(): string {
+  return (process.env.NEXT_PUBLIC_APP_URL ?? "https://saju-doryeong.vercel.app").replace(/\/$/, "");
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
@@ -198,7 +211,7 @@ function createFortuneCard(profile: KakaoProfileLike, notice?: string): KakaoBas
     sajuData: profile.sajuData,
   });
 
-  const baseUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://your-domain.com").replace(/\/$/, "");
+  const baseUrl = resolveAppBaseUrl();
   const detailUrl = `${baseUrl}/fortune/${encodeURIComponent(profile.userId)}`;
   const titleName = profile.name ? `${profile.name} 님` : "그대";
 

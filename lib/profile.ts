@@ -53,7 +53,7 @@ function parseBirthDate(value: unknown): { ok: true; date: Date } | { ok: false;
     return { ok: false, message: "birthDate는 필수입니다. 예: 1995-10-21 또는 19951021" };
   }
 
-  const raw = value.trim();
+  const raw = value.trim().normalize("NFKC");
   const parts = raw.match(/\d+/g) ?? [];
 
   let year: number;
@@ -95,7 +95,7 @@ function parseBirthTime(value: unknown): { ok: true; birthTime?: string } | { ok
     return { ok: false, message: "birthTime은 문자열이어야 합니다. 예: 14:30" };
   }
 
-  const normalized = value.trim().toLowerCase();
+  const normalized = value.trim().normalize("NFKC").toLowerCase();
   if (["unknown", "none", "미상", "없음"].includes(normalized)) {
     return { ok: true, birthTime: undefined };
   }

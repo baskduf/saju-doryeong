@@ -1,11 +1,11 @@
 .container {
   min-height: 100vh;
-  padding: 32px 20px 48px;
+  padding: 28px 18px 44px;
   background:
-    radial-gradient(circle at 12% 18%, rgba(184, 116, 33, 0.08), transparent 34%),
-    radial-gradient(circle at 86% 12%, rgba(54, 83, 66, 0.1), transparent 26%),
-    linear-gradient(160deg, #f7eed9 0%, #efe2c4 55%, #e8d7b2 100%);
-  color: #2d2418;
+    radial-gradient(1200px 640px at 8% -8%, rgba(251, 197, 49, 0.14), transparent 56%),
+    radial-gradient(960px 560px at 92% -14%, rgba(231, 155, 50, 0.14), transparent 52%),
+    linear-gradient(160deg, #231812 0%, #312117 42%, #1d130d 100%);
+  color: #2f1d11;
   font-family:
     "Nanum Myeongjo",
     "Noto Serif KR",
@@ -13,136 +13,224 @@
 }
 
 .paper {
-  max-width: 940px;
+  position: relative;
+  max-width: 1020px;
   margin: 0 auto;
-  background: linear-gradient(180deg, rgba(255, 249, 232, 0.96), rgba(255, 245, 220, 0.95));
-  border: 1px solid #cdb78d;
-  border-radius: 24px;
+  border: 1px solid rgba(243, 215, 166, 0.45);
+  border-radius: 30px;
+  background:
+    linear-gradient(180deg, rgba(255, 244, 219, 0.98) 0%, rgba(252, 235, 203, 0.97) 56%, rgba(245, 224, 184, 0.96) 100%);
   box-shadow:
-    0 8px 30px rgba(45, 36, 24, 0.12),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.55);
-  padding: 28px;
+    0 24px 60px rgba(12, 7, 3, 0.42),
+    inset 0 0 0 1px rgba(255, 251, 239, 0.72);
+  overflow: hidden;
+  padding: 30px;
 }
 
-.headerRow {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: center;
-  flex-wrap: wrap;
+.hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 22px;
+  border: 1px solid rgba(165, 103, 35, 0.28);
+  border-radius: 24px;
+  padding: 26px;
+  background: linear-gradient(140deg, rgba(255, 248, 233, 0.74), rgba(255, 239, 206, 0.62));
+  overflow: hidden;
+}
+
+.heroBackdrop {
+  position: absolute;
+  right: -130px;
+  top: -80px;
+  width: 320px;
+  height: 320px;
+  background: url("/card.png") center/contain no-repeat;
+  opacity: 0.15;
+  filter: sepia(0.45);
+  pointer-events: none;
+}
+
+.heroText {
+  position: relative;
+  z-index: 2;
 }
 
 .label {
-  margin: 0 0 6px;
+  margin: 0 0 8px;
+  color: #865c2d;
   font-size: 14px;
-  color: #78613f;
+  letter-spacing: 0.06em;
 }
 
 .title {
   margin: 0;
-  font-size: clamp(28px, 4.3vw, 44px);
-  line-height: 1.2;
+  color: #3f260f;
+  font-size: clamp(28px, 4vw, 46px);
+  line-height: 1.14;
 }
 
 .date {
-  margin: 8px 0 0;
-  color: #5f4c31;
+  margin: 10px 0 0;
+  color: #5c3d1f;
+  font-size: 16px;
 }
 
-.mascot {
-  width: 90px;
-  height: 90px;
+.birthMeta {
+  margin: 10px 0 0;
+  display: inline-block;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: rgba(99, 53, 20, 0.1);
+  border: 1px solid rgba(120, 65, 23, 0.32);
+  color: #60391a;
+  font-size: 13px;
+}
+
+.heroVisual {
   position: relative;
-  animation: float 2.6s ease-in-out infinite;
+  min-height: 240px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
 }
 
-.mascotHat {
-  width: 78px;
-  height: 18px;
-  border-radius: 999px;
-  background: #2f2a24;
-  margin: 8px auto -6px;
+.logo {
+  position: absolute;
+  top: 2px;
+  right: 6px;
+  width: clamp(72px, 10vw, 108px);
+  height: auto;
+  filter: drop-shadow(0 6px 18px rgba(55, 26, 8, 0.25));
 }
 
-.mascotFace {
-  width: 64px;
-  height: 64px;
-  border-radius: 999px;
-  margin: 0 auto;
-  background: radial-gradient(circle at 32% 30%, #fff9f0 0, #eed8ba 70%);
-  border: 2px solid #9c7e52;
+.people {
+  width: min(100%, 340px);
+  height: auto;
+  border-radius: 20px;
+  border: 1px solid rgba(163, 97, 31, 0.35);
+  background: rgba(255, 249, 236, 0.55);
+  box-shadow: 0 18px 30px rgba(79, 38, 14, 0.2);
 }
 
 .scoreBox {
+  position: relative;
   margin-top: 20px;
-  padding: 18px;
-  border-radius: 16px;
-  border: 1px solid #cab48c;
-  background: rgba(255, 248, 230, 0.8);
+  padding: 22px 22px 24px;
+  border-radius: 22px;
+  border: 1px solid rgba(153, 95, 35, 0.38);
+  background: linear-gradient(140deg, rgba(255, 246, 226, 0.94), rgba(250, 232, 197, 0.9));
   text-align: center;
+  overflow: hidden;
+}
+
+.cardSeal {
+  position: absolute;
+  top: -70px;
+  right: -60px;
+  width: 220px;
+  height: auto;
+  opacity: 0.14;
+  pointer-events: none;
+  filter: sepia(0.35);
 }
 
 .scoreLabel {
   margin: 0;
-  color: #7e6640;
+  color: #7a4a21;
   font-size: 14px;
 }
 
 .scoreValue {
-  margin: 6px 0 0;
-  font-size: 52px;
+  margin: 4px 0 0;
+  font-size: clamp(58px, 9vw, 84px);
   line-height: 1;
   font-weight: 700;
-  color: #543617;
+  color: #52290f;
 }
 
 .scoreGrade {
-  margin: 4px 0 0;
-  font-size: 20px;
-  color: #8a5523;
+  margin: 2px 0 0;
+  font-size: 23px;
   font-weight: 700;
+  color: #8b4e1f;
 }
 
 .section {
-  margin-top: 22px;
-  padding: 18px;
-  border-radius: 14px;
-  background: rgba(255, 252, 242, 0.82);
-  border: 1px solid #d7c8a1;
+  margin-top: 20px;
+  padding: 20px;
+  border-radius: 18px;
+  border: 1px solid rgba(164, 108, 46, 0.34);
+  background: rgba(255, 250, 238, 0.82);
 }
 
 .section h2 {
   margin: 0 0 10px;
-  font-size: 24px;
+  font-size: clamp(22px, 2.4vw, 30px);
+  color: #4a2a11;
 }
 
 .section p {
   margin: 8px 0;
-  line-height: 1.7;
+  line-height: 1.74;
+  color: #422812;
 }
 
 .actions {
   margin: 0;
-  padding-left: 20px;
-  line-height: 1.8;
+  padding-left: 18px;
+  color: #3f250f;
+  line-height: 1.84;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 880px) {
   .paper {
-    padding: 20px;
+    padding: 22px;
+    border-radius: 24px;
   }
 
-  .scoreValue {
-    font-size: 44px;
+  .hero {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    padding: 22px;
+  }
+
+  .heroVisual {
+    min-height: 0;
+    justify-content: flex-start;
+  }
+
+  .logo {
+    right: 0;
   }
 }
 
-@keyframes float {
-  0%,
-  100% {
-    transform: translateY(0px);
+@media (max-width: 560px) {
+  .container {
+    padding: 18px 12px 30px;
   }
-  50% {
-    transform: translateY(-8px);
+
+  .paper {
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .hero {
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .birthMeta {
+    display: block;
+    width: fit-content;
+    max-width: 100%;
+  }
+
+  .scoreBox {
+    padding: 18px 14px 20px;
+  }
+
+  .section {
+    padding: 16px;
   }
 }

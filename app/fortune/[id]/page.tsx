@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { generateDailyFortune } from "../../../lib/fortune";
 import { prisma } from "../../../lib/prisma";
@@ -17,6 +18,20 @@ function formatKoreanDate(date: Date): string {
   }).format(date);
 }
 
+function formatBirthDate(date: Date): string {
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function calendarTypeLabel(value: string): string {
+  if (value === "solar") return "양력";
+  if (value === "lunar") return "음력";
+  return "모름";
+}
+
 export default async function FortuneDetailPage({ params }: PageProps) {
   const { id } = params;
   const profile = await prisma.sajuProfile.findUnique({
@@ -25,6 +40,8 @@ export default async function FortuneDetailPage({ params }: PageProps) {
       userId: true,
       name: true,
       birthDate: true,
+      birthTime: true,
+      calendarType: true,
       sajuData: true,
     },
   });
@@ -37,30 +54,41 @@ export default async function FortuneDetailPage({ params }: PageProps) {
   const fortune = generateDailyFortune({
     userId: profile.userId,
     birthDate: profile.birthDate,
+    birthTime: profile.birthTime ?? undefined,
+    calendarType: profile.calendarType as "solar" | "lunar" | "unknown",
     sajuData: profile.sajuData,
     date: today,
   });
 
+  const birthTimeLabel = profile.birthTime ?? "미상";
+  const calendarLabel = calendarTypeLabel(profile.calendarType);
+
   return (
     <main className={styles.container}>
       <section className={styles.paper}>
-        <div className={styles.headerRow}>
-          <div>
+        <header className={styles.hero}>
+          <div className={styles.heroBackdrop} aria-hidden />
+          <div className={styles.heroText}>
             <p className={styles.label}>운세도령 상세 풀이</p>
             <h1 className={styles.title}>{profile.name ? `${profile.name} 님의 금일 점괘` : "금일 점괘"}</h1>
             <p className={styles.date}>{formatKoreanDate(today)}</p>
+            <p className={styles.birthMeta}>
+              출생 {formatBirthDate(profile.birthDate)} · {birthTimeLabel} · {calendarLabel}
+            </p>
           </div>
-          <div className={styles.mascot} aria-hidden>
-            <div className={styles.mascotHat} />
-            <div className={styles.mascotFace} />
-          </div>
-        </div>
 
-        <div className={styles.scoreBox}>
+          <div className={styles.heroVisual}>
+            <Image src="/logo-Photoroom.png" alt="운세도령" width={108} height={108} className={styles.logo} priority />
+            <Image src="/people.png" alt="운세도령 일러스트" width={360} height={360} className={styles.people} priority />
+          </div>
+        </header>
+
+        <section className={styles.scoreBox}>
+          <Image src="/card.png" alt="" width={220} height={220} className={styles.cardSeal} aria-hidden />
           <p className={styles.scoreLabel}>오늘의 운세 점수</p>
           <p className={styles.scoreValue}>{fortune.score}</p>
           <p className={styles.scoreGrade}>{fortune.grade}</p>
-        </div>
+        </section>
 
         <section className={styles.section}>
           <h2>도령의 한마디</h2>

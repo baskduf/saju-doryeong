@@ -41,6 +41,8 @@ type KakaoProfileLike = {
   userId: string;
   name: string | null;
   birthDate: Date;
+  birthTime: string | null;
+  calendarType: string;
   sajuData: unknown;
 };
 
@@ -261,6 +263,8 @@ function createFortuneCard(profile: KakaoProfileLike, notice?: string): KakaoBas
   const fortune = generateDailyFortune({
     userId: profile.userId,
     birthDate: profile.birthDate,
+    birthTime: profile.birthTime ?? undefined,
+    calendarType: profile.calendarType as "solar" | "lunar" | "unknown",
     sajuData: profile.sajuData,
   });
 

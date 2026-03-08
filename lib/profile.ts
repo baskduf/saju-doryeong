@@ -1,7 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
-
-export type CalendarType = "solar" | "lunar" | "unknown";
+import { calculateTraditionalSajuChart, type CalendarType } from "./saju";
 
 export const PROFILE_SELECT = {
   userId: true,
@@ -58,14 +57,6 @@ export function hasDatabaseUrl(): boolean {
   return Boolean(process.env.DATABASE_URL || process.env.POSTGRES_PRISMA_URL);
 }
 
-function hashString(input: string): number {
-  let hash = 0;
-  for (let i = 0; i < input.length; i += 1) {
-    hash = (hash * 31 + input.charCodeAt(i)) % 2147483647;
-  }
-  return hash;
-}
-
 function toIsoDateString(date: Date): string {
   const year = date.getUTCFullYear();
   const month = String(date.getUTCMonth() + 1).padStart(2, "0");
@@ -80,37 +71,47 @@ function parseBirthDate(value: unknown): { ok: true; date: Date } | { ok: false;
   }
 
   const raw = text.normalize("NFKC");
+  const isValidYmd = (year: number, month: number, day: number): Date | undefined => {
+    const date = new Date(Date.UTC(year, month - 1, day));
+    const valid =
+      date.getUTCFullYear() === year && date.getUTCMonth() + 1 === month && date.getUTCDate() === day;
+    return valid ? date : undefined;
+  };
+
   const parts = raw.match(/\d+/g) ?? [];
-
-  let year: number;
-  let month: number;
-  let day: number;
-
-  const [first, second, third] = parts;
-  if (first && second && third && first.length === 4) {
-    year = Number(first);
-    month = Number(second);
-    day = Number(third);
-  } else {
-    const digits = raw.replace(/[^\d]/g, "");
-    if (digits.length !== 8) {
-      return { ok: false, message: "birthDate 형식이 올바르지 않습니다. 예: 1995-10-21" };
+  for (let i = 0; i + 2 < parts.length; i += 1) {
+    const y = parts[i];
+    const m = parts[i + 1];
+    const d = parts[i + 2];
+    if (y.length === 4 && m.length <= 2 && d.length <= 2) {
+      const found = isValidYmd(Number(y), Number(m), Number(d));
+      if (found) {
+        return { ok: true, date: found };
+      }
     }
-
-    year = Number(digits.slice(0, 4));
-    month = Number(digits.slice(4, 6));
-    day = Number(digits.slice(6, 8));
   }
 
-  const date = new Date(Date.UTC(year, month - 1, day));
-
-  const isValid =
-    date.getUTCFullYear() === year && date.getUTCMonth() + 1 === month && date.getUTCDate() === day;
-  if (!isValid) {
-    return { ok: false, message: "birthDate 날짜 값이 유효하지 않습니다." };
+  const digits = raw.replace(/[^\d]/g, "");
+  if (digits.length === 8) {
+    const found = isValidYmd(Number(digits.slice(0, 4)), Number(digits.slice(4, 6)), Number(digits.slice(6, 8)));
+    if (found) {
+      return { ok: true, date: found };
+    }
+  } else if (digits.length > 8) {
+    for (let i = 0; i + 8 <= digits.length; i += 1) {
+      const chunk = digits.slice(i, i + 8);
+      const year = Number(chunk.slice(0, 4));
+      const month = Number(chunk.slice(4, 6));
+      const day = Number(chunk.slice(6, 8));
+      if (year < 1000 || year > 2999) continue;
+      const found = isValidYmd(year, month, day);
+      if (found) {
+        return { ok: true, date: found };
+      }
+    }
   }
 
-  return { ok: true, date };
+  return { ok: false, message: "birthDate 형식이 올바르지 않습니다. 예: 1995-10-21" };
 }
 
 function parseBirthTime(value: unknown): { ok: true; birthTime?: string } | { ok: false; message: string } {
@@ -181,50 +182,33 @@ function parseCalendarType(value: unknown): { ok: true; calendarType: CalendarTy
   return { ok: false, message: "calendarType은 양력/음력/모른다(또는 solar/lunar/unknown)만 허용됩니다." };
 }
 
-function normalizeToPercent(values: number[]): number[] {
-  const total = values.reduce((sum, value) => sum + value, 0);
-  if (total <= 0) {
-    return [20, 20, 20, 20, 20];
-  }
-
-  const scaled = values.map((value) => (value / total) * 100);
-  const floored = scaled.map((value) => Math.floor(value));
-  let remainder = 100 - floored.reduce((sum, value) => sum + value, 0);
-
-  const byRemainder = scaled
-    .map((value, index) => ({ index, rem: value - floored[index] }))
-    .sort((a, b) => b.rem - a.rem);
-
-  for (let i = 0; i < byRemainder.length && remainder > 0; i += 1) {
-    floored[byRemainder[i].index] += 1;
-    remainder -= 1;
-  }
-
-  return floored;
-}
-
 export function buildInitialSajuData(params: {
   userId: string;
   birthDate: Date;
   birthTime?: string;
   calendarType: CalendarType;
 }): Prisma.InputJsonValue {
-  const seedBase = `${params.userId}:${toIsoDateString(params.birthDate)}:${params.birthTime ?? "unknown"}:${params.calendarType}`;
-  const rawValues = [
-    (hashString(`${seedBase}:wood`) % 41) + 10,
-    (hashString(`${seedBase}:fire`) % 41) + 10,
-    (hashString(`${seedBase}:earth`) % 41) + 10,
-    (hashString(`${seedBase}:metal`) % 41) + 10,
-    (hashString(`${seedBase}:water`) % 41) + 10,
-  ];
-  const [wood, fire, earth, metal, water] = normalizeToPercent(rawValues);
+  const chart = calculateTraditionalSajuChart({
+    birthDate: params.birthDate,
+    birthTime: params.birthTime,
+    calendarType: params.calendarType,
+  });
 
   return {
-    source: "kakao-onboarding-v1",
+    source: chart.source,
+    userId: params.userId,
     birthDate: toIsoDateString(params.birthDate),
     birthTime: params.birthTime ?? null,
     calendarType: params.calendarType,
-    fiveElements: { wood, fire, earth, metal, water },
+    resolvedCalendarType: chart.calendarTypeResolved,
+    solarDateTime: chart.solarDateTime,
+    lunarDate: chart.lunarDate,
+    lunarDateKorean: chart.lunarDateKorean,
+    usedNoonFallback: chart.usedNoonFallback,
+    pillars: chart.pillars,
+    dayMaster: chart.dayMaster,
+    auxiliary: chart.auxiliary,
+    fiveElements: chart.fiveElements,
   };
 }
 

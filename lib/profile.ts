@@ -18,7 +18,7 @@ export type SajuProfileRecord = Prisma.SajuProfileGetPayload<{ select: typeof PR
 
 export type UpsertProfileInput = {
   userId: string;
-  name?: string;
+  name: string;
   birthDate: Date;
   birthTime?: string;
   calendarType: CalendarType;
@@ -235,6 +235,11 @@ export function parseRegistrationFields(input: {
   birthTime?: unknown;
   calendarType?: unknown;
 }): { ok: true; data: Omit<UpsertProfileInput, "userId" | "sajuData"> } | { ok: false; message: string } {
+  const parsedName = coerceToText(input.name);
+  if (!parsedName) {
+    return { ok: false, message: "name(이름)은 필수입니다. 예: 홍길동" };
+  }
+
   const parsedBirthDate = parseBirthDate(input.birthDate);
   if (!parsedBirthDate.ok) {
     return parsedBirthDate;
@@ -253,7 +258,7 @@ export function parseRegistrationFields(input: {
   return {
     ok: true,
     data: {
-      name: isNonEmptyString(input.name) ? input.name.trim() : undefined,
+      name: parsedName,
       birthDate: parsedBirthDate.date,
       birthTime: parsedBirthTime.birthTime,
       calendarType: parsedCalendarType.calendarType,

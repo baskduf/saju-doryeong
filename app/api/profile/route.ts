@@ -4,7 +4,7 @@ import { findProfileByUserId, hasDatabaseUrl, isNonEmptyString, parseRegistratio
 
 type ProfilePayload = {
   userId: string;
-  name?: string;
+  name: string;
   birthDate: Date;
   birthTime?: string;
   calendarType: "solar" | "lunar";

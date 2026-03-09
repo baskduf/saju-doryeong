@@ -9,6 +9,24 @@ type PageProps = {
   params: { id: string };
 };
 
+const SAMPLE_PROFILE = {
+  userId: "sample-user",
+  name: "홍길동",
+  birthDate: new Date(Date.UTC(1995, 9, 21)),
+  birthTime: "14:30",
+  calendarType: "solar" as const,
+  sajuData: {
+    source: "local-sample",
+    fiveElements: {
+      wood: 28,
+      fire: 22,
+      earth: 18,
+      metal: 17,
+      water: 15,
+    },
+  },
+};
+
 function formatKoreanDate(date: Date): string {
   return new Intl.DateTimeFormat("ko-KR", {
     year: "numeric",
@@ -34,17 +52,23 @@ function calendarTypeLabel(value: string): string {
 
 export default async function FortuneDetailPage({ params }: PageProps) {
   const { id } = params;
-  const profile = await prisma.sajuProfile.findUnique({
-    where: { userId: id },
-    select: {
-      userId: true,
-      name: true,
-      birthDate: true,
-      birthTime: true,
-      calendarType: true,
-      sajuData: true,
-    },
-  });
+  const storedProfile =
+    id === SAMPLE_PROFILE.userId
+      ? null
+      : await prisma.sajuProfile.findUnique({
+          where: { userId: id },
+          select: {
+            userId: true,
+            name: true,
+            birthDate: true,
+            birthTime: true,
+            calendarType: true,
+            sajuData: true,
+          },
+        });
+
+  const isSampleProfile = !storedProfile && id === SAMPLE_PROFILE.userId;
+  const profile = storedProfile ?? (isSampleProfile ? SAMPLE_PROFILE : null);
 
   if (!profile) {
     notFound();
@@ -68,12 +92,13 @@ export default async function FortuneDetailPage({ params }: PageProps) {
       <section className={styles.paper}>
         <header className={styles.hero}>
           <div className={styles.heroText}>
-            <p className={styles.label}>운세도령 상세 풀이</p>
+            <p className={styles.label}>{isSampleProfile ? "운세도령 샘플 풀이" : "운세도령 상세 풀이"}</p>
             <h1 className={styles.title}>{profile.name ? `${profile.name} 님의 금일 점괘` : "금일 점괘"}</h1>
             <p className={styles.date}>{formatKoreanDate(today)}</p>
             <p className={styles.birthMeta}>
               출생 {formatBirthDate(profile.birthDate)} · {birthTimeLabel} · {calendarLabel}
             </p>
+            {isSampleProfile ? <p className={styles.birthMeta}>DB 없이 확인할 수 있는 데모 프로필입니다.</p> : null}
           </div>
           <div className={styles.heroVisual}>
             <Image src="/card.png" alt="운세 카드 일러스트" width={360} height={360} className={styles.heroCard} priority />

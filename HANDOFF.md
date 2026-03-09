@@ -120,6 +120,15 @@
 - `/.env.example`
 - `/.eslintrc.json`
 - `/README.md`
+- `/docs/windows-local-run.md`
+
+## 7-1) Windows 로컬 실행 참고
+
+- Windows 로컬 실행 이슈와 해결 방법은 `/docs/windows-local-run.md`에 정리되어 있음.
+- 핵심:
+  - PowerShell에서는 `npm ...` 대신 `cmd /c npm ...` 사용
+  - 제한 환경에서는 `npm install`, `prisma generate`, `next build`가 권한/네트워크 이슈로 막힐 수 있음
+  - `/fortune/sample-user`는 DB 없이도 확인 가능
 
 ## 8) 2026-03-08 추가 진행 내역
 

@@ -84,6 +84,35 @@ export function FortuneSections({ fortune }: Props) {
             </div>
           </section>
 
+          <section className={styles.innerSection}>
+            <h2>오늘의 키워드</h2>
+            <div className={styles.keywordChips}>
+              {fortune.keywords.map((keyword) => (
+                <span key={keyword} className={styles.keywordChip}>
+                  {keyword}
+                </span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.innerSection}>
+            <h2>영역별 흐름</h2>
+            <div className={styles.categoryCards}>
+              {fortune.categoryScores.map((category) => (
+                <article key={category.key} className={styles.categoryCard}>
+                  <div className={styles.categoryCardTop}>
+                    <h3>{category.label}</h3>
+                    <strong>{category.score}</strong>
+                  </div>
+                  <div className={styles.categoryMeter}>
+                    <span className={styles.categoryMeterFill} style={{ width: `${category.score}%` }} />
+                  </div>
+                  <p>{category.summary}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+
           <section className={`${styles.innerSection} ${styles.fortuneCard}`}>
             <div className={styles.fortuneCardContent}>
               <h2>오늘의 추천 행동</h2>
@@ -101,6 +130,52 @@ export function FortuneSections({ fortune }: Props) {
                 height={180}
                 className={styles.fortuneCharacter}
               />
+            </div>
+          </section>
+
+          <section className={`${styles.innerSection} ${styles.fortuneCard}`}>
+            <div className={styles.fortuneCardContent}>
+              <h2>오늘 조심할 것</h2>
+              <ul className={styles.cautionList}>
+                {fortune.avoidToday.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+            <div className={`${styles.fortuneCharacterOverlay} ${styles.fortuneWarningOverlay}`}>
+              <Image
+                src="/character_warning.png"
+                alt="주의하는 도령 캐릭터"
+                width={180}
+                height={180}
+                className={`${styles.fortuneCharacter} ${styles.fortuneCharacterWarningImage}`}
+              />
+            </div>
+          </section>
+
+          <section className={styles.innerSection}>
+            <h2>행운 포인트</h2>
+            <div className={styles.luckyGrid}>
+              <article className={styles.luckyCard}>
+                <span className={styles.luckyLabel}>행운 색</span>
+                <strong>{fortune.luckyHints.color}</strong>
+              </article>
+              <article className={styles.luckyCard}>
+                <span className={styles.luckyLabel}>방향</span>
+                <strong>{fortune.luckyHints.direction}</strong>
+              </article>
+              <article className={styles.luckyCard}>
+                <span className={styles.luckyLabel}>장소</span>
+                <strong>{fortune.luckyHints.place}</strong>
+              </article>
+              <article className={styles.luckyCard}>
+                <span className={styles.luckyLabel}>시간</span>
+                <strong>{fortune.luckyHints.timing}</strong>
+              </article>
+              <article className={`${styles.luckyCard} ${styles.luckyCardWide}`}>
+                <span className={styles.luckyLabel}>숫자</span>
+                <strong>{fortune.luckyHints.number}</strong>
+              </article>
             </div>
           </section>
         </div>

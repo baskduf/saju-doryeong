@@ -72,6 +72,29 @@ const DEFAULT_QUICK_REPLIES: KakaoQuickReply[] = [
   },
 ];
 
+const QUESTION_EXAMPLE_QUICK_REPLIES: KakaoQuickReply[] = [
+  {
+    label: "연애운 질문",
+    action: "message",
+    messageText: "오늘 연애운 어때?",
+  },
+  {
+    label: "재물운 질문",
+    action: "message",
+    messageText: "오늘 돈 쓰는 거 괜찮아?",
+  },
+  {
+    label: "직장운 질문",
+    action: "message",
+    messageText: "오늘 일은 어떻게 풀릴까?",
+  },
+  {
+    label: "건강운 질문",
+    action: "message",
+    messageText: "오늘 컨디션 관리는 어떻게 할까?",
+  },
+];
+
 function createDefaultQuickReplies(): KakaoQuickReply[] {
   return DEFAULT_QUICK_REPLIES.map((reply) => ({ ...reply }));
 }
@@ -88,6 +111,10 @@ function mergeQuickReplies(extraQuickReplies?: KakaoQuickReply[]): KakaoQuickRep
     seen.add(key);
     return true;
   });
+}
+
+function createQuestionQuickReplies(): KakaoQuickReply[] {
+  return QUESTION_EXAMPLE_QUICK_REPLIES.map((reply) => ({ ...reply }));
 }
 
 function createBasicCard(params: {
@@ -378,6 +405,7 @@ async function createQuestionAnswerCard(profile: KakaoProfileLike, question: str
     title: answer.title,
     description: answer.description,
     buttons: createFortuneButtons(detailUrl),
+    quickReplies: createQuestionQuickReplies(),
   });
 }
 
@@ -394,6 +422,7 @@ function createQuestionGuideCard(hasProfile: boolean): KakaoBasicCardResponse {
           "운세 질문 전에 먼저 사주 정보를 등록해 주시오.",
           '하단의 "정보 재등록"을 누르면 다시 등록을 진행할 수 있습니다.',
         ].join("\n"),
+    quickReplies: createQuestionQuickReplies(),
   });
 }
 

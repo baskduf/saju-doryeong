@@ -129,6 +129,7 @@ export function FortuneSections({ fortune }: Props) {
                 width={180}
                 height={180}
                 className={styles.fortuneCharacter}
+                priority
               />
             </div>
           </section>
@@ -149,6 +150,7 @@ export function FortuneSections({ fortune }: Props) {
                 width={180}
                 height={180}
                 className={`${styles.fortuneCharacter} ${styles.fortuneCharacterWarningImage}`}
+                priority
               />
             </div>
           </section>

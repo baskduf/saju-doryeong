@@ -127,10 +127,63 @@
   min-width: 0;
 }
 
+.fieldset > .label {
+  display: block;
+  padding-bottom: 6px;
+}
+
 .label {
   color: #4a3119;
   font-size: 0.96rem;
   font-weight: 700;
+}
+
+.inlineGroup {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.splitInput,
+.splitInputYear {
+  min-width: 0;
+  min-height: 52px;
+  padding: 0 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(110, 77, 33, 0.16);
+  background: rgba(255, 255, 255, 0.86);
+  color: #2e1d10;
+  font-size: 1rem;
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.splitInputYear {
+  width: 40%;
+  max-width: 128px;
+}
+
+.splitInput {
+  flex: 1 1 0;
+  max-width: 96px;
+}
+
+.splitInput:focus,
+.splitInputYear:focus {
+  border-color: rgba(138, 92, 30, 0.56);
+  box-shadow: 0 0 0 4px rgba(169, 118, 41, 0.12);
+}
+
+.inlineDivider {
+  color: #7a5425;
+  font-size: 1.1rem;
+  font-weight: 800;
+  line-height: 1;
 }
 
 .input {

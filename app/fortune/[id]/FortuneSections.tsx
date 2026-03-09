@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import type { DailyFortune } from "../../../lib/fortune";
 import { FiveElementsChart } from "./FiveElementsChart";
 import styles from "./page.module.css";
@@ -18,6 +18,50 @@ type ReadingGuideProps = {
   intro: string;
   tips: string[];
 };
+
+const EMPHASIS_TERMS = [
+  "속도 조절",
+  "지출 점검",
+  "무리 금지",
+  "회복 집중",
+  "유연 대응",
+  "보수 운용",
+  "안정 운영",
+  "주도권 확보",
+  "수익 흐름 우세",
+  "호감 상승",
+  "회복력 상승",
+  "휴식 우선",
+  "거리 조절",
+  "감정 절제",
+  "지갑 단속",
+  "정리",
+  "기회",
+  "관계",
+  "재물",
+  "연애",
+  "건강",
+  "일과",
+  "회복",
+  "집중",
+  "휴식",
+  "지출",
+  "금전",
+  "대화",
+  "약속",
+  "충돌",
+  "컨디션",
+  "균형",
+  "변화",
+  "안정",
+  "성과",
+];
+
+const EMPHASIS_TERM_SET = new Set(EMPHASIS_TERMS);
+const EMPHASIS_PATTERN = new RegExp(
+  `(${EMPHASIS_TERMS.map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`,
+  "g",
+);
 
 function strengthLevelLabel(value: "strong" | "balanced" | "weak"): string {
   if (value === "strong") return "신강";
@@ -41,12 +85,57 @@ function resolvedCalendarLabel(value: "solar" | "lunar"): string {
   return value === "solar" ? "양력 기준" : "음력 기준";
 }
 
+function renderHighlightedText(text: string): ReactNode {
+  const parts = text.split(EMPHASIS_PATTERN).filter(Boolean);
+
+  return parts.map((part, index) =>
+    EMPHASIS_TERM_SET.has(part) ? (
+      <strong key={`${part}-${index}`} className={styles.inlineHighlight}>
+        {part}
+      </strong>
+    ) : (
+      <Fragment key={`${part}-${index}`}>{part}</Fragment>
+    ),
+  );
+}
+
+function categoryToneLabel(
+  key: DailyFortune["categoryScores"][number]["key"],
+  score: number,
+): string {
+  if (score >= 85) {
+    if (key === "work") return "주도권 확보";
+    if (key === "money") return "수익 흐름 우세";
+    if (key === "relationship") return "호감 상승";
+    return "회복력 상승";
+  }
+
+  if (score >= 70) {
+    if (key === "work") return "안정 운영";
+    if (key === "money") return "보수 운용";
+    if (key === "relationship") return "유연 대응";
+    return "리듬 회복";
+  }
+
+  if (score >= 55) {
+    if (key === "work") return "속도 조절";
+    if (key === "money") return "지출 점검";
+    if (key === "relationship") return "거리 조절";
+    return "휴식 우선";
+  }
+
+  if (key === "work") return "무리 금지";
+  if (key === "money") return "지갑 단속";
+  if (key === "relationship") return "감정 절제";
+  return "회복 집중";
+}
+
 function ReadingGuide({ summary, intro, tips }: ReadingGuideProps) {
   return (
     <div className={styles.readingGuide}>
-      <p className={styles.readingGuideIntro}>{intro}</p>
       <details className={styles.readingGuideDetails}>
         <summary>{summary}</summary>
+        <p className={styles.readingGuideIntro}>{intro}</p>
         <ul className={styles.readingGuideList}>
           {tips.map((tip) => (
             <li key={tip}>{tip}</li>
@@ -89,10 +178,10 @@ export function FortuneSections({ fortune }: Props) {
           <section className={`${styles.innerSection} ${styles.fortuneCard}`}>
             <div className={styles.fortuneCardContent}>
               <h2>도령의 한마디</h2>
-              <p>{fortune.headline}</p>
-              <p>{fortune.detail}</p>
-              <p>{fortune.summary}</p>
-              <p>{fortune.caution}</p>
+              <p>{renderHighlightedText(fortune.headline)}</p>
+              <p>{renderHighlightedText(fortune.detail)}</p>
+              <p>{renderHighlightedText(fortune.summary)}</p>
+              <p>{renderHighlightedText(fortune.caution)}</p>
             </div>
             <div className={`${styles.fortuneCharacterOverlay} ${styles.fortuneCharacterPointer}`}>
               <Image
@@ -123,13 +212,15 @@ export function FortuneSections({ fortune }: Props) {
               {fortune.categoryScores.map((category) => (
                 <article key={category.key} className={styles.categoryCard}>
                   <div className={styles.categoryCardTop}>
-                    <h3>{category.label}</h3>
+                    <h3>{renderHighlightedText(category.label)}</h3>
                     <strong>{category.score}</strong>
                   </div>
                   <div className={styles.categoryMeter}>
                     <span className={styles.categoryMeterFill} style={{ width: `${category.score}%` }} />
                   </div>
-                  <p>{category.summary}</p>
+                  <span className={styles.categoryTone}>
+                    {renderHighlightedText(categoryToneLabel(category.key, category.score))}
+                  </span>
                 </article>
               ))}
             </div>
@@ -138,11 +229,16 @@ export function FortuneSections({ fortune }: Props) {
           <section className={`${styles.innerSection} ${styles.fortuneCard}`}>
             <div className={styles.fortuneCardContent}>
               <h2>오늘의 추천 행동</h2>
-              <ul className={styles.actions}>
-                {fortune.recommendedActions.map((action) => (
-                  <li key={action}>{action}</li>
+              <ol className={styles.numberedList}>
+                {fortune.recommendedActions.map((action, index) => (
+                  <li key={action} className={styles.numberedItem}>
+                    <span className={styles.numberBadge} aria-hidden="true">
+                      {index + 1}
+                    </span>
+                    <span className={styles.numberedText}>{renderHighlightedText(action)}</span>
+                  </li>
                 ))}
-              </ul>
+              </ol>
             </div>
             <div className={`${styles.fortuneCharacterOverlay} ${styles.fortuneCharacterConcern}`}>
               <Image
@@ -159,11 +255,16 @@ export function FortuneSections({ fortune }: Props) {
           <section className={`${styles.innerSection} ${styles.fortuneCard}`}>
             <div className={styles.fortuneCardContent}>
               <h2>오늘 조심할 것</h2>
-              <ul className={styles.cautionList}>
-                {fortune.avoidToday.map((item) => (
-                  <li key={item}>{item}</li>
+              <ol className={styles.numberedList}>
+                {fortune.avoidToday.map((item, index) => (
+                  <li key={item} className={styles.numberedItem}>
+                    <span className={styles.numberBadge} aria-hidden="true">
+                      {index + 1}
+                    </span>
+                    <span className={styles.numberedText}>{renderHighlightedText(item)}</span>
+                  </li>
                 ))}
-              </ul>
+              </ol>
             </div>
             <div className={`${styles.fortuneCharacterOverlay} ${styles.fortuneWarningOverlay}`}>
               <Image
@@ -182,23 +283,23 @@ export function FortuneSections({ fortune }: Props) {
             <div className={styles.luckyGrid}>
               <article className={styles.luckyCard}>
                 <span className={styles.luckyLabel}>행운 색</span>
-                <strong>{fortune.luckyHints.color}</strong>
+                <span className={styles.luckyValue}>{fortune.luckyHints.color}</span>
               </article>
               <article className={styles.luckyCard}>
                 <span className={styles.luckyLabel}>방향</span>
-                <strong>{fortune.luckyHints.direction}</strong>
+                <span className={styles.luckyValue}>{fortune.luckyHints.direction}</span>
               </article>
               <article className={styles.luckyCard}>
                 <span className={styles.luckyLabel}>장소</span>
-                <strong>{fortune.luckyHints.place}</strong>
+                <span className={styles.luckyValue}>{fortune.luckyHints.place}</span>
               </article>
               <article className={styles.luckyCard}>
                 <span className={styles.luckyLabel}>시간</span>
-                <strong>{fortune.luckyHints.timing}</strong>
+                <span className={styles.luckyValue}>{fortune.luckyHints.timing}</span>
               </article>
               <article className={`${styles.luckyCard} ${styles.luckyCardWide}`}>
                 <span className={styles.luckyLabel}>숫자</span>
-                <strong>{fortune.luckyHints.number}</strong>
+                <span className={styles.luckyValue}>{fortune.luckyHints.number}</span>
               </article>
             </div>
           </section>
@@ -254,6 +355,46 @@ export function FortuneSections({ fortune }: Props) {
                     <span className={styles.birthMeta}>음력 {fortune.manse.lunarDateKorean}</span>
                     <span className={styles.birthMeta}>{resolvedCalendarLabel(fortune.manse.calendarTypeResolved)}</span>
                     {fortune.manse.usedNoonFallback ? <span className={styles.birthMeta}>출생시 미상으로 정오 기준</span> : null}
+                  </div>
+
+                  <div className={styles.manseMobileCards}>
+                    {fortune.manse.pillars.map((pillar) => (
+                      <article key={`mobile-${pillar.key}`} className={styles.manseCard}>
+                        <div className={styles.manseCardHeader}>
+                          <span>{pillar.label}</span>
+                          <strong>{pillar.ganji}</strong>
+                        </div>
+                        <div className={styles.manseCardBody}>
+                          <div className={styles.manseCardRow}>
+                            <span className={styles.manseCardLabel}>천간</span>
+                            <div className={styles.manseCardValue}>
+                              <strong>{pillar.stem}</strong>
+                              <span>{pillar.stemKorean}</span>
+                            </div>
+                          </div>
+                          <div className={styles.manseCardRow}>
+                            <span className={styles.manseCardLabel}>지지</span>
+                            <div className={styles.manseCardValue}>
+                              <strong>{pillar.branch}</strong>
+                              <span>{pillar.branchKorean}</span>
+                            </div>
+                          </div>
+                          <div className={styles.manseCardRow}>
+                            <span className={styles.manseCardLabel}>지장간</span>
+                            <div className={styles.manseCardValue}>
+                              <span>{pillar.hiddenStems.join(" ") || "-"}</span>
+                              <span>{pillar.hiddenStemsKorean.join(", ") || "없음"}</span>
+                            </div>
+                          </div>
+                          <div className={styles.manseCardRow}>
+                            <span className={styles.manseCardLabel}>납음</span>
+                            <div className={styles.manseCardValue}>
+                              <span>{pillar.naYin ?? "-"}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </article>
+                    ))}
                   </div>
 
                   <div className={styles.manseTableWrap}>
@@ -327,7 +468,6 @@ export function FortuneSections({ fortune }: Props) {
                 <div>
                   <h2>명식 해석</h2>
                 </div>
-                <p className={styles.analysisCaption}>핵심부터 읽고, 아래에서 세부 근거를 확인할 수 있게 정리했습니다.</p>
               </div>
               <ReadingGuide
                 intro="명식은 내 사주의 균형과 작동 방식을 읽는 영역입니다. 강약, 격국 후보, 용신을 먼저 보면 흐름이 잡힙니다."
@@ -359,24 +499,16 @@ export function FortuneSections({ fortune }: Props) {
                     <span className={styles.analysisMetricMeta}>강약 점수 {fortune.analysis.strengthScore}</span>
                   </article>
                   <article className={styles.analysisMetricCard}>
-                    <p className={styles.analysisMetricLabel}>월령 중심</p>
-                    <strong className={styles.analysisMetricValue}>{fortune.analysis.dominantTenGod}</strong>
-                    <span className={styles.analysisMetricMeta}>통근 {fortune.analysis.rootCount}개</span>
-                  </article>
-                  <article className={styles.analysisMetricCard}>
-                    <p className={styles.analysisMetricLabel}>오늘 일진</p>
-                    <strong className={styles.analysisMetricValue}>{fortune.analysis.todayGanji}</strong>
-                    <span className={styles.analysisMetricMeta}>{fortune.analysis.todayRelation}</span>
-                  </article>
-                  <article className={styles.analysisMetricCard}>
                     <p className={styles.analysisMetricLabel}>용신</p>
                     <strong className={styles.analysisMetricValue}>{elementLabel(fortune.analysis.yongShin)}</strong>
-                    <span className={styles.analysisMetricMeta}>보완 중심 오행</span>
+                    <span className={styles.analysisMetricMeta}>{fortune.analysis.todayRelation}</span>
                   </article>
                 </div>
               </div>
 
-              <div className={styles.analysisGrid}>
+              <details className={styles.analysisExpand}>
+                <summary>세부 근거 더 보기</summary>
+                <div className={styles.analysisGrid}>
                 <article className={styles.analysisCard}>
                   <p className={styles.analysisEyebrow}>일간 세기</p>
                   <h3>{strengthLevelLabel(fortune.analysis.strengthLevel)}</h3>
@@ -414,9 +546,9 @@ export function FortuneSections({ fortune }: Props) {
                     </ul>
                   ) : null}
                 </article>
-              </div>
+                </div>
 
-              <div className={styles.analysisBoard}>
+                <div className={styles.analysisBoard}>
                 <article className={styles.analysisPanel}>
                   <div className={styles.analysisPanelSection}>
                     <h3 className={styles.subheading}>길한 오행</h3>
@@ -442,52 +574,54 @@ export function FortuneSections({ fortune }: Props) {
 
                   <div className={styles.analysisPanelSection}>
                     <h3 className={styles.subheading}>용신과 희기</h3>
-                    <div className={styles.directiveStack}>
-                      <div className={styles.directiveRow}>
-                        <p className={styles.analysisMeta}>용신</p>
-                        <div className={styles.chips}>
-                          <span className={styles.goodChip}>{elementLabel(fortune.analysis.yongShin)}</span>
+                    <details className={styles.analysisDetails}>
+                      <summary>용신·희신·기신·구신 자세히 보기</summary>
+                      <div className={styles.directiveStack}>
+                        <div className={styles.directiveRow}>
+                          <p className={styles.analysisMeta}>용신</p>
+                          <div className={styles.chips}>
+                            <span className={styles.goodChip}>{elementLabel(fortune.analysis.yongShin)}</span>
+                          </div>
                         </div>
-                      </div>
 
-                      <div className={styles.directiveRow}>
-                        <p className={styles.analysisMeta}>희신</p>
-                        <div className={styles.chips}>
-                          {fortune.analysis.heeShin.length > 0 ? (
-                            fortune.analysis.heeShin.map((item) => (
-                              <span key={`hee-${item}`} className={styles.goodChip}>
-                                {elementLabel(item)}
-                              </span>
-                            ))
-                          ) : (
-                            <span className={styles.analysisEmpty}>보조 오행은 상황 따라 달라집니다.</span>
-                          )}
+                        <div className={styles.directiveRow}>
+                          <p className={styles.analysisMeta}>희신</p>
+                          <div className={styles.chips}>
+                            {fortune.analysis.heeShin.length > 0 ? (
+                              fortune.analysis.heeShin.map((item) => (
+                                <span key={`hee-${item}`} className={styles.goodChip}>
+                                  {elementLabel(item)}
+                                </span>
+                              ))
+                            ) : (
+                              <span className={styles.analysisEmpty}>보조 오행은 상황 따라 달라집니다.</span>
+                            )}
+                          </div>
                         </div>
-                      </div>
 
-                      <div className={styles.directiveRow}>
-                        <p className={styles.analysisMeta}>기신</p>
-                        <div className={styles.chips}>
-                          <span className={styles.badChip}>{elementLabel(fortune.analysis.giShin)}</span>
+                        <div className={styles.directiveRow}>
+                          <p className={styles.analysisMeta}>기신</p>
+                          <div className={styles.chips}>
+                            <span className={styles.badChip}>{elementLabel(fortune.analysis.giShin)}</span>
+                          </div>
                         </div>
-                      </div>
 
-                      <div className={styles.directiveRow}>
-                        <p className={styles.analysisMeta}>구신</p>
-                        <div className={styles.chips}>
-                          {fortune.analysis.guShin.length > 0 ? (
-                            fortune.analysis.guShin.map((item) => (
-                              <span key={`gu-${item}`} className={styles.badChip}>
-                                {elementLabel(item)}
-                              </span>
-                            ))
-                          ) : (
-                            <span className={styles.analysisEmpty}>구신은 유동적이라 보수적으로 비워 두었습니다.</span>
-                          )}
+                        <div className={styles.directiveRow}>
+                          <p className={styles.analysisMeta}>구신</p>
+                          <div className={styles.chips}>
+                            {fortune.analysis.guShin.length > 0 ? (
+                              fortune.analysis.guShin.map((item) => (
+                                <span key={`gu-${item}`} className={styles.badChip}>
+                                  {elementLabel(item)}
+                                </span>
+                              ))
+                            ) : (
+                              <span className={styles.analysisEmpty}>구신은 유동적이라 보수적으로 비워 두었습니다.</span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <p>{fortune.analysis.balanceSummary}</p>
+                    </details>
                   </div>
                 </article>
 
@@ -519,7 +653,8 @@ export function FortuneSections({ fortune }: Props) {
                     )}
                   </div>
                 </article>
-              </div>
+                </div>
+              </details>
             </section>
           ) : null}
 

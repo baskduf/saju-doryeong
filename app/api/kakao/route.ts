@@ -341,7 +341,6 @@ function createRegistrationGuideCard(errorMessage?: string, debugLines?: string[
     : [
         "인연의 바람을 타고 운세도령의 처소에 잘 당도하였구려.",
         "자네의 명운(命運)을 서책에 기록하려 하리다.",
-        "예: 홍길동 / 1995-10-21 / 14:30 / 양력(또는 모른다)",
       ];
 
   return createBasicCard({

@@ -15,11 +15,18 @@ export default function RegisterForm({ initialUserId, fromKakao }: RegisterFormP
   const router = useRouter();
   const [userId] = useState(initialUserId);
   const [name, setName] = useState("");
-  const [birthDate, setBirthDate] = useState("");
-  const [birthTime, setBirthTime] = useState("");
+  const [birthYear, setBirthYear] = useState("");
+  const [birthMonth, setBirthMonth] = useState("");
+  const [birthDay, setBirthDay] = useState("");
+  const [birthHour, setBirthHour] = useState("");
+  const [birthMinute, setBirthMinute] = useState("");
   const [calendarType, setCalendarType] = useState<CalendarType>("solar");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function keepDigits(value: string, length: number): string {
+    return value.replace(/\D/g, "").slice(0, length);
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -28,6 +35,19 @@ export default function RegisterForm({ initialUserId, fromKakao }: RegisterFormP
       setError("카카오 사용자 ID가 필요합니다.");
       return;
     }
+
+    if (birthYear.length !== 4 || birthMonth.length === 0 || birthDay.length === 0) {
+      setError("생년월일을 연, 월, 일까지 모두 입력해 주세요.");
+      return;
+    }
+
+    if ((birthHour && !birthMinute) || (!birthHour && birthMinute)) {
+      setError("출생시간은 시와 분을 함께 입력해 주세요.");
+      return;
+    }
+
+    const birthDate = `${birthYear}-${birthMonth.padStart(2, "0")}-${birthDay.padStart(2, "0")}`;
+    const birthTime = birthHour || birthMinute ? `${birthHour.padStart(2, "0")}:${birthMinute.padStart(2, "0")}` : undefined;
 
     setSubmitting(true);
     setError(null);
@@ -42,7 +62,7 @@ export default function RegisterForm({ initialUserId, fromKakao }: RegisterFormP
           userId: userId.trim(),
           name,
           birthDate,
-          birthTime: birthTime || undefined,
+          birthTime,
           calendarType,
         }),
       });
@@ -86,23 +106,60 @@ export default function RegisterForm({ initialUserId, fromKakao }: RegisterFormP
 
       <label className={styles.field}>
         <span className={styles.label}>생년월일</span>
-        <input
-          className={styles.input}
-          type="date"
-          value={birthDate}
-          onChange={(event) => setBirthDate(event.target.value)}
-          required
-        />
+        <div className={styles.inlineGroup}>
+          <input
+            className={styles.splitInputYear}
+            type="text"
+            inputMode="numeric"
+            placeholder="YYYY"
+            value={birthYear}
+            onChange={(event) => setBirthYear(keepDigits(event.target.value, 4))}
+            required
+          />
+          <span className={styles.inlineDivider}>/</span>
+          <input
+            className={styles.splitInput}
+            type="text"
+            inputMode="numeric"
+            placeholder="MM"
+            value={birthMonth}
+            onChange={(event) => setBirthMonth(keepDigits(event.target.value, 2))}
+            required
+          />
+          <span className={styles.inlineDivider}>/</span>
+          <input
+            className={styles.splitInput}
+            type="text"
+            inputMode="numeric"
+            placeholder="DD"
+            value={birthDay}
+            onChange={(event) => setBirthDay(keepDigits(event.target.value, 2))}
+            required
+          />
+        </div>
       </label>
 
       <label className={styles.field}>
         <span className={styles.label}>출생시간</span>
-        <input
-          className={styles.input}
-          type="time"
-          value={birthTime}
-          onChange={(event) => setBirthTime(event.target.value)}
-        />
+        <div className={styles.inlineGroup}>
+          <input
+            className={styles.splitInput}
+            type="text"
+            inputMode="numeric"
+            placeholder="HH"
+            value={birthHour}
+            onChange={(event) => setBirthHour(keepDigits(event.target.value, 2))}
+          />
+          <span className={styles.inlineDivider}>:</span>
+          <input
+            className={styles.splitInput}
+            type="text"
+            inputMode="numeric"
+            placeholder="MM"
+            value={birthMinute}
+            onChange={(event) => setBirthMinute(keepDigits(event.target.value, 2))}
+          />
+        </div>
       </label>
 
       <fieldset className={styles.fieldset}>

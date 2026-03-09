@@ -120,11 +120,6 @@ function resolveAppBaseUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://saju-doryeong.vercel.app").replace(/\/$/, "");
 }
 
-function resolveChannelShareUrl(): string | undefined {
-  const channelUrl = process.env.KAKAO_CHANNEL_URL?.trim();
-  return channelUrl ? channelUrl.replace(/\/$/, "") : undefined;
-}
-
 function createFortuneButtons(detailUrl: string): KakaoCardButton[] {
   const buttons: KakaoCardButton[] = [
     {
@@ -132,21 +127,11 @@ function createFortuneButtons(detailUrl: string): KakaoCardButton[] {
       label: "\uC0C1\uC138 \uC6B4\uC138 \uBCF4\uB7EC\uAC00\uAE30",
       webLinkUrl: detailUrl,
     },
+    {
+      action: "share",
+      label: "\uCE5C\uAD6C\uC5D0\uAC8C \uACF5\uC720\uD558\uAE30",
+    },
   ];
-
-  const channelUrl = resolveChannelShareUrl();
-  if (channelUrl) {
-    buttons.push({
-      action: "webLink",
-      label: "\uCC44\uB110 \uBC14\uB85C\uAC00\uAE30",
-      webLinkUrl: channelUrl,
-    });
-  }
-
-  buttons.push({
-    action: "share",
-    label: "\uCE5C\uAD6C\uC5D0\uAC8C \uACF5\uC720\uD558\uAE30",
-  });
 
   return buttons;
 }

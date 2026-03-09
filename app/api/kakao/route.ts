@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { generateDailyFortune } from "../../../lib/fortune";
-import { answerFortuneQuestion, isLikelyFortuneQuestion } from "../../../lib/fortune-question";
+import { answerFortuneQuestion } from "../../../lib/fortune-question";
 import {
   buildInitialSajuData,
   findProfileByUserId,
@@ -437,6 +437,22 @@ function createQuestionGuideCard(hasProfile: boolean): KakaoBasicCardResponse {
   });
 }
 
+function createFallbackGuideCard(hasProfile: boolean): KakaoBasicCardResponse {
+  return createBasicCard({
+    title: "운세도령",
+    description: hasProfile
+      ? [
+          "무슨 뜻인지 바로 읽히지 않았소.",
+          '"운세 질문"을 누른 뒤 궁금한 내용을 한 문장으로 입력해 주시오.',
+          '예: 오늘 고백해도 될까 / 오늘 돈 써도 괜찮아',
+        ].join("\n")
+      : [
+          "먼저 사주 정보를 기록해야 하오.",
+          '"정보 재등록"을 눌러 등록 화면으로 들어가 주시오.',
+        ].join("\n"),
+  });
+}
+
 function isDatabaseConnectionError(error: unknown): boolean {
   if (error instanceof Prisma.PrismaClientInitializationError) {
     return true;
@@ -551,13 +567,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(await createQuestionAnswerCard(profile, utterance));
     }
 
-    if (
-      utterance &&
-      !registrationParams.hasAny &&
-      !isReservedUtterance(utterance) &&
-      isLikelyFortuneQuestion(utterance)
-    ) {
-      return NextResponse.json(await createQuestionAnswerCard(profile, utterance));
+    if (utterance && !registrationParams.hasAny && !isReservedUtterance(utterance)) {
+      return NextResponse.json(createFallbackGuideCard(true));
     }
 
     return NextResponse.json(await createFortuneCard(profile));

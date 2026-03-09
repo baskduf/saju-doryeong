@@ -3,12 +3,16 @@ import { Prisma } from "@prisma/client";
 import { generateDailyFortune } from "../../../lib/fortune";
 import { answerFortuneQuestion } from "../../../lib/fortune-question";
 import {
+  DAILY_QUESTION_LIMIT,
   buildInitialSajuData,
   findProfileByUserId,
+  getQuestionUsageSummary,
   hasDatabaseUrl,
   hasPendingQuestionInput,
+  incrementQuestionUsage,
   isNonEmptyString,
   parseRegistrationFields,
+  type SajuProfileRecord,
   setPendingQuestionInput,
   upsertProfile,
 } from "../../../lib/profile";
@@ -394,7 +398,7 @@ async function createFortuneCard(profile: KakaoProfileLike, notice?: string): Pr
   });
 }
 
-async function createQuestionAnswerCard(profile: KakaoProfileLike, question: string): Promise<KakaoBasicCardResponse> {
+async function createQuestionAnswerCard(profile: SajuProfileRecord, question: string): Promise<KakaoBasicCardResponse> {
   const fortune = generateDailyFortune({
     userId: profile.userId,
     birthDate: profile.birthDate,
@@ -411,29 +415,45 @@ async function createQuestionAnswerCard(profile: KakaoProfileLike, question: str
 
   const baseUrl = resolveAppBaseUrl();
   const detailUrl = `${baseUrl}/fortune/${encodeURIComponent(profile.userId)}`;
+  const usage = getQuestionUsageSummary(profile);
 
   return createBasicCard({
     title: answer.title,
-    description: answer.description,
+    description: [
+      answer.description,
+      "",
+      `오늘 운세 질문은 하루 ${DAILY_QUESTION_LIMIT}회까지 가능하오. 남은 횟수: ${usage.remaining}회`,
+    ].join("\n"),
     buttons: createFortuneButtons(detailUrl),
     quickReplies: createQuestionQuickReplies(),
   });
 }
 
-function createQuestionGuideCard(hasProfile: boolean): KakaoBasicCardResponse {
+function createQuestionGuideCard(params: { hasProfile: boolean; remaining?: number }): KakaoBasicCardResponse {
   return createBasicCard({
     title: "운세도령",
-    description: hasProfile
+    description: params.hasProfile
       ? [
           "궁금한 운세 질문을 짧게 입력해 주시오.",
           "예: 오늘 대인관계 운 어때? / 오늘 재물운 포인트는?",
           "현재는 오늘 운세 중심으로 안내합니다.",
+          `하루 질문은 ${DAILY_QUESTION_LIMIT}회까지 가능하오${typeof params.remaining === "number" ? `. 남은 횟수: ${params.remaining}회` : "."}`,
         ].join("\n")
       : [
           "운세 질문 전에 먼저 사주 정보를 등록해 주시오.",
           '하단의 "정보 재등록"을 누르면 다시 등록을 진행할 수 있습니다.',
         ].join("\n"),
     quickReplies: createQuestionQuickReplies(),
+  });
+}
+
+function createQuestionLimitCard(): KakaoBasicCardResponse {
+  return createBasicCard({
+    title: "운세도령",
+    description: [
+      `오늘 운세 질문은 하루 ${DAILY_QUESTION_LIMIT}회까지이오.`,
+      "오늘 몫은 모두 써 버렸으니, 내일 다시 물어보시오.",
+    ].join("\n"),
   });
 }
 
@@ -491,6 +511,7 @@ export async function POST(request: NextRequest) {
 
     const profile = await findProfileByUserId(userId);
     const pendingQuestionInput = hasPendingQuestionInput(profile);
+    const questionUsage = getQuestionUsageSummary(profile);
 
     if (!registrationParams.hasAny && utterance === REREGISTER_COMMAND) {
       if (profile && pendingQuestionInput) {
@@ -501,9 +522,18 @@ export async function POST(request: NextRequest) {
 
     if (!registrationParams.hasAny && utterance === QUESTION_COMMAND) {
       if (profile) {
+        if (questionUsage.isLimited) {
+          await setPendingQuestionInput(profile, false);
+          return NextResponse.json(createQuestionLimitCard());
+        }
         await setPendingQuestionInput(profile, true);
       }
-      return NextResponse.json(createQuestionGuideCard(Boolean(profile)));
+      return NextResponse.json(
+        createQuestionGuideCard({
+          hasProfile: Boolean(profile),
+          remaining: profile ? questionUsage.remaining : undefined,
+        }),
+      );
     }
 
     const shouldHandleRegistration = !profile ? registrationParams.hasAny : Boolean(registrationParams.birthDate);
@@ -563,8 +593,13 @@ export async function POST(request: NextRequest) {
       !isReservedUtterance(utterance) &&
       pendingQuestionInput
     ) {
+      if (questionUsage.isLimited) {
+        await setPendingQuestionInput(profile, false);
+        return NextResponse.json(createQuestionLimitCard());
+      }
       await setPendingQuestionInput(profile, false);
-      return NextResponse.json(await createQuestionAnswerCard(profile, utterance));
+      const updatedProfile = await incrementQuestionUsage(profile);
+      return NextResponse.json(await createQuestionAnswerCard(updatedProfile, utterance));
     }
 
     if (utterance && !registrationParams.hasAny && !isReservedUtterance(utterance)) {

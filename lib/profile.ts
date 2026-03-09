@@ -58,12 +58,41 @@ export function hasDatabaseUrl(): boolean {
 }
 
 const QUESTION_MODE_TTL_MS = 90 * 1000;
+export const DAILY_QUESTION_LIMIT = 10;
 
 function asJsonRecord(value: unknown): Record<string, unknown> | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return undefined;
   }
   return value as Record<string, unknown>;
+}
+
+function getSeoulDateKey(date: Date = new Date()): string {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
+  return formatter.format(date);
+}
+
+function getQuestionUsageMeta(profile: SajuProfileRecord | null): {
+  dateKey: string;
+  count: number;
+} {
+  const dateKey = getSeoulDateKey();
+  const root = asJsonRecord(profile?.sajuData);
+  const meta = asJsonRecord(root?.meta);
+  const storedDateKey = typeof meta?.questionUsageDate === "string" ? meta.questionUsageDate : undefined;
+  const storedCount = typeof meta?.questionUsageCount === "number" ? meta.questionUsageCount : 0;
+
+  if (storedDateKey !== dateKey || !Number.isFinite(storedCount) || storedCount < 0) {
+    return { dateKey, count: 0 };
+  }
+
+  return { dateKey, count: storedCount };
 }
 
 function buildSajuDataWithQuestionMode(
@@ -99,6 +128,21 @@ export function hasPendingQuestionInput(profile: SajuProfileRecord | null): bool
   return Number.isFinite(expiresAt) && expiresAt > Date.now();
 }
 
+export function getQuestionUsageSummary(profile: SajuProfileRecord | null): {
+  count: number;
+  remaining: number;
+  isLimited: boolean;
+} {
+  const { count } = getQuestionUsageMeta(profile);
+  const remaining = Math.max(0, DAILY_QUESTION_LIMIT - count);
+
+  return {
+    count,
+    remaining,
+    isLimited: remaining <= 0,
+  };
+}
+
 export async function setPendingQuestionInput(
   profile: SajuProfileRecord,
   enabled: boolean,
@@ -107,6 +151,27 @@ export async function setPendingQuestionInput(
     where: { userId: profile.userId },
     data: {
       sajuData: buildSajuDataWithQuestionMode(profile.sajuData, enabled),
+    },
+    select: PROFILE_SELECT,
+  });
+}
+
+export async function incrementQuestionUsage(profile: SajuProfileRecord): Promise<SajuProfileRecord> {
+  const { dateKey, count } = getQuestionUsageMeta(profile);
+  const root = asJsonRecord(profile.sajuData) ?? {};
+  const meta = asJsonRecord(root.meta) ?? {};
+
+  return prisma.sajuProfile.update({
+    where: { userId: profile.userId },
+    data: {
+      sajuData: {
+        ...root,
+        meta: {
+          ...meta,
+          questionUsageDate: dateKey,
+          questionUsageCount: Math.min(DAILY_QUESTION_LIMIT, count + 1),
+        },
+      },
     },
     select: PROFILE_SELECT,
   });

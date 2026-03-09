@@ -1,0 +1,420 @@
+"use client";
+
+import Image from "next/image";
+import { useState } from "react";
+import type { DailyFortune } from "../../../lib/fortune";
+import { FiveElementsChart } from "./FiveElementsChart";
+import styles from "./page.module.css";
+
+type Props = {
+  fortune: DailyFortune;
+};
+
+type TabKey = "fortune" | "analysis";
+type AnalysisTabKey = "manse" | "interpretation" | "graph";
+
+function strengthLevelLabel(value: "strong" | "balanced" | "weak"): string {
+  if (value === "strong") return "신강";
+  if (value === "weak") return "신약";
+  return "중화";
+}
+
+function elementLabel(value: "wood" | "fire" | "earth" | "metal" | "water"): string {
+  const labels = {
+    wood: "목",
+    fire: "화",
+    earth: "토",
+    metal: "금",
+    water: "수",
+  };
+
+  return labels[value];
+}
+
+function resolvedCalendarLabel(value: "solar" | "lunar"): string {
+  return value === "solar" ? "양력 기준" : "음력 기준";
+}
+
+export function FortuneSections({ fortune }: Props) {
+  const [activeTab, setActiveTab] = useState<TabKey>("fortune");
+  const [activeAnalysisTab, setActiveAnalysisTab] = useState<AnalysisTabKey>("manse");
+
+  return (
+    <section className={styles.section}>
+      <div className={styles.sectionTabs} role="tablist" aria-label="운세 상세 섹션">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "fortune"}
+          className={`${styles.tabButton} ${activeTab === "fortune" ? styles.tabButtonActive : ""}`.trim()}
+          onClick={() => setActiveTab("fortune")}
+        >
+          운세
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "analysis"}
+          className={`${styles.tabButton} ${activeTab === "analysis" ? styles.tabButtonActive : ""}`.trim()}
+          onClick={() => setActiveTab("analysis")}
+        >
+          분석
+        </button>
+      </div>
+
+      {activeTab === "fortune" ? (
+        <div className={styles.tabPanel}>
+          <section className={`${styles.innerSection} ${styles.fortuneCard}`}>
+            <div className={styles.fortuneCardContent}>
+              <h2>도령의 한마디</h2>
+              <p>{fortune.headline}</p>
+              <p>{fortune.detail}</p>
+              <p>{fortune.summary}</p>
+              <p>{fortune.caution}</p>
+            </div>
+            <div className={`${styles.fortuneCharacterOverlay} ${styles.fortuneCharacterPointer}`}>
+              <Image
+                src="/character_pointer.png"
+                alt="도령 포인터 캐릭터"
+                width={180}
+                height={180}
+                className={styles.fortuneCharacter}
+                priority
+              />
+            </div>
+          </section>
+
+          <section className={`${styles.innerSection} ${styles.fortuneCard}`}>
+            <div className={styles.fortuneCardContent}>
+              <h2>오늘의 추천 행동</h2>
+              <ul className={styles.actions}>
+                {fortune.recommendedActions.map((action) => (
+                  <li key={action}>{action}</li>
+                ))}
+              </ul>
+            </div>
+            <div className={`${styles.fortuneCharacterOverlay} ${styles.fortuneCharacterConcern}`}>
+              <Image
+                src="/character_concern.png"
+                alt="고민하는 도령 캐릭터"
+                width={180}
+                height={180}
+                className={styles.fortuneCharacter}
+              />
+            </div>
+          </section>
+        </div>
+      ) : (
+        <div className={styles.tabPanel}>
+          <div className={styles.analysisTabs} role="tablist" aria-label="분석 세부 섹션">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeAnalysisTab === "manse"}
+              className={`${styles.analysisTabButton} ${activeAnalysisTab === "manse" ? styles.analysisTabButtonActive : ""}`.trim()}
+              onClick={() => setActiveAnalysisTab("manse")}
+            >
+              만세력
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeAnalysisTab === "interpretation"}
+              className={`${styles.analysisTabButton} ${activeAnalysisTab === "interpretation" ? styles.analysisTabButtonActive : ""}`.trim()}
+              onClick={() => setActiveAnalysisTab("interpretation")}
+            >
+              명식
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeAnalysisTab === "graph"}
+              className={`${styles.analysisTabButton} ${activeAnalysisTab === "graph" ? styles.analysisTabButtonActive : ""}`.trim()}
+              onClick={() => setActiveAnalysisTab("graph")}
+            >
+              그래프
+            </button>
+          </div>
+
+          {activeAnalysisTab === "manse" ? (
+            <section className={styles.innerSection}>
+              <h2>만세력 표</h2>
+              {fortune.manse ? (
+                <>
+                  <div className={styles.manseMeta}>
+                    <span className={styles.birthMeta}>양력 시각 {fortune.manse.solarDateTime}</span>
+                    <span className={styles.birthMeta}>음력 {fortune.manse.lunarDateKorean}</span>
+                    <span className={styles.birthMeta}>{resolvedCalendarLabel(fortune.manse.calendarTypeResolved)}</span>
+                    {fortune.manse.usedNoonFallback ? <span className={styles.birthMeta}>출생시 미상으로 정오 기준</span> : null}
+                  </div>
+
+                  <div className={styles.manseTableWrap}>
+                    <table className={styles.manseTable}>
+                      <thead>
+                        <tr>
+                          <th>구분</th>
+                          {fortune.manse.pillars.map((pillar) => (
+                            <th key={`head-${pillar.key}`}>{pillar.label}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <th>간지</th>
+                          {fortune.manse.pillars.map((pillar) => (
+                            <td key={`ganji-${pillar.key}`}>
+                              <strong>{pillar.ganji}</strong>
+                              <span>{pillar.ganjiKorean}</span>
+                            </td>
+                          ))}
+                        </tr>
+                        <tr>
+                          <th>천간</th>
+                          {fortune.manse.pillars.map((pillar) => (
+                            <td key={`stem-${pillar.key}`}>
+                              <strong>{pillar.stem}</strong>
+                              <span>{pillar.stemKorean}</span>
+                            </td>
+                          ))}
+                        </tr>
+                        <tr>
+                          <th>지지</th>
+                          {fortune.manse.pillars.map((pillar) => (
+                            <td key={`branch-${pillar.key}`}>
+                              <strong>{pillar.branch}</strong>
+                              <span>{pillar.branchKorean}</span>
+                            </td>
+                          ))}
+                        </tr>
+                        <tr>
+                          <th>지장간</th>
+                          {fortune.manse.pillars.map((pillar) => (
+                            <td key={`hidden-${pillar.key}`}>
+                              <span>{pillar.hiddenStems.join(" ") || "-"}</span>
+                              <span>{pillar.hiddenStemsKorean.join(", ") || "없음"}</span>
+                            </td>
+                          ))}
+                        </tr>
+                        <tr>
+                          <th>납음</th>
+                          {fortune.manse.pillars.map((pillar) => (
+                            <td key={`nayin-${pillar.key}`}>
+                              <span>{pillar.naYin ?? "-"}</span>
+                            </td>
+                          ))}
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              ) : (
+                <p className={styles.analysisEmpty}>현재 프로필에는 만세력 표를 만들 수 있는 명식 정보가 부족합니다.</p>
+              )}
+            </section>
+          ) : null}
+
+          {activeAnalysisTab === "interpretation" ? (
+            <section className={styles.innerSection}>
+              <div className={styles.analysisHeader}>
+                <div>
+                  <p className={styles.analysisKicker}>명식 중심 요약</p>
+                  <h2>명식 해석</h2>
+                </div>
+                <p className={styles.analysisCaption}>핵심부터 읽고, 아래에서 세부 근거를 확인할 수 있게 정리했습니다.</p>
+              </div>
+
+              <div className={styles.analysisHero}>
+                <article className={styles.analysisSummaryCard}>
+                  <p className={styles.analysisEyebrow}>핵심 해석</p>
+                  <h3>{fortune.analysis.patternName}</h3>
+                  <p>{fortune.analysis.patternSummary}</p>
+                  <div className={styles.analysisMetaRow}>
+                    <span className={styles.analysisMetaPill}>{strengthLevelLabel(fortune.analysis.strengthLevel)}</span>
+                    <span className={styles.analysisMetaPill}>{fortune.analysis.patternRevealLabel}</span>
+                    <span className={styles.analysisMetaPill}>일진 {fortune.analysis.todayGanji}</span>
+                  </div>
+                  <p className={styles.analysisLead}>{fortune.analysis.balanceSummary}</p>
+                </article>
+
+                <div className={styles.analysisMetricGrid}>
+                  <article className={styles.analysisMetricCard}>
+                    <p className={styles.analysisMetricLabel}>일간 세기</p>
+                    <strong className={styles.analysisMetricValue}>{strengthLevelLabel(fortune.analysis.strengthLevel)}</strong>
+                    <span className={styles.analysisMetricMeta}>강약 점수 {fortune.analysis.strengthScore}</span>
+                  </article>
+                  <article className={styles.analysisMetricCard}>
+                    <p className={styles.analysisMetricLabel}>월령 중심</p>
+                    <strong className={styles.analysisMetricValue}>{fortune.analysis.dominantTenGod}</strong>
+                    <span className={styles.analysisMetricMeta}>통근 {fortune.analysis.rootCount}개</span>
+                  </article>
+                  <article className={styles.analysisMetricCard}>
+                    <p className={styles.analysisMetricLabel}>오늘 일진</p>
+                    <strong className={styles.analysisMetricValue}>{fortune.analysis.todayGanji}</strong>
+                    <span className={styles.analysisMetricMeta}>{fortune.analysis.todayRelation}</span>
+                  </article>
+                  <article className={styles.analysisMetricCard}>
+                    <p className={styles.analysisMetricLabel}>용신</p>
+                    <strong className={styles.analysisMetricValue}>{elementLabel(fortune.analysis.yongShin)}</strong>
+                    <span className={styles.analysisMetricMeta}>보완 중심 오행</span>
+                  </article>
+                </div>
+              </div>
+
+              <div className={styles.analysisGrid}>
+                <article className={styles.analysisCard}>
+                  <p className={styles.analysisEyebrow}>일간 세기</p>
+                  <h3>{strengthLevelLabel(fortune.analysis.strengthLevel)}</h3>
+                  <p>{fortune.analysis.strengthSummary}</p>
+                  <p className={styles.analysisMeta}>강약 점수 {fortune.analysis.strengthScore}</p>
+                </article>
+
+                <article className={styles.analysisCard}>
+                  <p className={styles.analysisEyebrow}>월령 작용</p>
+                  <h3>{fortune.analysis.dominantTenGod}</h3>
+                  <p>{fortune.analysis.seasonalSummary}</p>
+                  <p className={styles.analysisMeta}>통근 {fortune.analysis.rootCount}개</p>
+                </article>
+
+                <article className={styles.analysisCard}>
+                  <p className={styles.analysisEyebrow}>격국 후보</p>
+                  <h3>{fortune.analysis.patternName}</h3>
+                  <p>{fortune.analysis.patternSummary}</p>
+                  <p className={styles.analysisMeta}>
+                    {fortune.analysis.patternRevealLabel}
+                    {fortune.analysis.patternTentative ? " · 보수적 추정" : " · 투간 확인"}
+                  </p>
+                  {fortune.analysis.patternCandidates.length > 0 ? (
+                    <ul className={styles.analysisList}>
+                      {fortune.analysis.patternCandidates.map((item) => (
+                        <li key={`${item.stem}-${item.tenGod}`}>
+                          <strong>
+                            {item.stem}
+                            {item.stemKorean}
+                          </strong>{" "}
+                          · {item.tenGod} · 비중 {item.weight}
+                          {item.revealed ? " · 투간" : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </article>
+              </div>
+
+              <div className={styles.analysisBoard}>
+                <article className={styles.analysisPanel}>
+                  <div className={styles.analysisPanelSection}>
+                    <h3 className={styles.subheading}>길한 오행</h3>
+                    <div className={styles.chips}>
+                      {fortune.analysis.usefulElements.map((item) => (
+                        <span key={`useful-${item}`} className={styles.goodChip}>
+                          {elementLabel(item)}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className={styles.analysisPanelSection}>
+                    <h3 className={styles.subheading}>부담 오행</h3>
+                    <div className={styles.chips}>
+                      {fortune.analysis.unfavorableElements.map((item) => (
+                        <span key={`unfavorable-${item}`} className={styles.badChip}>
+                          {elementLabel(item)}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className={styles.analysisPanelSection}>
+                    <h3 className={styles.subheading}>용신과 희기</h3>
+                    <div className={styles.directiveStack}>
+                      <div className={styles.directiveRow}>
+                        <p className={styles.analysisMeta}>용신</p>
+                        <div className={styles.chips}>
+                          <span className={styles.goodChip}>{elementLabel(fortune.analysis.yongShin)}</span>
+                        </div>
+                      </div>
+
+                      <div className={styles.directiveRow}>
+                        <p className={styles.analysisMeta}>희신</p>
+                        <div className={styles.chips}>
+                          {fortune.analysis.heeShin.length > 0 ? (
+                            fortune.analysis.heeShin.map((item) => (
+                              <span key={`hee-${item}`} className={styles.goodChip}>
+                                {elementLabel(item)}
+                              </span>
+                            ))
+                          ) : (
+                            <span className={styles.analysisEmpty}>보조 오행은 상황 따라 달라집니다.</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className={styles.directiveRow}>
+                        <p className={styles.analysisMeta}>기신</p>
+                        <div className={styles.chips}>
+                          <span className={styles.badChip}>{elementLabel(fortune.analysis.giShin)}</span>
+                        </div>
+                      </div>
+
+                      <div className={styles.directiveRow}>
+                        <p className={styles.analysisMeta}>구신</p>
+                        <div className={styles.chips}>
+                          {fortune.analysis.guShin.length > 0 ? (
+                            fortune.analysis.guShin.map((item) => (
+                              <span key={`gu-${item}`} className={styles.badChip}>
+                                {elementLabel(item)}
+                              </span>
+                            ))
+                          ) : (
+                            <span className={styles.analysisEmpty}>구신은 유동적이라 보수적으로 비워 두었습니다.</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <p>{fortune.analysis.balanceSummary}</p>
+                  </div>
+                </article>
+
+                <article className={styles.analysisPanel}>
+                  <div className={styles.analysisPanelSection}>
+                    <h3 className={styles.subheading}>천간 십신</h3>
+                    <ul className={styles.analysisList}>
+                      {fortune.analysis.visibleTenGods.map((item) => (
+                        <li key={`${item.pillar}-${item.stem}`}>
+                          <strong>{item.pillarLabel}</strong> {item.stem}
+                          {item.stemKorean} · {item.tenGod}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className={styles.analysisPanelSection}>
+                    <h3 className={styles.subheading}>지지 합충형</h3>
+                    {fortune.analysis.branchRelations.length > 0 ? (
+                      <ul className={styles.analysisList}>
+                        {fortune.analysis.branchRelations.map((item) => (
+                          <li key={`${item.label}-${item.type}`}>
+                            <strong>{item.label}</strong> {item.description}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className={styles.analysisEmpty}>눈에 띄는 합충형 충돌은 없는 편입니다.</p>
+                    )}
+                  </div>
+                </article>
+              </div>
+            </section>
+          ) : null}
+
+          {activeAnalysisTab === "graph" ? (
+            <section className={styles.innerSection}>
+              <h2>사주 오행 그래프</h2>
+              <FiveElementsChart elements={fortune.elements} />
+            </section>
+          ) : null}
+        </div>
+      )}
+    </section>
+  );
+}

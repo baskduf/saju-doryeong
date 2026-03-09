@@ -23,6 +23,25 @@ export type DailyFortune = {
   caution: string;
   recommendedActions: string[];
   elements: FiveElements;
+  manse: {
+    solarDateTime: string;
+    lunarDateKorean: string;
+    calendarTypeResolved: "solar" | "lunar";
+    usedNoonFallback: boolean;
+    pillars: Array<{
+      key: PillarKey;
+      label: string;
+      ganji: string;
+      ganjiKorean: string;
+      stem: string;
+      stemKorean: string;
+      branch: string;
+      branchKorean: string;
+      hiddenStems: string[];
+      hiddenStemsKorean: string[];
+      naYin?: string;
+    }>;
+  } | null;
   analysis: {
     strengthLevel: "strong" | "balanced" | "weak";
     strengthScore: number;
@@ -438,6 +457,46 @@ export function generateDailyFortune(params: {
     caution,
     recommendedActions,
     elements: chartElements,
+    manse: chart
+      ? {
+          solarDateTime: chart.solarDateTime,
+          lunarDateKorean: chart.lunarDateKorean,
+          calendarTypeResolved,
+          usedNoonFallback,
+          pillars: (["year", "month", "day", "hour"] as PillarKey[]).map((pillarKey) => {
+            const pillar = chart!.pillars[pillarKey];
+            const naYin =
+              pillarKey === "year"
+                ? chart!.auxiliary.naYin.year
+                : pillarKey === "month"
+                  ? chart!.auxiliary.naYin.month
+                  : pillarKey === "day"
+                    ? chart!.auxiliary.naYin.day
+                    : chart!.auxiliary.naYin.hour;
+
+            return {
+              key: pillarKey,
+              label:
+                pillarKey === "year"
+                  ? "연주"
+                  : pillarKey === "month"
+                    ? "월주"
+                    : pillarKey === "day"
+                      ? "일주"
+                      : "시주",
+              ganji: pillar.ganji,
+              ganjiKorean: pillar.ganjiKorean,
+              stem: pillar.stem,
+              stemKorean: pillar.stemKorean,
+              branch: pillar.branch,
+              branchKorean: pillar.branchKorean,
+              hiddenStems: pillar.hiddenStems,
+              hiddenStemsKorean: pillar.hiddenStemsKorean,
+              naYin,
+            };
+          }),
+        }
+      : null,
     analysis: chart
       ? {
           strengthLevel: dayMasterStrengthLevel,

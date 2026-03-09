@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -144,7 +144,7 @@ export default function RegisterForm({ initialUserId, fromKakao }: RegisterFormP
       {error ? <p className={styles.error}>{error}</p> : null}
 
       <button className={styles.submitButton} type="submit" disabled={submitting}>
-        {submitting ? "등록 중..." : fromKakao ? "등록하고 오늘 운세 보기" : "저장하고 상세 운세 보기"}
+        {submitting ? "사주 정보 기록 중" : fromKakao ? "등록하고 오늘 운세 보기" : "저장하고 상세 운세 보기"}
       </button>
     </form>
   );

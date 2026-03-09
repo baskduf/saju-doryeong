@@ -159,6 +159,95 @@
   color: #422812;
 }
 
+.analysisGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.analysisCard {
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(145, 93, 40, 0.24);
+  background: linear-gradient(160deg, rgba(255, 247, 229, 0.98), rgba(248, 234, 204, 0.9));
+}
+
+.analysisCard h3,
+.subheading {
+  margin: 0 0 8px;
+  color: #4a2a11;
+}
+
+.analysisEyebrow {
+  margin: 0 0 6px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: #8a5a2a;
+}
+
+.analysisMeta {
+  color: #7c552e;
+  font-size: 13px;
+}
+
+.analysisColumns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.directiveStack {
+  display: grid;
+  gap: 12px;
+}
+
+.directiveRow {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(145, 93, 40, 0.16);
+  background: rgba(255, 247, 231, 0.65);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.goodChip,
+.badChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.goodChip {
+  background: rgba(69, 113, 60, 0.12);
+  border: 1px solid rgba(69, 113, 60, 0.22);
+  color: #335228;
+}
+
+.badChip {
+  background: rgba(147, 69, 41, 0.1);
+  border: 1px solid rgba(147, 69, 41, 0.2);
+  color: #7f381f;
+}
+
+.analysisList {
+  margin: 0;
+  padding-left: 18px;
+  line-height: 1.8;
+  color: #40250f;
+}
+
+.analysisEmpty {
+  color: #6b4a2a;
+}
+
 .actions {
   margin: 0;
   padding-left: 18px;
@@ -180,6 +269,11 @@
 
   .heroVisual {
     justify-content: flex-start;
+  }
+
+  .analysisGrid,
+  .analysisColumns {
+    grid-template-columns: 1fr;
   }
 }
 

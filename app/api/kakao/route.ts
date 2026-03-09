@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
-import { generateDailyFortune } from "../../../lib/fortune";
+import { generateDailyFortuneWithNarrative } from "../../../lib/fortune";
 import {
   buildInitialSajuData,
   findProfileByUserId,
@@ -259,13 +259,14 @@ function createRegistrationGuideCard(errorMessage?: string, debugLines?: string[
   });
 }
 
-function createFortuneCard(profile: KakaoProfileLike, notice?: string): KakaoBasicCardResponse {
-  const fortune = generateDailyFortune({
+async function createFortuneCard(profile: KakaoProfileLike, notice?: string): Promise<KakaoBasicCardResponse> {
+  const fortune = await generateDailyFortuneWithNarrative({
     userId: profile.userId,
     birthDate: profile.birthDate,
     birthTime: profile.birthTime ?? undefined,
     calendarType: profile.calendarType as "solar" | "lunar" | "unknown",
     sajuData: profile.sajuData,
+    profileName: profile.name ?? undefined,
   });
 
   const baseUrl = resolveAppBaseUrl();
@@ -351,7 +352,7 @@ export async function POST(request: NextRequest) {
       });
 
       return NextResponse.json(
-        createFortuneCard(
+        await createFortuneCard(
           storedProfile,
           profile ? "사주 기록을 새로 바로잡았소." : "사주 정보를 서고에 등록했으니, 바로 오늘 점괘를 펼치겠소.",
         ),
@@ -364,7 +365,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json(createFortuneCard(profile));
+    return NextResponse.json(await createFortuneCard(profile));
   } catch (error) {
     console.error("[/api/kakao] unexpected error", error);
     if (isDatabaseConnectionError(error)) {

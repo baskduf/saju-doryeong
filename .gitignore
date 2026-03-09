@@ -16,6 +16,7 @@ yarn-error.log*
 pnpm-debug.log*
 .npm-cache/
 .dev-server*.log
+.tmp-dev*.log
 
 # env
 .env

@@ -11,6 +11,12 @@ export type FiveElements = {
 };
 
 export type ElementKey = keyof FiveElements;
+export type FivePhaseRelation = "비겁" | "식상" | "재성" | "관성" | "인성";
+export type TenGod = "비견" | "겁재" | "식신" | "상관" | "편재" | "정재" | "편관" | "정관" | "편인" | "정인";
+export type PillarKey = "year" | "month" | "day" | "hour";
+
+type YinYang = "yang" | "yin";
+type BranchRelationType = "합" | "충" | "형";
 
 export type PillarInfo = {
   ganji: string;
@@ -21,6 +27,73 @@ export type PillarInfo = {
   branchKorean: string;
   hiddenStems: string[];
   hiddenStemsKorean: string[];
+};
+
+export type TraditionalSajuAnalysis = {
+  seasonalForce: {
+    branch: string;
+    branchKorean: string;
+    element: ElementKey;
+    relation: FivePhaseRelation;
+    influence: number;
+    summary: string;
+  };
+  dayMasterStrength: {
+    score: number;
+    level: "strong" | "balanced" | "weak";
+    support: number;
+    pressure: number;
+    roots: Array<{
+      pillar: PillarKey;
+      branch: string;
+      branchKorean: string;
+      stem: string;
+      stemKorean: string;
+      relation: FivePhaseRelation;
+    }>;
+    summary: string;
+  };
+  tenGods: {
+    stems: Record<"year" | "month" | "hour", { stem: string; stemKorean: string; tenGod: TenGod }>;
+    hiddenStems: Record<PillarKey, Array<{ stem: string; stemKorean: string; tenGod: TenGod }>>;
+    dominant: TenGod;
+  };
+  pattern: {
+    name: string;
+    tenGod: TenGod;
+    monthLeaderStem: string;
+    monthLeaderStemKorean: string;
+    summary: string;
+    tentative: boolean;
+    revealLabel: string;
+    revealedPillars: Array<Exclude<PillarKey, "day">>;
+    candidates: Array<{
+      stem: string;
+      stemKorean: string;
+      tenGod: TenGod;
+      weight: number;
+      revealed: boolean;
+    }>;
+  };
+  balanceDirectives: {
+    yongShin: ElementKey;
+    heeShin: ElementKey[];
+    giShin: ElementKey;
+    guShin: ElementKey[];
+    summary: string;
+  };
+  usefulElements: ElementKey[];
+  unfavorableElements: ElementKey[];
+  branchRelations: {
+    pairs: Array<{
+      pillars: [PillarKey, PillarKey];
+      type: BranchRelationType;
+      branches: [string, string];
+      label: string;
+      description: string;
+    }>;
+    summary: string[];
+  };
 };
 
 export type TraditionalSajuChart = {
@@ -59,6 +132,7 @@ export type TraditionalSajuChart = {
     };
   };
   fiveElements: FiveElements;
+  analysis: TraditionalSajuAnalysis;
 };
 
 const STEM_KOREAN: Record<string, string> = {
@@ -102,6 +176,19 @@ const STEM_TO_ELEMENT: Record<string, ElementKey> = {
   癸: "water",
 };
 
+const STEM_YIN_YANG: Record<string, YinYang> = {
+  甲: "yang",
+  乙: "yin",
+  丙: "yang",
+  丁: "yin",
+  戊: "yang",
+  己: "yin",
+  庚: "yang",
+  辛: "yin",
+  壬: "yang",
+  癸: "yin",
+};
+
 const ELEMENT_LABEL: Record<ElementKey, string> = {
   wood: "목(木)",
   fire: "화(火)",
@@ -109,6 +196,72 @@ const ELEMENT_LABEL: Record<ElementKey, string> = {
   metal: "금(金)",
   water: "수(水)",
 };
+
+const GENERATES: Record<ElementKey, ElementKey> = {
+  wood: "fire",
+  fire: "earth",
+  earth: "metal",
+  metal: "water",
+  water: "wood",
+};
+
+const CONTROLS: Record<ElementKey, ElementKey> = {
+  wood: "earth",
+  fire: "metal",
+  earth: "water",
+  metal: "wood",
+  water: "fire",
+};
+
+const BRANCH_MAIN_ELEMENT: Record<string, ElementKey> = {
+  子: "water",
+  丑: "earth",
+  寅: "wood",
+  卯: "wood",
+  辰: "earth",
+  巳: "fire",
+  午: "fire",
+  未: "earth",
+  申: "metal",
+  酉: "metal",
+  戌: "earth",
+  亥: "water",
+};
+
+const PILLAR_LABEL: Record<PillarKey, string> = {
+  year: "연주",
+  month: "월주",
+  day: "일주",
+  hour: "시주",
+};
+
+const BRANCH_COMBINATIONS: Array<[string, string]> = [
+  ["子", "丑"],
+  ["寅", "亥"],
+  ["卯", "戌"],
+  ["辰", "酉"],
+  ["巳", "申"],
+  ["午", "未"],
+];
+
+const BRANCH_CLASHES: Array<[string, string]> = [
+  ["子", "午"],
+  ["丑", "未"],
+  ["寅", "申"],
+  ["卯", "酉"],
+  ["辰", "戌"],
+  ["巳", "亥"],
+];
+
+const BRANCH_PUNISHMENTS: Array<[string, string]> = [
+  ["寅", "巳"],
+  ["寅", "申"],
+  ["巳", "申"],
+  ["丑", "戌"],
+  ["丑", "未"],
+  ["戌", "未"],
+  ["子", "卯"],
+];
 
 function toIsoDateString(date: Date): string {
   const year = date.getUTCFullYear();
@@ -163,6 +316,47 @@ function emptyElements(): Record<ElementKey, number> {
     metal: 0,
     water: 0,
   };
+}
+
+function generatedByElement(element: ElementKey): ElementKey {
+  const found = (Object.keys(GENERATES) as ElementKey[]).find((key) => GENERATES[key] === element);
+  return found ?? "earth";
+}
+
+function controlledByElement(element: ElementKey): ElementKey {
+  const found = (Object.keys(CONTROLS) as ElementKey[]).find((key) => CONTROLS[key] === element);
+  return found ?? "earth";
+}
+
+function isSamePair(pair: [string, string], left: string, right: string): boolean {
+  return (pair[0] === left && pair[1] === right) || (pair[0] === right && pair[1] === left);
+}
+
+function uniqueElements(elements: ElementKey[]): ElementKey[] {
+  return [...new Set(elements)];
+}
+
+function sortElementsByWeight(
+  candidates: ElementKey[],
+  weights: FiveElements,
+  direction: "asc" | "desc",
+): ElementKey[] {
+  return uniqueElements(candidates)
+    .map((element, index) => ({ element, index }))
+    .sort((left, right) => {
+      const delta =
+        direction === "asc"
+          ? weights[left.element] - weights[right.element]
+          : weights[right.element] - weights[left.element];
+      return delta !== 0 ? delta : left.index - right.index;
+    })
+    .map((item) => item.element);
+}
+
+function strongestElement(elements: FiveElements): ElementKey {
+  const entries = Object.entries(elements) as Array<[ElementKey, number]>;
+  entries.sort((a, b) => b[1] - a[1]);
+  return entries[0][0];
 }
 
 function addStemWeight(bucket: Record<ElementKey, number>, stem: string, weight: number): void {
@@ -303,6 +497,357 @@ export function elementFromStem(stem: string): ElementKey {
   return STEM_TO_ELEMENT[stem] ?? "earth";
 }
 
+export function fivePhaseRelation(dayMaster: ElementKey, other: ElementKey): FivePhaseRelation {
+  if (other === dayMaster) return "비겁";
+  if (GENERATES[dayMaster] === other) return "식상";
+  if (CONTROLS[dayMaster] === other) return "재성";
+  if (CONTROLS[other] === dayMaster) return "관성";
+  return "인성";
+}
+
+export function tenGodFromStem(dayStem: string, otherStem: string): TenGod {
+  const relation = fivePhaseRelation(elementFromStem(dayStem), elementFromStem(otherStem));
+  const samePolarity = STEM_YIN_YANG[dayStem] === STEM_YIN_YANG[otherStem];
+
+  if (relation === "비겁") return samePolarity ? "비견" : "겁재";
+  if (relation === "식상") return samePolarity ? "식신" : "상관";
+  if (relation === "재성") return samePolarity ? "편재" : "정재";
+  if (relation === "관성") return samePolarity ? "편관" : "정관";
+  return samePolarity ? "편인" : "정인";
+}
+
+function seasonalInfluence(relation: FivePhaseRelation): number {
+  switch (relation) {
+    case "비겁":
+      return 18;
+    case "인성":
+      return 14;
+    case "식상":
+      return -4;
+    case "재성":
+      return -8;
+    case "관성":
+      return -12;
+    default:
+      return 0;
+  }
+}
+
+function strengthLevelLabel(level: TraditionalSajuAnalysis["dayMasterStrength"]["level"]): string {
+  if (level === "strong") return "신강";
+  if (level === "weak") return "신약";
+  return "중화";
+}
+
+function patternCandidateName(tenGod: TenGod): string {
+  if (tenGod === "비견" || tenGod === "겁재") {
+    return `${tenGod}격 계열`;
+  }
+  return `${tenGod}격`;
+}
+
+function stemVisiblePillarLabel(pillar: Exclude<PillarKey, "day">): string {
+  switch (pillar) {
+    case "year":
+      return "연간";
+    case "month":
+      return "월간";
+    case "hour":
+      return "시간";
+  }
+}
+
+function detectBranchRelations(pillars: Record<PillarKey, PillarInfo>): TraditionalSajuAnalysis["branchRelations"] {
+  const entries = Object.entries(pillars) as Array<[PillarKey, PillarInfo]>;
+  const pairs: TraditionalSajuAnalysis["branchRelations"]["pairs"] = [];
+
+  for (let i = 0; i < entries.length; i += 1) {
+    for (let j = i + 1; j < entries.length; j += 1) {
+      const [leftKey, leftPillar] = entries[i];
+      const [rightKey, rightPillar] = entries[j];
+      const branches: [string, string] = [leftPillar.branch, rightPillar.branch];
+      const labelBase = `${PILLAR_LABEL[leftKey]}-${PILLAR_LABEL[rightKey]}`;
+
+      if (BRANCH_COMBINATIONS.some((pair) => isSamePair(pair, leftPillar.branch, rightPillar.branch))) {
+        pairs.push({
+          pillars: [leftKey, rightKey],
+          type: "합",
+          branches,
+          label: `${labelBase} 합`,
+          description: `${PILLAR_LABEL[leftKey]} ${leftPillar.branchKorean}와 ${PILLAR_LABEL[rightKey]} ${rightPillar.branchKorean}가 합을 이루오.`,
+        });
+      }
+
+      if (BRANCH_CLASHES.some((pair) => isSamePair(pair, leftPillar.branch, rightPillar.branch))) {
+        pairs.push({
+          pillars: [leftKey, rightKey],
+          type: "충",
+          branches,
+          label: `${labelBase} 충`,
+          description: `${PILLAR_LABEL[leftKey]} ${leftPillar.branchKorean}와 ${PILLAR_LABEL[rightKey]} ${rightPillar.branchKorean}가 충을 이루어 변화성이 크오.`,
+        });
+      }
+
+      if (BRANCH_PUNISHMENTS.some((pair) => isSamePair(pair, leftPillar.branch, rightPillar.branch))) {
+        pairs.push({
+          pillars: [leftKey, rightKey],
+          type: "형",
+          branches,
+          label: `${labelBase} 형`,
+          description: `${PILLAR_LABEL[leftKey]} ${leftPillar.branchKorean}와 ${PILLAR_LABEL[rightKey]} ${rightPillar.branchKorean} 사이에 형살 기운이 있소.`,
+        });
+      }
+    }
+  }
+
+  return {
+    pairs,
+    summary:
+      pairs.length > 0
+        ? pairs.map((pair) => pair.description)
+        : ["지지 간 큰 충돌은 약한 편이니 흐름이 비교적 단정하오."],
+  };
+}
+
+function analyzeTraditionalSajuChart(params: {
+  pillars: Record<PillarKey, PillarInfo>;
+  dayStem: string;
+  fiveElements: FiveElements;
+}): TraditionalSajuAnalysis {
+  const dayMasterElement = elementFromStem(params.dayStem);
+  const resourceElement = generatedByElement(dayMasterElement);
+  const outputElement = GENERATES[dayMasterElement];
+  const wealthElement = CONTROLS[dayMasterElement];
+  const officerElement = controlledByElement(dayMasterElement);
+
+  const monthPillar = params.pillars.month;
+  const seasonalElement = BRANCH_MAIN_ELEMENT[monthPillar.branch] ?? "earth";
+  const seasonalRelation = fivePhaseRelation(dayMasterElement, seasonalElement);
+  const seasonBoost = seasonalInfluence(seasonalRelation);
+
+  const roots: TraditionalSajuAnalysis["dayMasterStrength"]["roots"] = [];
+  for (const [pillarKey, pillar] of Object.entries(params.pillars) as Array<[PillarKey, PillarInfo]>) {
+    pillar.hiddenStems.forEach((stem) => {
+      const relation = fivePhaseRelation(dayMasterElement, elementFromStem(stem));
+      if (relation === "비겁" || relation === "인성") {
+        roots.push({
+          pillar: pillarKey,
+          branch: pillar.branch,
+          branchKorean: pillar.branchKorean,
+          stem,
+          stemKorean: STEM_KOREAN[stem] ?? stem,
+          relation,
+        });
+      }
+    });
+  }
+
+  const rootSupport = Math.min(roots.length * 6, 18);
+  const support = params.fiveElements[dayMasterElement] + params.fiveElements[resourceElement] + seasonBoost + rootSupport;
+  const pressure =
+    Math.round(params.fiveElements[outputElement] * 0.55) +
+    Math.round(params.fiveElements[wealthElement] * 0.8) +
+    Math.round(params.fiveElements[officerElement] * 0.9);
+  const strengthScore = support - pressure;
+  const level: TraditionalSajuAnalysis["dayMasterStrength"]["level"] =
+    strengthScore >= 12 ? "strong" : strengthScore <= -6 ? "weak" : "balanced";
+
+  const usefulElements =
+    level === "strong"
+      ? uniqueElements([outputElement, wealthElement, officerElement, BRANCH_MAIN_ELEMENT[monthPillar.branch] ?? outputElement])
+      : level === "weak"
+        ? uniqueElements([dayMasterElement, resourceElement])
+        : uniqueElements([wealthElement, officerElement, outputElement]);
+  const unfavorableElements =
+    level === "strong"
+      ? uniqueElements([dayMasterElement, resourceElement])
+      : level === "weak"
+        ? uniqueElements([outputElement, wealthElement, officerElement])
+        : uniqueElements([strongestElement(params.fiveElements)]);
+
+  const stemTenGods: TraditionalSajuAnalysis["tenGods"]["stems"] = {
+    year: {
+      stem: params.pillars.year.stem,
+      stemKorean: params.pillars.year.stemKorean,
+      tenGod: tenGodFromStem(params.dayStem, params.pillars.year.stem),
+    },
+    month: {
+      stem: params.pillars.month.stem,
+      stemKorean: params.pillars.month.stemKorean,
+      tenGod: tenGodFromStem(params.dayStem, params.pillars.month.stem),
+    },
+    hour: {
+      stem: params.pillars.hour.stem,
+      stemKorean: params.pillars.hour.stemKorean,
+      tenGod: tenGodFromStem(params.dayStem, params.pillars.hour.stem),
+    },
+  };
+
+  const hiddenStemTenGods = (Object.entries(params.pillars) as Array<[PillarKey, PillarInfo]>).reduce(
+    (acc, [pillarKey, pillar]) => {
+      acc[pillarKey] = pillar.hiddenStems.map((stem) => ({
+        stem,
+        stemKorean: STEM_KOREAN[stem] ?? stem,
+        tenGod: tenGodFromStem(params.dayStem, stem),
+      }));
+      return acc;
+    },
+    {} as TraditionalSajuAnalysis["tenGods"]["hiddenStems"],
+  );
+
+  const tenGodScores = new Map<TenGod, number>();
+  const pushTenGod = (tenGod: TenGod, weight: number) => {
+    tenGodScores.set(tenGod, (tenGodScores.get(tenGod) ?? 0) + weight);
+  };
+
+  pushTenGod(stemTenGods.year.tenGod, 1);
+  pushTenGod(stemTenGods.month.tenGod, 2);
+  pushTenGod(stemTenGods.hour.tenGod, 1);
+  Object.values(hiddenStemTenGods).forEach((items) => {
+    items.forEach((item) => pushTenGod(item.tenGod, 1));
+  });
+
+  const dominantTenGod =
+    [...tenGodScores.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] ?? stemTenGods.month.tenGod;
+
+  const monthHiddenWeights = hiddenStemWeights(monthPillar.hiddenStems.length);
+  const visibleStemPillars = (["year", "month", "hour"] as Array<Exclude<PillarKey, "day">>).map((pillarKey) => [
+    pillarKey,
+    params.pillars[pillarKey],
+  ]) as Array<[Exclude<PillarKey, "day">, PillarInfo]>;
+  const patternCandidates = monthPillar.hiddenStems
+    .map((stem, index) => {
+      const tenGod = tenGodFromStem(params.dayStem, stem);
+      const revealedPillars = visibleStemPillars
+        .filter(([, pillar]) => pillar.stem === stem)
+        .map(([pillarKey]) => pillarKey);
+      const revealed = revealedPillars.length > 0;
+      const score = (monthHiddenWeights[index] ?? 0) * 2 + revealedPillars.length * 4 + (tenGod === dominantTenGod ? 2 : 0);
+
+      return {
+        stem,
+        stemKorean: STEM_KOREAN[stem] ?? stem,
+        tenGod,
+        weight: monthHiddenWeights[index] ?? 0,
+        revealed,
+        revealedPillars,
+        score,
+      };
+    })
+    .sort((left, right) => right.score - left.score || right.weight - left.weight);
+
+  const preferredUsefulElements =
+    level === "strong"
+      ? dominantTenGod === "비견" || dominantTenGod === "겁재" || dominantTenGod === "편인" || dominantTenGod === "정인"
+        ? [outputElement, wealthElement, officerElement, seasonalElement]
+        : [wealthElement, officerElement, outputElement, seasonalElement]
+      : level === "weak"
+        ? seasonalRelation === "관성" || seasonalRelation === "재성"
+          ? [resourceElement, dayMasterElement]
+          : [dayMasterElement, resourceElement]
+        : seasonalRelation === "비겁" || seasonalRelation === "인성"
+          ? [outputElement, wealthElement, officerElement]
+          : [wealthElement, officerElement, outputElement];
+  const preferredUnfavorableElements =
+    level === "strong"
+      ? [dayMasterElement, resourceElement]
+      : level === "weak"
+        ? [officerElement, wealthElement, outputElement]
+        : [strongestElement(params.fiveElements), dayMasterElement];
+
+  const sortedUsefulElements = sortElementsByWeight(
+    [...preferredUsefulElements, ...usefulElements],
+    params.fiveElements,
+    "asc",
+  );
+  const sortedUnfavorableElements = sortElementsByWeight(
+    [...preferredUnfavorableElements, ...unfavorableElements],
+    params.fiveElements,
+    "desc",
+  );
+
+  const primaryPatternCandidate = patternCandidates[0] ?? {
+    stem: monthPillar.stem,
+    stemKorean: monthPillar.stemKorean,
+    tenGod: stemTenGods.month.tenGod,
+    weight: 0,
+    revealed: true,
+    revealedPillars: ["month"] as Array<Exclude<PillarKey, "day">>,
+    score: 0,
+  };
+  const monthLeaderStem = primaryPatternCandidate.stem;
+  const monthLeaderStemKorean = primaryPatternCandidate.stemKorean;
+  const patternTenGod = primaryPatternCandidate.tenGod;
+  const patternName = patternCandidateName(patternTenGod);
+  const patternRevealedPillars = primaryPatternCandidate.revealedPillars;
+  const patternRevealLabel =
+    patternRevealedPillars.length > 0
+      ? `${patternRevealedPillars.map((pillar) => stemVisiblePillarLabel(pillar)).join(", ")} 투간`
+      : "미투간";
+  const yongShin = sortedUsefulElements[0] ?? usefulElements[0] ?? dayMasterElement;
+  const heeShin = sortedUsefulElements.slice(1, 3);
+  const giShin = sortedUnfavorableElements[0] ?? unfavorableElements[0] ?? strongestElement(params.fiveElements);
+  const guShin = sortedUnfavorableElements.slice(1, 3);
+  const branchRelations = detectBranchRelations(params.pillars);
+  const rootSummary =
+    roots.length > 0
+      ? `${roots.length}곳에 통근하여 뿌리가 이어지오.`
+      : "통근이 약해 외부 기세에 민감하오.";
+
+  return {
+    seasonalForce: {
+      branch: monthPillar.branch,
+      branchKorean: monthPillar.branchKorean,
+      element: seasonalElement,
+      relation: seasonalRelation,
+      influence: seasonBoost,
+      summary: `${monthPillar.branchKorean}월의 ${elementLabel(seasonalElement)} 기운이 ${seasonalRelation} 축으로 작용하오.`,
+    },
+    dayMasterStrength: {
+      score: strengthScore,
+      level,
+      support,
+      pressure,
+      roots,
+      summary: `월령은 ${monthPillar.branchKorean}월의 ${elementLabel(seasonalElement)} 기운이며, ${rootSummary} 일간 세는 ${strengthLevelLabel(level)}에 가깝소.`,
+    },
+    tenGods: {
+      stems: stemTenGods,
+      hiddenStems: hiddenStemTenGods,
+      dominant: dominantTenGod,
+    },
+    pattern: {
+      name: patternName,
+      tenGod: patternTenGod,
+      monthLeaderStem,
+      monthLeaderStemKorean,
+      tentative: !primaryPatternCandidate.revealed,
+      revealLabel: patternRevealLabel,
+      revealedPillars: patternRevealedPillars,
+      candidates: patternCandidates.map((candidate) => ({
+        stem: candidate.stem,
+        stemKorean: candidate.stemKorean,
+        tenGod: candidate.tenGod,
+        weight: candidate.weight,
+        revealed: candidate.revealed,
+      })),
+      summary: primaryPatternCandidate.revealed
+        ? `월지 ${monthPillar.branchKorean}의 주기 ${monthLeaderStem}${monthLeaderStemKorean}이 ${patternRevealLabel}하여 ${patternName} 성향이 또렷하오.`
+        : `월지 ${monthPillar.branchKorean}의 주기 ${monthLeaderStem}${monthLeaderStemKorean}이 아직 투간하지 않아 ${patternName} 후보로 보수적으로 읽히오.`,
+    },
+    balanceDirectives: {
+      yongShin,
+      heeShin,
+      giShin,
+      guShin,
+      summary: `용신은 ${elementLabel(yongShin)}으로 잡고, 희신은 ${heeShin.length > 0 ? heeShin.map((item) => elementLabel(item)).join(", ") : "보조 오행을 더 보아야"} 쪽으로 둡니다. 기신은 ${elementLabel(giShin)}이며, 구신은 ${guShin.length > 0 ? guShin.map((item) => elementLabel(item)).join(", ") : "상황 따라 달라질 수 있소"}.`,
+    },
+    usefulElements,
+    unfavorableElements,
+    branchRelations,
+  };
+}
+
 export function calculateTraditionalSajuChart(params: {
   birthDate: Date;
   birthTime?: string;
@@ -366,7 +911,14 @@ export function calculateTraditionalSajuChart(params: {
       },
     },
     fiveElements: computeFiveElementsFromEightChar(eightChar),
+    analysis: {} as TraditionalSajuAnalysis,
   };
+
+  chart.analysis = analyzeTraditionalSajuChart({
+    pillars: chart.pillars,
+    dayStem: chart.dayMaster.stem,
+    fiveElements: chart.fiveElements,
+  });
 
   return chart;
 }

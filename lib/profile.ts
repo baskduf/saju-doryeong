@@ -209,6 +209,7 @@ export function buildInitialSajuData(params: {
     dayMaster: chart.dayMaster,
     auxiliary: chart.auxiliary,
     fiveElements: chart.fiveElements,
+    analysis: chart.analysis,
   };
 }
 

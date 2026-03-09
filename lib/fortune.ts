@@ -1,11 +1,15 @@
 import { Solar } from "lunar-javascript";
+import { generateFortuneNarrativeOverride } from "./fortune-llm";
 import {
   calculateTraditionalSajuChart,
   elementFromStem,
   elementLabel,
+  fivePhaseRelation,
   type CalendarType,
   type ElementKey,
   type FiveElements,
+  type PillarKey,
+  type TraditionalSajuChart,
 } from "./saju";
 
 export type { FiveElements } from "./saju";
@@ -19,6 +23,50 @@ export type DailyFortune = {
   caution: string;
   recommendedActions: string[];
   elements: FiveElements;
+  analysis: {
+    strengthLevel: "strong" | "balanced" | "weak";
+    strengthScore: number;
+    strengthSummary: string;
+    seasonalSummary: string;
+    dominantTenGod: string;
+    patternName: string;
+    patternSummary: string;
+    patternTentative: boolean;
+    patternRevealLabel: string;
+    patternCandidates: Array<{
+      stem: string;
+      stemKorean: string;
+      tenGod: string;
+      weight: number;
+      revealed: boolean;
+    }>;
+    yongShin: ElementKey;
+    heeShin: ElementKey[];
+    giShin: ElementKey;
+    guShin: ElementKey[];
+    balanceSummary: string;
+    usefulElements: ElementKey[];
+    unfavorableElements: ElementKey[];
+    todayGanji: string;
+    todayRelation: "비겁" | "식상" | "재성" | "관성" | "인성";
+    usedNoonFallback: boolean;
+    calendarTypeInput: CalendarType;
+    calendarTypeResolved: "solar" | "lunar";
+    rootCount: number;
+    branchRelations: Array<{
+      pillars: [PillarKey, PillarKey];
+      label: string;
+      type: "합" | "충" | "형";
+      description: string;
+    }>;
+    visibleTenGods: Array<{
+      pillar: Exclude<PillarKey, "day">;
+      pillarLabel: string;
+      stem: string;
+      stemKorean: string;
+      tenGod: string;
+    }>;
+  };
 };
 
 const DEFAULT_ELEMENTS: FiveElements = {
@@ -118,12 +166,25 @@ function controlledBy(element: ElementKey): ElementKey {
   return found ?? "earth";
 }
 
-function relationFromDayMaster(dayMaster: ElementKey, other: ElementKey): "비겁" | "식상" | "재성" | "관성" | "인성" {
-  if (other === dayMaster) return "비겁";
-  if (GENERATES[dayMaster] === other) return "식상";
-  if (CONTROLS[dayMaster] === other) return "재성";
-  if (CONTROLS[other] === dayMaster) return "관성";
-  return "인성";
+function strengthLevelLabel(level: "strong" | "balanced" | "weak"): string {
+  if (level === "strong") return "신강";
+  if (level === "weak") return "신약";
+  return "중화";
+}
+
+function formatElementList(elements: ElementKey[]): string {
+  return elements.map((element) => elementLabel(element)).join(", ");
+}
+
+function pillarLabel(pillar: Exclude<PillarKey, "day">): string {
+  switch (pillar) {
+    case "year":
+      return "연간";
+    case "month":
+      return "월간";
+    case "hour":
+      return "시간";
+  }
 }
 
 function parseSeoulDateParts(date: Date): { year: number; month: number; day: number; hour: number; minute: number } {
@@ -223,35 +284,78 @@ export function generateDailyFortune(params: {
   let dayMasterLabel = "토(土)";
   let pillarSummary = "사주 정보 기반";
   let usedNoonFallback = false;
+  let chart: TraditionalSajuChart | null = null;
+  const calendarTypeInput = params.calendarType ?? "solar";
+  let calendarTypeResolved: "solar" | "lunar" = calendarTypeInput === "lunar" ? "lunar" : "solar";
+
+  const fallbackResource = generatedBy(dayMasterElement);
+  const fallbackSupportScore = chartElements[dayMasterElement] + chartElements[fallbackResource];
+  const fallbackDayMasterStrong = fallbackSupportScore >= 52;
+  let usefulElements: ElementKey[] = fallbackDayMasterStrong
+    ? [GENERATES[dayMasterElement], CONTROLS[dayMasterElement], controlledBy(dayMasterElement)]
+    : [dayMasterElement, fallbackResource];
+  let unfavorableElements: ElementKey[] = fallbackDayMasterStrong
+    ? [dayMasterElement, fallbackResource]
+    : [GENERATES[dayMasterElement], CONTROLS[dayMasterElement], controlledBy(dayMasterElement)];
+  let strengthSummary = "저장된 오행 기준으로 기운의 흐름을 살폈소.";
+  let seasonalSummary = "월령 판단은 단순화된 기준으로 반영했소.";
+  let branchRelationSummary: string[] = [];
+  let dominantTenGod = "비견";
+  let dayMasterStrengthLevel: "strong" | "balanced" | "weak" = fallbackDayMasterStrong ? "strong" : "weak";
+  let patternName = "보수적 추정";
+  let patternSummary = "격국 후보는 명식을 다시 읽을 때 더 정확히 잡히오.";
+  let patternTentative = true;
+  let patternRevealLabel = "미투간";
+  let patternCandidates: DailyFortune["analysis"]["patternCandidates"] = [];
+  let yongShin = usefulElements[0] ?? dayMasterElement;
+  let heeShin = usefulElements.slice(1, 3);
+  let giShin = unfavorableElements[0] ?? dayMasterElement;
+  let guShin = unfavorableElements.slice(1, 3);
+  let balanceSummary = `용신은 ${elementLabel(yongShin)}으로 보고, 부담은 ${elementLabel(giShin)} 쪽으로 읽히오.`;
 
   try {
-    const chart = calculateTraditionalSajuChart({
+    chart = calculateTraditionalSajuChart({
       birthDate: params.birthDate,
       birthTime: params.birthTime,
-      calendarType: params.calendarType ?? "solar",
+      calendarType: calendarTypeInput,
     });
     chartElements = chart.fiveElements;
     dayMasterElement = chart.dayMaster.element;
     dayMasterLabel = chart.dayMaster.elementLabel;
     usedNoonFallback = chart.usedNoonFallback;
+    calendarTypeResolved = chart.calendarTypeResolved;
     pillarSummary = `${chart.pillars.year.ganjiKorean}년 ${chart.pillars.month.ganjiKorean}월 ${chart.pillars.day.ganjiKorean}일 ${chart.pillars.hour.ganjiKorean}시`;
+    usefulElements = chart.analysis.usefulElements;
+    unfavorableElements = chart.analysis.unfavorableElements;
+    strengthSummary = chart.analysis.dayMasterStrength.summary;
+    seasonalSummary = chart.analysis.seasonalForce.summary;
+    branchRelationSummary = chart.analysis.branchRelations.summary;
+    dominantTenGod = chart.analysis.tenGods.dominant;
+    dayMasterStrengthLevel = chart.analysis.dayMasterStrength.level;
+    patternName = chart.analysis.pattern.name;
+    patternSummary = chart.analysis.pattern.summary;
+    patternTentative = chart.analysis.pattern.tentative;
+    patternRevealLabel = chart.analysis.pattern.revealLabel;
+    patternCandidates = chart.analysis.pattern.candidates.map((candidate) => ({
+      stem: candidate.stem,
+      stemKorean: candidate.stemKorean,
+      tenGod: candidate.tenGod,
+      weight: candidate.weight,
+      revealed: candidate.revealed,
+    }));
+    yongShin = chart.analysis.balanceDirectives.yongShin;
+    heeShin = chart.analysis.balanceDirectives.heeShin;
+    giShin = chart.analysis.balanceDirectives.giShin;
+    guShin = chart.analysis.balanceDirectives.guShin;
+    balanceSummary = chart.analysis.balanceDirectives.summary;
   } catch {
     // 사주 계산 실패 시 기존 저장 오행으로 안전하게 폴백
   }
 
   const dominant = dominantElement(chartElements);
   const weakest = weakestElement(chartElements);
-
-  const resource = generatedBy(dayMasterElement);
-  const output = GENERATES[dayMasterElement];
-  const wealth = CONTROLS[dayMasterElement];
-  const officer = controlledBy(dayMasterElement);
-
-  const supportScore = chartElements[dayMasterElement] + chartElements[resource];
-  const dayMasterStrong = supportScore >= 52;
-  const favorableElements: ElementKey[] = dayMasterStrong ? [output, wealth, officer] : [dayMasterElement, resource];
-
-  const favorableNatalScore = favorableElements.reduce((sum, key) => sum + chartElements[key], 0);
+  const usefulNatalScore = usefulElements.reduce((sum, key) => sum + chartElements[key], 0);
+  const unfavorableNatalScore = unfavorableElements.reduce((sum, key) => sum + chartElements[key], 0);
 
   const seoulNow = parseSeoulDateParts(today);
   const todayLunar = Solar.fromYmdHms(seoulNow.year, seoulNow.month, seoulNow.day, seoulNow.hour, seoulNow.minute, 0).getLunar();
@@ -260,20 +364,26 @@ export function generateDailyFortune(params: {
   const todayDayZhi = String(todayEightChar.getDayZhi());
   const todayHideGan = ((todayEightChar.getDayHideGan() as string[]) ?? []).map(String);
   const todayElements = elementMixFromDay(todayDayGan, todayHideGan);
-  const favorableTodayScore = favorableElements.reduce((sum, key) => sum + todayElements[key], 0);
+  const usefulTodayScore = usefulElements.reduce((sum, key) => sum + todayElements[key], 0);
+  const unfavorableTodayScore = unfavorableElements.reduce((sum, key) => sum + todayElements[key], 0);
+  const todayGanji = `${todayDayGan}${todayDayZhi}`;
 
   const spread =
     Math.max(chartElements.wood, chartElements.fire, chartElements.earth, chartElements.metal, chartElements.water) -
     Math.min(chartElements.wood, chartElements.fire, chartElements.earth, chartElements.metal, chartElements.water);
 
-  const relation = relationFromDayMaster(dayMasterElement, elementFromStem(todayDayGan));
+  const relation = fivePhaseRelation(dayMasterElement, elementFromStem(todayDayGan));
   const relationBonus =
-    relation === "인성" || relation === "비겁" ? 7 : relation === "식상" ? 4 : relation === "재성" ? 2 : -3;
+    relation === "인성" || relation === "비겁" ? 6 : relation === "식상" ? 4 : relation === "재성" ? 2 : -4;
+  const branchPenalty =
+    chart?.analysis.branchRelations.pairs.reduce((sum, pair) => sum + (pair.type === "충" ? 4 : pair.type === "형" ? 2 : -1), 0) ??
+    0;
+  const strengthBonus = chart ? Math.round(chart.analysis.dayMasterStrength.score * 0.18) : fallbackDayMasterStrong ? 3 : -3;
 
   const balanceBonus = clamp(28 - spread, -12, 18);
-  const natalBonus = Math.round((favorableNatalScore - 50) * 0.2);
-  const dailyBonus = Math.round((favorableTodayScore - 45) * 0.3);
-  const score = clamp(56 + balanceBonus + natalBonus + dailyBonus + relationBonus, 5, 98);
+  const natalBonus = Math.round((usefulNatalScore - unfavorableNatalScore) * 0.18);
+  const dailyBonus = Math.round((usefulTodayScore - unfavorableTodayScore) * 0.15);
+  const score = clamp(58 + balanceBonus + natalBonus + dailyBonus + relationBonus + strengthBonus - branchPenalty, 5, 98);
   const grade = gradeFromScore(score);
 
   const headlineByGrade: Record<DailyFortune["grade"], string> = {
@@ -285,20 +395,35 @@ export function generateDailyFortune(params: {
 
   const summary = [
     `일주 주기운은 ${dayMasterLabel}이며, 원국은 ${pillarSummary}로 잡혔소.`,
+    strengthSummary,
     `강한 오행은 ${elementLabel(dominant)}, 약한 오행은 ${elementLabel(weakest)}이니 균형을 우선하시오.`,
   ].join(" ");
 
-  const detail = [
+  const detailLines = [
+    seasonalSummary,
     `서울 기준 금일 일진은 ${todayDayGan}${todayDayZhi}이며, 일주 대비 ${relation}의 흐름이 감지되오.`,
-    `점수는 ${score}점(${grade})으로, 길한 오행 비중(원국 ${favorableNatalScore}%, 일진 ${favorableTodayScore}%)을 반영했소.`,
-  ].join(" ");
+    `주요 십신 흐름은 ${dominantTenGod}, 일간 세는 ${strengthLevelLabel(dayMasterStrengthLevel)} 쪽으로 읽히오.`,
+    `${patternSummary} 용신은 ${elementLabel(yongShin)}으로 보오.`,
+    branchRelationSummary.length > 0 ? branchRelationSummary.join(" ") : undefined,
+    `점수는 ${score}점(${grade})으로, 길한 오행(${formatElementList(usefulElements)})과 부담 오행(${formatElementList(unfavorableElements)})의 차이를 함께 반영했소.`,
+  ].filter((line): line is string => Boolean(line));
+  const detail = detailLines.join(" ");
 
   const caution =
     grade === "주의"
-      ? `오늘은 ${elementLabel(weakest)} 보완이 급하니 중요한 결정을 밤늦게 미루지 마시오.`
-      : `금일은 ${elementLabel(weakest)} 보완(휴식, 수분, 호흡 정리)을 지키면 흐름이 더 고르게 펴지리다.`;
+      ? `오늘은 ${elementLabel(weakest)} 보완과 일정 충돌 관리가 급하니 중요한 결정을 밤늦게 미루지 마시오.`
+      : `금일은 ${elementLabel(weakest)} 보완(휴식, 수분, 호흡 정리)을 지키고 ${formatElementList(usefulElements.slice(0, 2))} 방향의 실무를 살리면 흐름이 더 고르게 펴지리다.`;
 
   const recommendedActions = recommendedActionsByGrade(grade, relation);
+  if (dayMasterStrengthLevel === "weak") {
+    recommendedActions.push(`${formatElementList(usefulElements.slice(0, 2))} 기운을 돕는 정리와 보충에 먼저 힘쓰시오.`);
+  } else if (dayMasterStrengthLevel === "strong") {
+    recommendedActions.push(`${formatElementList(usefulElements.slice(0, 2))} 쪽 실행으로 기운을 풀어내면 답답함이 줄어드오.`);
+  }
+  recommendedActions.push(`용신 ${elementLabel(yongShin)} 흐름을 먼저 살리고, 기신 ${elementLabel(giShin)} 편중은 줄이시오.`);
+  if (branchPenalty > 0) {
+    recommendedActions.push("사람과 일정 사이의 충돌을 미리 조율해 형충의 마찰을 줄이시오.");
+  }
 
   if (usedNoonFallback && grade !== "주의") {
     recommendedActions.push("출생 시간이 미상이라 시주를 정오 기준으로 잡았으니, 가능하면 출생시를 보완하시오.");
@@ -313,5 +438,104 @@ export function generateDailyFortune(params: {
     caution,
     recommendedActions,
     elements: chartElements,
+    analysis: chart
+      ? {
+          strengthLevel: dayMasterStrengthLevel,
+          strengthScore: chart.analysis.dayMasterStrength.score,
+          strengthSummary,
+          seasonalSummary,
+          dominantTenGod,
+          patternName,
+          patternSummary,
+          patternTentative,
+          patternRevealLabel,
+          patternCandidates,
+          yongShin,
+          heeShin,
+          giShin,
+          guShin,
+          balanceSummary,
+          usefulElements,
+          unfavorableElements,
+          todayGanji,
+          todayRelation: relation,
+          usedNoonFallback,
+          calendarTypeInput,
+          calendarTypeResolved,
+          rootCount: chart.analysis.dayMasterStrength.roots.length,
+          branchRelations: chart.analysis.branchRelations.pairs.map((pair) => ({
+            pillars: pair.pillars,
+            label: pair.label,
+            type: pair.type,
+            description: pair.description,
+          })),
+          visibleTenGods: (Object.entries(chart.analysis.tenGods.stems) as Array<
+            [Exclude<PillarKey, "day">, (typeof chart.analysis.tenGods.stems)[keyof typeof chart.analysis.tenGods.stems]]
+          >).map(([pillar, info]) => ({
+            pillar,
+            pillarLabel: pillarLabel(pillar),
+            stem: info.stem,
+            stemKorean: info.stemKorean,
+            tenGod: info.tenGod,
+          })),
+        }
+      : {
+          strengthLevel: dayMasterStrengthLevel,
+          strengthScore: fallbackDayMasterStrong ? 8 : -8,
+          strengthSummary,
+          seasonalSummary,
+          dominantTenGod,
+          patternName,
+          patternSummary,
+          patternTentative,
+          patternRevealLabel,
+          patternCandidates,
+          yongShin,
+          heeShin,
+          giShin,
+          guShin,
+          balanceSummary,
+          usefulElements,
+          unfavorableElements,
+          todayGanji,
+          todayRelation: relation,
+          usedNoonFallback,
+          calendarTypeInput,
+          calendarTypeResolved,
+          rootCount: 0,
+          branchRelations: [],
+          visibleTenGods: [],
+        },
+  };
+}
+
+export async function generateDailyFortuneWithNarrative(
+  params: {
+    userId: string;
+    birthDate: Date;
+    birthTime?: string;
+    calendarType?: CalendarType;
+    sajuData: unknown;
+    date?: Date;
+  } & {
+    profileName?: string;
+  },
+): Promise<DailyFortune> {
+  const baseFortune = generateDailyFortune(params);
+  const override = await generateFortuneNarrativeOverride({
+    fortune: baseFortune,
+    profileName: params.profileName,
+    birthDate: params.birthDate,
+    birthTime: params.birthTime,
+    date: params.date ?? new Date(),
+  });
+
+  if (!override) {
+    return baseFortune;
+  }
+
+  return {
+    ...baseFortune,
+    ...override,
   };
 }

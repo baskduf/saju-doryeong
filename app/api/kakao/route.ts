@@ -90,7 +90,7 @@ function createBasicCard(params: {
 }
 
 function resolveAppBaseUrl(): string {
-  return (process.env.NEXT_PUBLIC_APP_URL ?? "https://saju-doryeong.vercel.app").replace(/\/$/, "");
+  return (process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://saju-doryeong.vercel.app").replace(/\/$/, "");
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {

@@ -13,6 +13,12 @@ type Props = {
 type TabKey = "fortune" | "analysis";
 type AnalysisTabKey = "manse" | "interpretation" | "graph";
 
+type ReadingGuideProps = {
+  summary: string;
+  intro: string;
+  tips: string[];
+};
+
 function strengthLevelLabel(value: "strong" | "balanced" | "weak"): string {
   if (value === "strong") return "신강";
   if (value === "weak") return "신약";
@@ -33,6 +39,22 @@ function elementLabel(value: "wood" | "fire" | "earth" | "metal" | "water"): str
 
 function resolvedCalendarLabel(value: "solar" | "lunar"): string {
   return value === "solar" ? "양력 기준" : "음력 기준";
+}
+
+function ReadingGuide({ summary, intro, tips }: ReadingGuideProps) {
+  return (
+    <div className={styles.readingGuide}>
+      <p className={styles.readingGuideIntro}>{intro}</p>
+      <details className={styles.readingGuideDetails}>
+        <summary>{summary}</summary>
+        <ul className={styles.readingGuideList}>
+          {tips.map((tip) => (
+            <li key={tip}>{tip}</li>
+          ))}
+        </ul>
+      </details>
+    </div>
+  );
 }
 
 export function FortuneSections({ fortune }: Props) {
@@ -216,6 +238,15 @@ export function FortuneSections({ fortune }: Props) {
           {activeAnalysisTab === "manse" ? (
             <section className={styles.innerSection}>
               <h2>만세력 표</h2>
+              <ReadingGuide
+                intro="연·월·일·시 네 기둥에서 일주를 중심으로 나머지 기둥이 어떤 배경을 주는지 읽는 표입니다."
+                summary="만세력 읽는 법"
+                tips={[
+                  "일주는 본인 성향의 중심으로 보고, 월주는 계절감과 생활 환경의 영향으로 읽습니다.",
+                  "천간은 겉으로 드러나는 기운, 지지는 바탕과 관계 흐름으로 보면 됩니다.",
+                  "지장간은 지지 안에 숨은 기운이라 겉보다 속의 동기나 잠재 성향을 볼 때 참고합니다.",
+                ]}
+              />
               {fortune.manse ? (
                 <>
                   <div className={styles.manseMeta}>
@@ -294,11 +325,19 @@ export function FortuneSections({ fortune }: Props) {
             <section className={styles.innerSection}>
               <div className={styles.analysisHeader}>
                 <div>
-                  <p className={styles.analysisKicker}>명식 중심 요약</p>
                   <h2>명식 해석</h2>
                 </div>
                 <p className={styles.analysisCaption}>핵심부터 읽고, 아래에서 세부 근거를 확인할 수 있게 정리했습니다.</p>
               </div>
+              <ReadingGuide
+                intro="명식은 내 사주의 균형과 작동 방식을 읽는 영역입니다. 강약, 격국 후보, 용신을 먼저 보면 흐름이 잡힙니다."
+                summary="명식 읽는 법"
+                tips={[
+                  "강약은 내가 기운을 감당하는 힘이 어느 정도인지 보는 기준입니다.",
+                  "격국 후보는 명식이 어떤 방식으로 움직이는지 읽는 틀이고, 용신은 균형을 잡는 보완 방향입니다.",
+                  "합충형은 관계와 사건의 마찰 지점을 보여주므로 세부 해석은 아래 근거 카드와 같이 보는 편이 정확합니다.",
+                ]}
+              />
 
               <div className={styles.analysisHero}>
                 <article className={styles.analysisSummaryCard}>
@@ -487,6 +526,15 @@ export function FortuneSections({ fortune }: Props) {
           {activeAnalysisTab === "graph" ? (
             <section className={styles.innerSection}>
               <h2>사주 오행 그래프</h2>
+              <ReadingGuide
+                intro="그래프는 오행이 어디에 몰리고 비는지 한눈에 보는 요약입니다. 많고 적음보다 전체 균형을 먼저 보는 편이 맞습니다."
+                summary="오행 그래프 읽는 법"
+                tips={[
+                  "특정 오행이 높으면 그 성향이 강하게 드러날 수 있지만, 항상 좋거나 나쁜 뜻은 아닙니다.",
+                  "낮은 오행은 부족한 자원이나 보완 포인트로 보고, 용신과 같이 해석하는 것이 안전합니다.",
+                  "오늘 운세는 이 기본 분포 위에 오늘 일진이 어떤 자극을 주는지 덧붙여 읽습니다.",
+                ]}
+              />
               <FiveElementsChart elements={fortune.elements} />
             </section>
           ) : null}

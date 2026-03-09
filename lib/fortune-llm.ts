@@ -2,12 +2,13 @@ import type { CalendarType, ElementKey } from "./saju";
 
 type FortuneNarrativeBase = {
   score: number;
-  grade: "대길" | "길" | "평" | "주의";
+  grade: string;
   headline: string;
   summary: string;
   detail: string;
   caution: string;
   recommendedActions: string[];
+  avoidToday: string[];
   analysis: {
     strengthLevel: "strong" | "balanced" | "weak";
     dominantTenGod: string;
@@ -31,7 +32,7 @@ type FortuneNarrativeBase = {
 
 export type FortuneNarrativeOverride = Pick<
   FortuneNarrativeBase,
-  "headline" | "summary" | "detail" | "caution" | "recommendedActions"
+  "headline" | "summary" | "detail" | "recommendedActions"
 >;
 
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6;
@@ -78,10 +79,9 @@ function parseNarrativeOverride(payload: unknown): FortuneNarrativeOverride | nu
   const headline = typeof source.headline === "string" ? source.headline.trim() : "";
   const summary = typeof source.summary === "string" ? source.summary.trim() : "";
   const detail = typeof source.detail === "string" ? source.detail.trim() : "";
-  const caution = typeof source.caution === "string" ? source.caution.trim() : "";
   const recommendedActions = normalizeActions(source.recommendedActions);
 
-  if (!headline || !summary || !detail || !caution || !recommendedActions) {
+  if (!headline || !summary || !detail || !recommendedActions) {
     return null;
   }
 
@@ -89,7 +89,6 @@ function parseNarrativeOverride(payload: unknown): FortuneNarrativeOverride | nu
     headline,
     summary,
     detail,
-    caution,
     recommendedActions,
   };
 }
@@ -142,6 +141,7 @@ function buildPromptContext(params: {
         detail: fortune.detail,
         caution: fortune.caution,
         recommendedActions: fortune.recommendedActions,
+        avoidToday: fortune.avoidToday,
       },
       deterministicFacts: {
         todayGanji: fortune.analysis.todayGanji,
@@ -182,6 +182,8 @@ function buildCacheKey(params: {
     todayDate: params.date.toISOString().slice(0, 10),
     score: params.fortune.score,
     grade: params.fortune.grade,
+    recommendedActions: params.fortune.recommendedActions,
+    avoidToday: params.fortune.avoidToday,
     todayGanji: params.fortune.analysis.todayGanji,
     todayRelation: params.fortune.analysis.todayRelation,
     patternName: params.fortune.analysis.patternName,
@@ -247,7 +249,7 @@ export async function generateFortuneNarrativeOverride(params: {
           model: resolveModel(),
           store: false,
           instructions:
-            "You write Korean daily fortune copy for a saju chatbot. Facts are deterministic and must not be changed or invented. Return strict JSON only with keys headline, summary, detail, caution, recommendedActions. headline must be one concise sentence. summary/detail/caution must each be natural Korean prose, concise and concrete. recommendedActions must be an array of exactly 3 short imperative Korean sentences. Mention uncertainty when birth time is unknown or calendarTypeInput is unknown. No markdown, no code fences, no emojis.",
+            "You write Korean daily fortune copy for a saju chatbot. Facts are deterministic and must not be changed or invented. Return strict JSON only with keys headline, summary, detail, recommendedActions. headline must be one concise sentence. summary/detail must each be natural Korean prose, concise and concrete. recommendedActions must be an array of exactly 3 short imperative Korean sentences. Keep the intent of the base recommendedActions, do not contradict avoidToday or caution, and do not add risky or exaggerated advice. Mention uncertainty when birth time is unknown or calendarTypeInput is unknown. No markdown, no code fences, no emojis.",
           input: buildPromptContext(params),
         }),
         cache: "no-store",

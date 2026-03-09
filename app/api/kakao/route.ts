@@ -120,6 +120,11 @@ function resolveAppBaseUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://saju-doryeong.vercel.app").replace(/\/$/, "");
 }
 
+function resolveKakaoBizFormUrl(): string | undefined {
+  const value = process.env.KAKAO_BIZ_FORM_URL?.trim();
+  return value ? value : undefined;
+}
+
 function createFortuneButtons(detailUrl: string): KakaoCardButton[] {
   const buttons: KakaoCardButton[] = [
     {
@@ -276,6 +281,7 @@ function extractKakaoActionParams(payload: unknown): {
 }
 
 function createRegistrationGuideCard(errorMessage?: string, debugLines?: string[]): KakaoBasicCardResponse {
+  const bizFormUrl = resolveKakaoBizFormUrl();
   const lines = errorMessage
     ? [
         "사주 정보를 읽는 중 막힌 부분이 있소.",
@@ -295,6 +301,15 @@ function createRegistrationGuideCard(errorMessage?: string, debugLines?: string[
   return createBasicCard({
     title: "운세도령",
     description: lines.join("\n"),
+    buttons: bizFormUrl
+      ? [
+          {
+            action: "webLink",
+            label: "사주 정보 등록하기",
+            webLinkUrl: bizFormUrl,
+          },
+        ]
+      : undefined,
   });
 }
 

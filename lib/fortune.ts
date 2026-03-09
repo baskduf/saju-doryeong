@@ -762,5 +762,7 @@ export async function generateDailyFortuneWithNarrative(
   return {
     ...baseFortune,
     ...override,
+    caution: baseFortune.caution,
+    avoidToday: baseFortune.avoidToday,
   };
 }

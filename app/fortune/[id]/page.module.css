@@ -221,6 +221,52 @@
   border-color: rgba(119, 69, 28, 0.34);
 }
 
+.readingGuide {
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(145, 93, 40, 0.14);
+  background: linear-gradient(180deg, rgba(255, 249, 237, 0.86), rgba(251, 239, 214, 0.78));
+}
+
+.readingGuideIntro {
+  margin: 0;
+  color: #5a381a;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.readingGuideDetails {
+  margin-top: 10px;
+}
+
+.readingGuideDetails summary {
+  cursor: pointer;
+  list-style: none;
+  color: #8b5422;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.readingGuideDetails summary::-webkit-details-marker {
+  display: none;
+}
+
+.readingGuideDetails summary::after {
+  content: " +";
+}
+
+.readingGuideDetails[open] summary::after {
+  content: " -";
+}
+
+.readingGuideList {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  color: #4a2a11;
+  line-height: 1.74;
+}
+
 .innerSection + .innerSection {
   margin-top: 20px;
   padding-top: 20px;

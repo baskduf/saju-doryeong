@@ -20,6 +20,18 @@ export default function HomePage() {
         </p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
           <Link
+            href="/register"
+            style={{
+              padding: "10px 14px",
+              borderRadius: 999,
+              border: "1px solid #b48c4f",
+              backgroundColor: "#f5e2ba",
+              color: "#5f4018"
+            }}
+          >
+            사주 정보 등록하기
+          </Link>
+          <Link
             href="/fortune/sample-user"
             style={{
               padding: "10px 14px",

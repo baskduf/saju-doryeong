@@ -1,0 +1,249 @@
+.page {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top left, rgba(255, 221, 161, 0.32), transparent 38%),
+    linear-gradient(180deg, #f7efe2 0%, #f4ead7 50%, #efe4cf 100%);
+}
+
+.background {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(135deg, rgba(87, 56, 24, 0.08), rgba(87, 56, 24, 0)),
+    url("/background.png") center top / cover no-repeat;
+  opacity: 0.18;
+  pointer-events: none;
+}
+
+.shell {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 880px);
+  margin: 0 auto;
+  padding: 28px 18px 48px;
+}
+
+.hero {
+  display: grid;
+  gap: 8px;
+  align-items: center;
+  justify-items: start;
+  margin-bottom: 10px;
+}
+
+.heroArt {
+  position: relative;
+  display: flex;
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.heroImage {
+  width: min(100%, 220px);
+  height: auto;
+  object-fit: contain;
+}
+
+.formPanel {
+  border: 1px solid rgba(117, 80, 34, 0.16);
+  border-radius: 28px;
+  background: rgba(255, 251, 243, 0.92);
+  box-shadow: 0 24px 50px rgba(69, 44, 16, 0.12);
+  backdrop-filter: blur(10px);
+}
+
+.form {
+  display: grid;
+  gap: 18px;
+  padding: 24px 18px 22px;
+}
+
+.formHeader {
+  display: grid;
+  gap: 10px;
+}
+
+.formEyebrow {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #9e6a24;
+}
+
+.formTitle {
+  margin: 2px 0 0;
+  font-size: 1.5rem;
+  color: #2e1c11;
+}
+
+.formNote {
+  margin: 0;
+  color: #79583a;
+  font-size: 0.94rem;
+  line-height: 1.6;
+}
+
+.lockedUserCard {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(123, 82, 31, 0.08), rgba(123, 82, 31, 0.03));
+  border: 1px solid rgba(123, 82, 31, 0.12);
+}
+
+.lockedLabel {
+  color: #8a5d28;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lockedValue {
+  color: #2f2014;
+  font-size: 1rem;
+}
+
+.lockedHint,
+.help {
+  margin: 0;
+  color: #7a5b3e;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.field,
+.fieldset {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.label {
+  color: #4a3119;
+  font-size: 0.96rem;
+  font-weight: 700;
+}
+
+.input {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(110, 77, 33, 0.16);
+  background: rgba(255, 255, 255, 0.86);
+  color: #2e1d10;
+  font-size: 1rem;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.input:focus {
+  border-color: rgba(138, 92, 30, 0.56);
+  box-shadow: 0 0 0 4px rgba(169, 118, 41, 0.12);
+}
+
+.segmented {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.segment {
+  position: relative;
+  display: flex;
+}
+
+.segment input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.segment span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 10px;
+  border-radius: 15px;
+  border: 1px solid rgba(110, 77, 33, 0.14);
+  background: rgba(255, 255, 255, 0.78);
+  color: #654728;
+  font-weight: 700;
+}
+
+.segment input:checked + span {
+  border-color: #774c19;
+  background: #714616;
+  color: #fff5e4;
+}
+
+.error {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(173, 55, 44, 0.08);
+  border: 1px solid rgba(173, 55, 44, 0.14);
+  color: #9a2b25;
+  font-size: 0.94rem;
+  line-height: 1.6;
+}
+
+.submitButton {
+  min-height: 56px;
+  border: 0;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #7b4d1a, #5f3810);
+  color: #fff7ec;
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 16px 30px rgba(88, 52, 17, 0.22);
+}
+
+.submitButton:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.footerLinks {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 4px 0;
+}
+
+.footerLink,
+.footerLinkMuted {
+  color: #6e4821;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.footerLinkMuted {
+  color: #8b6c4d;
+}
+
+@media (min-width: 760px) {
+  .shell {
+    padding-top: 40px;
+  }
+
+  .hero {
+    gap: 12px;
+    justify-items: start;
+  }
+
+  .form {
+    padding: 28px;
+  }
+}

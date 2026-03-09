@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
-import { findProfileByUserId, hasDatabaseUrl, isNonEmptyString, parseRegistrationFields, upsertProfile } from "../../../lib/profile";
+import {
+  buildInitialSajuData,
+  findProfileByUserId,
+  hasDatabaseUrl,
+  isNonEmptyString,
+  parseRegistrationFields,
+  upsertProfile,
+} from "../../../lib/profile";
 
 type ProfilePayload = {
   userId: string;
@@ -8,7 +15,7 @@ type ProfilePayload = {
   birthDate: Date;
   birthTime?: string;
   calendarType: "solar" | "lunar" | "unknown";
-  sajuData: unknown;
+  sajuData?: unknown;
 };
 
 function parsePayload(payload: unknown): { ok: true; data: ProfilePayload } | { ok: false; message: string } {
@@ -18,14 +25,9 @@ function parsePayload(payload: unknown): { ok: true; data: ProfilePayload } | { 
 
   const raw = payload as Record<string, unknown>;
   const userId = raw.userId;
-  const sajuData = raw.sajuData;
 
   if (!isNonEmptyString(userId)) {
     return { ok: false, message: "userId는 필수 문자열입니다." };
-  }
-
-  if (sajuData === undefined) {
-    return { ok: false, message: "sajuData는 필수입니다." };
   }
 
   const parsedRegistration = parseRegistrationFields({
@@ -46,7 +48,14 @@ function parsePayload(payload: unknown): { ok: true; data: ProfilePayload } | { 
       birthDate: parsedRegistration.data.birthDate,
       birthTime: parsedRegistration.data.birthTime,
       calendarType: parsedRegistration.data.calendarType,
-      sajuData,
+      sajuData:
+        raw.sajuData ??
+        buildInitialSajuData({
+          userId: userId.trim(),
+          birthDate: parsedRegistration.data.birthDate,
+          birthTime: parsedRegistration.data.birthTime,
+          calendarType: parsedRegistration.data.calendarType,
+        }),
     },
   };
 }

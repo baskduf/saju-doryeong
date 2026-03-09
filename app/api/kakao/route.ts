@@ -162,9 +162,13 @@ function resolveAppBaseUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://saju-doryeong.vercel.app").replace(/\/$/, "");
 }
 
-function resolveKakaoBizFormUrl(): string | undefined {
-  const value = process.env.KAKAO_BIZ_FORM_URL?.trim();
-  return value ? value : undefined;
+function createRegistrationUrl(userId?: string): string {
+  const url = new URL(`${resolveAppBaseUrl()}/register`);
+  if (userId) {
+    url.searchParams.set("userId", userId);
+  }
+  url.searchParams.set("source", "kakao");
+  return url.toString();
 }
 
 function createFortuneButtons(detailUrl: string): KakaoCardButton[] {
@@ -322,8 +326,8 @@ function extractKakaoActionParams(payload: unknown): {
   };
 }
 
-function createRegistrationGuideCard(errorMessage?: string, debugLines?: string[]): KakaoBasicCardResponse {
-  const bizFormUrl = resolveKakaoBizFormUrl();
+function createRegistrationGuideCard(errorMessage?: string, debugLines?: string[], userId?: string): KakaoBasicCardResponse {
+  const registrationUrl = createRegistrationUrl(userId);
   const lines = errorMessage
     ? [
         "사주 정보를 읽는 중 막힌 부분이 있소.",
@@ -343,15 +347,13 @@ function createRegistrationGuideCard(errorMessage?: string, debugLines?: string[
   return createBasicCard({
     title: "운세도령",
     description: lines.join("\n"),
-    buttons: bizFormUrl
-      ? [
-          {
-            action: "webLink",
-            label: "사주 정보 등록하기",
-            webLinkUrl: bizFormUrl,
-          },
-        ]
-      : undefined,
+    buttons: [
+      {
+        action: "webLink",
+        label: "사주 정보 등록하기",
+        webLinkUrl: registrationUrl,
+      },
+    ],
   });
 }
 
@@ -465,7 +467,7 @@ export async function POST(request: NextRequest) {
     const profile = await findProfileByUserId(userId);
 
     if (!registrationParams.hasAny && utterance === "\uC815\uBCF4 \uC7AC\uB4F1\uB85D") {
-      return NextResponse.json(createRegistrationGuideCard());
+      return NextResponse.json(createRegistrationGuideCard(undefined, undefined, userId));
     }
 
     if (!registrationParams.hasAny && utterance === "\uC6B4\uC138 \uC9C8\uBB38") {
@@ -482,7 +484,7 @@ export async function POST(request: NextRequest) {
         calendarType: registrationParams.calendarType,
       });
       if (!parsed.ok) {
-        return NextResponse.json(createRegistrationGuideCard(parsed.message, registrationParams.debugLines));
+        return NextResponse.json(createRegistrationGuideCard(parsed.message, registrationParams.debugLines, userId));
       }
 
       const storedProfile = await upsertProfile({
@@ -509,7 +511,7 @@ export async function POST(request: NextRequest) {
 
     if (!profile) {
       return NextResponse.json(
-        createRegistrationGuideCard(),
+        createRegistrationGuideCard(undefined, undefined, userId),
       );
     }
 

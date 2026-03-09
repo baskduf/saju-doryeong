@@ -20,22 +20,23 @@ type KakaoBasicCardResponse = {
         thumbnail: {
           imageUrl: string;
         };
-        buttons?: Array<{
-          action: "webLink";
-          label: string;
-          webLinkUrl: string;
-        }>;
+        buttons?: KakaoCardButton[];
       };
     }>;
     quickReplies?: KakaoQuickReply[];
   };
 };
 
-type KakaoCardButton = {
-  action: "webLink";
-  label: string;
-  webLinkUrl: string;
-};
+type KakaoCardButton =
+  | {
+      action: "webLink";
+      label: string;
+      webLinkUrl: string;
+    }
+  | {
+      action: "share";
+      label: string;
+    };
 
 type KakaoQuickReply = {
   label: string;
@@ -137,10 +138,15 @@ function createFortuneButtons(detailUrl: string): KakaoCardButton[] {
   if (channelUrl) {
     buttons.push({
       action: "webLink",
-      label: "\uCE5C\uAD6C\uC5D0\uAC8C \uACF5\uC720\uD558\uAE30", 
+      label: "\uCC44\uB110 \uBC14\uB85C\uAC00\uAE30",
       webLinkUrl: channelUrl,
     });
   }
+
+  buttons.push({
+    action: "share",
+    label: "\uCE5C\uAD6C\uC5D0\uAC8C \uACF5\uC720\uD558\uAE30",
+  });
 
   return buttons;
 }

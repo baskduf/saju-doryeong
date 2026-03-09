@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { generateDailyFortune } from "../../../lib/fortune";
+import { answerFortuneQuestion, isLikelyFortuneQuestion } from "../../../lib/fortune-question";
 import {
   buildInitialSajuData,
   findProfileByUserId,
@@ -75,6 +76,20 @@ function createDefaultQuickReplies(): KakaoQuickReply[] {
   return DEFAULT_QUICK_REPLIES.map((reply) => ({ ...reply }));
 }
 
+function mergeQuickReplies(extraQuickReplies?: KakaoQuickReply[]): KakaoQuickReply[] {
+  const merged = [...createDefaultQuickReplies(), ...(extraQuickReplies ?? [])];
+  const seen = new Set<string>();
+
+  return merged.filter((reply) => {
+    const key = `${reply.label}:${reply.messageText}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
 function createBasicCard(params: {
   title: string;
   description: string;
@@ -111,7 +126,7 @@ function createBasicCard(params: {
           },
         },
       ],
-      quickReplies: params.quickReplies ?? createDefaultQuickReplies(),
+      quickReplies: mergeQuickReplies(params.quickReplies),
     },
   };
 }
@@ -341,6 +356,31 @@ async function createFortuneCard(profile: KakaoProfileLike, notice?: string): Pr
   });
 }
 
+async function createQuestionAnswerCard(profile: KakaoProfileLike, question: string): Promise<KakaoBasicCardResponse> {
+  const fortune = generateDailyFortune({
+    userId: profile.userId,
+    birthDate: profile.birthDate,
+    birthTime: profile.birthTime ?? undefined,
+    calendarType: profile.calendarType as "solar" | "lunar" | "unknown",
+    sajuData: profile.sajuData,
+  });
+
+  const answer = await answerFortuneQuestion({
+    question,
+    fortune,
+    profileName: profile.name ?? undefined,
+  });
+
+  const baseUrl = resolveAppBaseUrl();
+  const detailUrl = `${baseUrl}/fortune/${encodeURIComponent(profile.userId)}`;
+
+  return createBasicCard({
+    title: answer.title,
+    description: answer.description,
+    buttons: createFortuneButtons(detailUrl),
+  });
+}
+
 function createQuestionGuideCard(hasProfile: boolean): KakaoBasicCardResponse {
   return createBasicCard({
     title: "운세도령",
@@ -442,6 +482,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         createRegistrationGuideCard(),
       );
+    }
+
+    if (
+      utterance &&
+      utterance !== "\uC624\uB298\uC758 \uC6B4\uC138" &&
+      utterance !== "\uC6B4\uC138 \uC9C8\uBB38" &&
+      utterance !== "\uC815\uBCF4 \uC7AC\uB4F1\uB85D" &&
+      isLikelyFortuneQuestion(utterance)
+    ) {
+      return NextResponse.json(await createQuestionAnswerCard(profile, utterance));
     }
 
     return NextResponse.json(await createFortuneCard(profile));

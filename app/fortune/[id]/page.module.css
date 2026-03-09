@@ -3,10 +3,7 @@
   isolation: isolate;
   min-height: 100vh;
   padding: 28px 18px 44px;
-  background:
-    radial-gradient(1200px 640px at 8% -8%, rgba(251, 197, 49, 0.14), transparent 56%),
-    radial-gradient(960px 560px at 92% -14%, rgba(231, 155, 50, 0.14), transparent 52%),
-    linear-gradient(160deg, #231812 0%, #312117 42%, #1d130d 100%);
+  background: transparent;
   color: #2f1d11;
   font-family:
     "Nanum Myeongjo",
@@ -20,8 +17,7 @@
   inset: 0;
   z-index: 0;
   background: url("/background.png") center/cover no-repeat;
-  opacity: 0.32;
-  mix-blend-mode: soft-light;
+  opacity: 0.22;
   pointer-events: none;
 }
 

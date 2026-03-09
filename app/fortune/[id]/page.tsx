@@ -1,7 +1,6 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { generateDailyFortuneWithNarrative } from "../../../lib/fortune";
-import { prisma } from "../../../lib/prisma";
 import { FortuneSections } from "./FortuneSections";
 import styles from "./page.module.css";
 
@@ -50,22 +49,28 @@ function calendarTypeLabel(value: string): string {
   return "모름";
 }
 
+async function findStoredProfile(userId: string) {
+  if (!process.env.DATABASE_URL && !process.env.POSTGRES_PRISMA_URL) {
+    return null;
+  }
+
+  const { prisma } = await import("../../../lib/prisma");
+  return prisma.sajuProfile.findUnique({
+    where: { userId },
+    select: {
+      userId: true,
+      name: true,
+      birthDate: true,
+      birthTime: true,
+      calendarType: true,
+      sajuData: true,
+    },
+  });
+}
+
 export default async function FortuneDetailPage({ params }: PageProps) {
   const { id } = params;
-  const storedProfile =
-    id === SAMPLE_PROFILE.userId
-      ? null
-      : await prisma.sajuProfile.findUnique({
-          where: { userId: id },
-          select: {
-            userId: true,
-            name: true,
-            birthDate: true,
-            birthTime: true,
-            calendarType: true,
-            sajuData: true,
-          },
-        });
+  const storedProfile = id === SAMPLE_PROFILE.userId ? null : await findStoredProfile(id);
 
   const isSampleProfile = !storedProfile && id === SAMPLE_PROFILE.userId;
   const profile = storedProfile ?? (isSampleProfile ? SAMPLE_PROFILE : null);

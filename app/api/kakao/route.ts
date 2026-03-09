@@ -31,6 +31,12 @@ type KakaoBasicCardResponse = {
   };
 };
 
+type KakaoCardButton = {
+  action: "webLink";
+  label: string;
+  webLinkUrl: string;
+};
+
 type KakaoQuickReply = {
   label: string;
   action: "message";
@@ -46,14 +52,48 @@ type KakaoProfileLike = {
   sajuData: unknown;
 };
 
+const DEFAULT_QUICK_REPLIES: KakaoQuickReply[] = [
+  {
+    label: "\uC815\uBCF4 \uC7AC\uB4F1\uB85D",
+    action: "message",
+    messageText: "\uC815\uBCF4 \uC7AC\uB4F1\uB85D",
+  },
+  {
+    label: "\uC624\uB298\uC758 \uC6B4\uC138",
+    action: "message",
+    messageText: "\uC624\uB298\uC758 \uC6B4\uC138",
+  },
+  {
+    label: "\uC6B4\uC138 \uC9C8\uBB38",
+    action: "message",
+    messageText: "\uC6B4\uC138 \uC9C8\uBB38",
+  },
+];
+
+function createDefaultQuickReplies(): KakaoQuickReply[] {
+  return DEFAULT_QUICK_REPLIES.map((reply) => ({ ...reply }));
+}
+
 function createBasicCard(params: {
   title: string;
   description: string;
   webLinkUrl?: string;
+  buttons?: KakaoCardButton[];
   thumbnailUrl?: string;
   quickReplies?: KakaoQuickReply[];
 }): KakaoBasicCardResponse {
   const baseUrl = resolveAppBaseUrl();
+  const buttons =
+    params.buttons ??
+    (params.webLinkUrl
+      ? [
+          {
+            action: "webLink" as const,
+            label: "\uC0C1\uC138 \uC6B4\uC138 \uBCF4\uB7EC\uAC00\uAE30",
+            webLinkUrl: params.webLinkUrl,
+          },
+        ]
+      : undefined);
 
   return {
     version: "2.0",
@@ -66,31 +106,43 @@ function createBasicCard(params: {
             thumbnail: {
               imageUrl: params.thumbnailUrl ?? `${baseUrl}/kakao-card-thumbnail.svg`,
             },
-            buttons: params.webLinkUrl
-              ? [
-                  {
-                    action: "webLink",
-                    label: "상세 운세 보러가기",
-                    webLinkUrl: params.webLinkUrl,
-                  },
-                ]
-              : undefined,
+            buttons,
           },
         },
       ],
-      quickReplies: params.quickReplies ?? [
-        {
-          label: "운세 다시 보기",
-          action: "message",
-          messageText: "오늘의 운세",
-        },
-      ],
+      quickReplies: params.quickReplies ?? createDefaultQuickReplies(),
     },
   };
 }
 
 function resolveAppBaseUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://saju-doryeong.vercel.app").replace(/\/$/, "");
+}
+
+function resolveChannelShareUrl(): string | undefined {
+  const channelUrl = process.env.KAKAO_CHANNEL_URL?.trim();
+  return channelUrl ? channelUrl.replace(/\/$/, "") : undefined;
+}
+
+function createFortuneButtons(detailUrl: string): KakaoCardButton[] {
+  const buttons: KakaoCardButton[] = [
+    {
+      action: "webLink",
+      label: "\uC0C1\uC138 \uC6B4\uC138 \uBCF4\uB7EC\uAC00\uAE30",
+      webLinkUrl: detailUrl,
+    },
+  ];
+
+  const channelUrl = resolveChannelShareUrl();
+  if (channelUrl) {
+    buttons.push({
+      action: "webLink",
+      label: "\uCE5C\uAD6C\uC5D0\uAC8C \uACF5\uC720\uD558\uAE30", 
+      webLinkUrl: channelUrl,
+    });
+  }
+
+  return buttons;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
@@ -159,6 +211,14 @@ function getKakaoUserId(payload: unknown): string | undefined {
     }
   }
   return undefined;
+}
+
+function getKakaoUtterance(payload: unknown): string | undefined {
+  const root = asRecord(payload);
+  if (!root) return undefined;
+
+  const userRequest = asRecord(root.userRequest);
+  return readStringValue(userRequest?.utterance);
 }
 
 function pickFirstString(source: Record<string, unknown>, keys: string[]): string | undefined {
@@ -233,7 +293,7 @@ function createRegistrationGuideCard(errorMessage?: string, debugLines?: string[
         "수신값 확인:",
         ...(debugLines ?? []),
         "",
-        "입력 예시: 이름 홍길동, 생년월일 1995-10-21, 출생시간 14:30, 달력 양력(또는 모른다)",
+        "입력 예시: 이름 홍길동, 생년월일 1995-10-21, 출생시간 14:30, 양력 여부(또는 모른다)",
       ]
     : [
         "그대의 사주 기록이 아직 없구나.",
@@ -244,18 +304,6 @@ function createRegistrationGuideCard(errorMessage?: string, debugLines?: string[
   return createBasicCard({
     title: "운세도령",
     description: lines.join("\n"),
-    quickReplies: [
-      {
-        label: "사주 등록",
-        action: "message",
-        messageText: "사주 등록",
-      },
-      {
-        label: "오늘의 운세",
-        action: "message",
-        messageText: "오늘의 운세",
-      },
-    ],
   });
 }
 
@@ -271,7 +319,7 @@ async function createFortuneCard(profile: KakaoProfileLike, notice?: string): Pr
 
   const baseUrl = resolveAppBaseUrl();
   const detailUrl = `${baseUrl}/fortune/${encodeURIComponent(profile.userId)}`;
-  const titleName = profile.name ? `${profile.name} 님` : "그대";
+  const titleName = profile.name ? `${profile.name}님` : "그대";
 
   const descriptionLines = [
     `${titleName}, ${fortune.headline}`,
@@ -282,9 +330,25 @@ async function createFortuneCard(profile: KakaoProfileLike, notice?: string): Pr
   ].filter((line): line is string => Boolean(line));
 
   return createBasicCard({
-    title: "운세도령의 오늘 풀이",
+    title: "운세도령의 오늘 운세",
     description: descriptionLines.join("\n\n"),
-    webLinkUrl: detailUrl,
+    buttons: createFortuneButtons(detailUrl),
+  });
+}
+
+function createQuestionGuideCard(hasProfile: boolean): KakaoBasicCardResponse {
+  return createBasicCard({
+    title: "운세도령",
+    description: hasProfile
+      ? [
+          "궁금한 운세 질문을 짧게 입력해 주시오.",
+          "예: 오늘 대인관계 운 어때? / 오늘 재물운 포인트는?",
+          "현재는 오늘 운세 중심으로 안내합니다.",
+        ].join("\n")
+      : [
+          "운세 질문 전에 먼저 사주 정보를 등록해 주시오.",
+          '하단의 "정보 재등록"을 누르면 다시 등록을 진행할 수 있습니다.',
+        ].join("\n"),
   });
 }
 
@@ -302,6 +366,7 @@ export async function POST(request: NextRequest) {
   try {
     const payload = await request.json();
     const userId = getKakaoUserId(payload);
+    const utterance = getKakaoUtterance(payload)?.trim();
     const registrationParams = extractKakaoActionParams(payload);
 
     if (!userId) {
@@ -324,6 +389,15 @@ export async function POST(request: NextRequest) {
     }
 
     const profile = await findProfileByUserId(userId);
+
+    if (!registrationParams.hasAny && utterance === "\uC815\uBCF4 \uC7AC\uB4F1\uB85D") {
+      return NextResponse.json(createRegistrationGuideCard());
+    }
+
+    if (!registrationParams.hasAny && utterance === "\uC6B4\uC138 \uC9C8\uBB38") {
+      return NextResponse.json(createQuestionGuideCard(Boolean(profile)));
+    }
+
     const shouldHandleRegistration = !profile ? registrationParams.hasAny : Boolean(registrationParams.birthDate);
 
     if (shouldHandleRegistration) {

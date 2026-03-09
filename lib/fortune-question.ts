@@ -192,15 +192,15 @@ function parseQuestionAnswer(payload: unknown, topic: QuestionTopic): FortuneQue
 function fallbackTitle(topic: QuestionTopic): string {
   switch (topic) {
     case "work":
-      return "오늘의 일과 흐름";
+      return "도령의 일풀이";
     case "money":
-      return "오늘의 재물 흐름";
+      return "도령의 재물풀이";
     case "relationship":
-      return "오늘의 관계 흐름";
+      return "도령의 인연풀이";
     case "health":
-      return "오늘의 컨디션 흐름";
+      return "도령의 기력풀이";
     default:
-      return "오늘의 운세 답변";
+      return "도령의 운세풀이";
   }
 }
 
@@ -214,20 +214,20 @@ function buildFallbackAnswer(params: {
       ? params.fortune.categoryScores[0]
       : params.fortune.categoryScores.find((item) => item.key === params.topic) ?? params.fortune.categoryScores[0];
 
-  const focusAction = params.fortune.recommendedActions[0] ?? "지금 할 일을 짧게 정리해 보시오.";
+  const focusAction = params.fortune.recommendedActions[0] ?? "지금 할 일을 차분히 정리해 보시오.";
   const caution = params.fortune.avoidToday[0] ?? params.fortune.caution;
 
   const description =
     params.topic === "general"
       ? [
-          `오늘 전체 흐름은 ${params.fortune.score}점으로 ${params.fortune.grade} 쪽에 가깝습니다.`,
+          `오늘 전체 흐름은 ${params.fortune.score}점이라 ${params.fortune.grade} 쪽에 가깝소.`,
           params.fortune.summary,
-          `우선 ${focusAction} 그리고 ${caution}`,
+          `우선 ${focusAction} 쪽으로 움직이고, ${caution}`,
         ].join(" ")
       : [
-          `${category.label} 흐름은 ${category.score}점 정도로 보입니다.`,
+          `${category.label} 흐름은 ${category.score}점 정도로 읽히오.`,
           category.summary,
-          `질문과 관련해선 ${focusAction} 다만 ${caution}`,
+          `이 일에는 ${focusAction} 쪽이 맞겠으나, ${caution}`,
         ].join(" ");
 
   return {
@@ -280,7 +280,7 @@ export async function answerFortuneQuestion(params: {
         model: resolveModel(),
         store: false,
         instructions:
-          "You answer Korean daily fortune questions for a Kakao chatbot. Facts are deterministic and must not be changed or invented. Return strict JSON only with keys title and description. title must be under 18 Korean characters. description must be 2 to 4 concise Korean sentences, under 260 characters if possible. Answer only from the provided fortune facts. Do not give medical, legal, or investment advice. Do not exaggerate. Mention one helpful action and one caution naturally when relevant. No markdown, no code fences, no emojis.",
+          "You answer Korean daily fortune questions for a Kakao chatbot. Facts are deterministic and must not be changed or invented. Return strict JSON only with keys title and description. title must be under 18 Korean characters. description must be 2 to 4 concise Korean sentences, under 260 characters if possible. Answer only from the provided fortune facts. Use a concise respectful fortune-teller tone in Korean, a light 도령체. Prefer endings like 하오, 좋겠소, 이로구나 naturally and sparingly. Never use plain modern customer-service tone. Do not give medical, legal, or investment advice. Do not exaggerate. Mention one helpful action and one caution naturally when relevant. No markdown, no code fences, no emojis.",
         input: buildPromptContext({
           question: params.question,
           fortune: params.fortune,

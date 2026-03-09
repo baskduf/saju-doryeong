@@ -436,12 +436,12 @@ function createQuestionGuideCard(params: { hasProfile: boolean; remaining?: numb
       ? [
           "궁금한 운세 질문을 짧게 입력해 주시오.",
           "예: 오늘 대인관계 운 어때? / 오늘 재물운 포인트는?",
-          "현재는 오늘 운세 중심으로 안내합니다.",
+          "자네에게는 오늘의 운세를 바탕으로 풀이해 드리겠소.",
           `하루 질문은 ${DAILY_QUESTION_LIMIT}회까지 가능하오${typeof params.remaining === "number" ? `. 남은 횟수: ${params.remaining}회` : "."}`,
         ].join("\n")
       : [
           "운세 질문 전에 먼저 사주 정보를 등록해 주시오.",
-          '하단의 "정보 재등록"을 누르면 다시 등록을 진행할 수 있습니다.',
+          '하단의 "정보 재등록"을 누르면 다시 기록을 이어갈 수 있소.',
         ].join("\n"),
     quickReplies: createQuestionQuickReplies(),
   });

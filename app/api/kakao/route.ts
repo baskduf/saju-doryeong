@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
-import { generateDailyFortuneWithNarrative } from "../../../lib/fortune";
+import { generateDailyFortune } from "../../../lib/fortune";
 import {
   buildInitialSajuData,
   findProfileByUserId,
@@ -314,13 +314,12 @@ function createRegistrationGuideCard(errorMessage?: string, debugLines?: string[
 }
 
 async function createFortuneCard(profile: KakaoProfileLike, notice?: string): Promise<KakaoBasicCardResponse> {
-  const fortune = await generateDailyFortuneWithNarrative({
+  const fortune = generateDailyFortune({
     userId: profile.userId,
     birthDate: profile.birthDate,
     birthTime: profile.birthTime ?? undefined,
     calendarType: profile.calendarType as "solar" | "lunar" | "unknown",
     sajuData: profile.sajuData,
-    profileName: profile.name ?? undefined,
   });
 
   const baseUrl = resolveAppBaseUrl();

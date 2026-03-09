@@ -57,6 +57,61 @@ export function hasDatabaseUrl(): boolean {
   return Boolean(process.env.DATABASE_URL || process.env.POSTGRES_PRISMA_URL);
 }
 
+const QUESTION_MODE_TTL_MS = 90 * 1000;
+
+function asJsonRecord(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  return value as Record<string, unknown>;
+}
+
+function buildSajuDataWithQuestionMode(
+  sajuData: unknown,
+  enabled: boolean,
+): Prisma.InputJsonValue {
+  const root = asJsonRecord(sajuData) ?? {};
+  const meta = asJsonRecord(root.meta) ?? {};
+
+  return {
+    ...root,
+    meta: {
+      ...meta,
+      pendingQuestionInput: enabled,
+      pendingQuestionExpiresAt: enabled ? new Date(Date.now() + QUESTION_MODE_TTL_MS).toISOString() : null,
+    },
+  };
+}
+
+export function hasPendingQuestionInput(profile: SajuProfileRecord | null): boolean {
+  const root = asJsonRecord(profile?.sajuData);
+  const meta = asJsonRecord(root?.meta);
+  if (!meta || meta.pendingQuestionInput !== true) {
+    return false;
+  }
+
+  const expiresAtText = typeof meta.pendingQuestionExpiresAt === "string" ? meta.pendingQuestionExpiresAt : undefined;
+  if (!expiresAtText) {
+    return false;
+  }
+
+  const expiresAt = Date.parse(expiresAtText);
+  return Number.isFinite(expiresAt) && expiresAt > Date.now();
+}
+
+export async function setPendingQuestionInput(
+  profile: SajuProfileRecord,
+  enabled: boolean,
+): Promise<SajuProfileRecord> {
+  return prisma.sajuProfile.update({
+    where: { userId: profile.userId },
+    data: {
+      sajuData: buildSajuDataWithQuestionMode(profile.sajuData, enabled),
+    },
+    select: PROFILE_SELECT,
+  });
+}
+
 function toIsoDateString(date: Date): string {
   const year = date.getUTCFullYear();
   const month = String(date.getUTCMonth() + 1).padStart(2, "0");

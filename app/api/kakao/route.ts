@@ -6,8 +6,10 @@ import {
   buildInitialSajuData,
   findProfileByUserId,
   hasDatabaseUrl,
+  hasPendingQuestionInput,
   isNonEmptyString,
   parseRegistrationFields,
+  setPendingQuestionInput,
   upsertProfile,
 } from "../../../lib/profile";
 
@@ -94,6 +96,14 @@ const QUESTION_EXAMPLE_QUICK_REPLIES: KakaoQuickReply[] = [
     messageText: "오늘 컨디션 관리는 어떻게 할까?",
   },
 ];
+
+const REREGISTER_COMMAND = "정보 재등록";
+const FORTUNE_COMMAND = "오늘의 운세";
+const QUESTION_COMMAND = "운세 질문";
+
+function isReservedUtterance(utterance?: string): boolean {
+  return utterance === FORTUNE_COMMAND || utterance === QUESTION_COMMAND || utterance === REREGISTER_COMMAND;
+}
 
 function createDefaultQuickReplies(): KakaoQuickReply[] {
   return DEFAULT_QUICK_REPLIES.map((reply) => ({ ...reply }));
@@ -464,18 +474,28 @@ export async function POST(request: NextRequest) {
     }
 
     const profile = await findProfileByUserId(userId);
+    const pendingQuestionInput = hasPendingQuestionInput(profile);
 
-    if (!registrationParams.hasAny && utterance === "\uC815\uBCF4 \uC7AC\uB4F1\uB85D") {
+    if (!registrationParams.hasAny && utterance === REREGISTER_COMMAND) {
+      if (profile && pendingQuestionInput) {
+        await setPendingQuestionInput(profile, false);
+      }
       return NextResponse.json(createRegistrationGuideCard(undefined, undefined, userId));
     }
 
-    if (!registrationParams.hasAny && utterance === "\uC6B4\uC138 \uC9C8\uBB38") {
+    if (!registrationParams.hasAny && utterance === QUESTION_COMMAND) {
+      if (profile) {
+        await setPendingQuestionInput(profile, true);
+      }
       return NextResponse.json(createQuestionGuideCard(Boolean(profile)));
     }
 
     const shouldHandleRegistration = !profile ? registrationParams.hasAny : Boolean(registrationParams.birthDate);
 
     if (shouldHandleRegistration) {
+      if (profile && pendingQuestionInput) {
+        await setPendingQuestionInput(profile, false);
+      }
       const parsed = parseRegistrationFields({
         name: registrationParams.name,
         birthDate: registrationParams.birthDate,
@@ -514,11 +534,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!registrationParams.hasAny && utterance === FORTUNE_COMMAND) {
+      if (pendingQuestionInput) {
+        await setPendingQuestionInput(profile, false);
+      }
+      return NextResponse.json(await createFortuneCard(profile));
+    }
+
     if (
       utterance &&
-      utterance !== "\uC624\uB298\uC758 \uC6B4\uC138" &&
-      utterance !== "\uC6B4\uC138 \uC9C8\uBB38" &&
-      utterance !== "\uC815\uBCF4 \uC7AC\uB4F1\uB85D" &&
+      !registrationParams.hasAny &&
+      !isReservedUtterance(utterance) &&
+      pendingQuestionInput
+    ) {
+      await setPendingQuestionInput(profile, false);
+      return NextResponse.json(await createQuestionAnswerCard(profile, utterance));
+    }
+
+    if (
+      utterance &&
+      !registrationParams.hasAny &&
+      !isReservedUtterance(utterance) &&
       isLikelyFortuneQuestion(utterance)
     ) {
       return NextResponse.json(await createQuestionAnswerCard(profile, utterance));

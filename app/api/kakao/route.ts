@@ -104,7 +104,7 @@ function createBasicCard(params: {
             title: params.title,
             description: params.description,
             thumbnail: {
-              imageUrl: params.thumbnailUrl ?? `${baseUrl}/kakao-card-thumbnail.svg`,
+              imageUrl: params.thumbnailUrl ?? `${baseUrl}/character_card.png`,
             },
             buttons,
           },

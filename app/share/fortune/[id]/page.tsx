@@ -1,5 +1,6 @@
 ﻿import Image from "next/image";
 import { notFound } from "next/navigation";
+import { Fragment, type ReactNode } from "react";
 import detailStyles from "../../../fortune/[id]/page.module.css";
 import { verifyShareAccessToken } from "../../../../lib/access-token";
 import {
@@ -16,6 +17,50 @@ type PageProps = {
 };
 
 const DEMO_SHARE_ID = "demo";
+
+const EMPHASIS_TERMS = [
+  "속도 조절",
+  "지출 점검",
+  "무리 금지",
+  "회복 집중",
+  "유연 대응",
+  "보수 운용",
+  "안정 운영",
+  "주도권 확보",
+  "수익 흐름 우세",
+  "호감 상승",
+  "회복력 상승",
+  "휴식 우선",
+  "거리 조절",
+  "감정 절제",
+  "지갑 단속",
+  "정리",
+  "기회",
+  "관계",
+  "재물",
+  "연애",
+  "건강",
+  "일과",
+  "회복",
+  "집중",
+  "휴식",
+  "지출",
+  "금전",
+  "대화",
+  "약속",
+  "충돌",
+  "컨디션",
+  "균형",
+  "변화",
+  "안정",
+  "성과",
+];
+
+const EMPHASIS_TERM_SET = new Set(EMPHASIS_TERMS);
+const EMPHASIS_PATTERN = new RegExp(
+  `(${EMPHASIS_TERMS.map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`,
+  "g",
+);
 
 const DEMO_SHARE_PAYLOAD: FortuneShareSnapshotPayload = {
   displayName: "홍*동",
@@ -64,6 +109,20 @@ function isSharePayload(value: unknown): value is FortuneShareSnapshotPayload {
   );
 }
 
+function renderHighlightedText(text: string): ReactNode {
+  const parts = text.split(EMPHASIS_PATTERN).filter(Boolean);
+
+  return parts.map((part, index) =>
+    EMPHASIS_TERM_SET.has(part) ? (
+      <strong key={`${part}-${index}`} className={detailStyles.inlineHighlight}>
+        {part}
+      </strong>
+    ) : (
+      <Fragment key={`${part}-${index}`}>{part}</Fragment>
+    ),
+  );
+}
+
 export default async function SharedFortunePage({ params, searchParams }: PageProps) {
   const fortune =
     params.id === DEMO_SHARE_ID
@@ -100,8 +159,10 @@ export default async function SharedFortunePage({ params, searchParams }: PagePr
           <section className={`${detailStyles.section} ${detailStyles.uncertaintyCard}`}>
             <p className={detailStyles.uncertaintyEyebrow}>달력 기준 미확정</p>
             <p className={detailStyles.uncertaintyText}>
-              {fortune.uncertaintyMessage ??
-                "달력 기준이 확정되지 않아 양력·음력 두 가능성을 함께 본 참고용 운세이오."}
+              {renderHighlightedText(
+                fortune.uncertaintyMessage ??
+                  "달력 기준이 확정되지 않아 양력·음력 두 가능성을 함께 본 참고용 운세이오.",
+              )}
             </p>
           </section>
         ) : null}
@@ -116,8 +177,8 @@ export default async function SharedFortunePage({ params, searchParams }: PagePr
           <section className={`${detailStyles.innerSection} ${detailStyles.fortuneCard}`}>
             <div className={detailStyles.fortuneCardContent}>
               <h2>도령의 한마디</h2>
-              <p>{fortune.headline}</p>
-              <p>{fortune.summary}</p>
+              <p>{renderHighlightedText(fortune.headline)}</p>
+              <p>{renderHighlightedText(fortune.summary)}</p>
             </div>
             <div className={`${detailStyles.fortuneCharacterOverlay} ${detailStyles.fortuneCharacterPointer}`}>
               <Image
@@ -141,12 +202,12 @@ export default async function SharedFortunePage({ params, searchParams }: PagePr
                       <span className={detailStyles.numberBadge} aria-hidden="true">
                         {index + 1}
                       </span>
-                      <span className={detailStyles.numberedText}>{item}</span>
+                      <span className={detailStyles.numberedText}>{renderHighlightedText(item)}</span>
                     </li>
                   ))}
                 </ol>
               ) : (
-                <p>{fortune.caution}</p>
+                <p>{renderHighlightedText(fortune.caution)}</p>
               )}
             </div>
             <div className={`${detailStyles.fortuneCharacterOverlay} ${detailStyles.fortuneWarningOverlay}`}>
@@ -170,7 +231,7 @@ export default async function SharedFortunePage({ params, searchParams }: PagePr
                     <span className={detailStyles.numberBadge} aria-hidden="true">
                       {index + 1}
                     </span>
-                    <span className={detailStyles.numberedText}>{action}</span>
+                    <span className={detailStyles.numberedText}>{renderHighlightedText(action)}</span>
                   </li>
                 ))}
               </ol>

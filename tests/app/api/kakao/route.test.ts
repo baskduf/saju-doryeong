@@ -109,6 +109,13 @@ function buildFortune() {
     headline: "실천하면 성과가 쌓이는 날이로다.",
     summary: "순서를 세워 움직이면 흐름이 반듯하게 이어지는 날이오.",
     caution: "서두른 판단은 한 박자 늦추시오.",
+    analysis: {
+      hybrid: {
+        scoreBreakdown: {
+          kuseongDelta: 3,
+        },
+      },
+    },
   };
 }
 
@@ -169,6 +176,13 @@ describe("POST /api/kakao", () => {
       description: "오늘은 순서를 세워 움직이되 서두른 판단은 피하시오.",
       topic: "work",
       usedLlm: false,
+      sources: ["daily", "yukhyo"],
+      oracleMeta: {
+        primaryHexagram: "건상 손하",
+        changedHexagram: "진상 건하",
+        movingLines: [1, 5, 6],
+        answerTrend: "neutral",
+      },
     });
     shareMocks.upsertFortuneShareSnapshot.mockResolvedValue({
       snapshotId: "snapshot-1",
@@ -249,6 +263,7 @@ describe("POST /api/kakao", () => {
 
     expect(card.title).toBe("운세도령의 오늘 운세");
     expect(card.description).toContain("운세 점수: 74점 (길)");
+    expect(card.description).toContain("풀이 근거: 사주 기본 + 구성 보정(+3)");
     expect(card.buttons).toContain("친구에게 공유하기");
   });
 
@@ -305,6 +320,7 @@ describe("POST /api/kakao", () => {
     expect(profileMocks.incrementQuestionUsage).toHaveBeenCalledWith(expect.any(Object));
     expect(questionMocks.answerFortuneQuestion).toHaveBeenCalled();
     expect(card.title).toBe("도령의 일풀이");
+    expect(card.description).toContain("풀이 근거: 오늘 운세 + 육효 괘상");
     expect(card.quickReplies).toContain("재물운 질문");
   });
 

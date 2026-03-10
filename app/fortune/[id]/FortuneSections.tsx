@@ -3,11 +3,15 @@
 import Image from "next/image";
 import { Fragment, useState, type ReactNode } from "react";
 import type { DailyFortune } from "../../../lib/fortune";
+import { kuseongFocusLabel, kuseongToneLabel } from "../../../lib/kuseong-labels";
 import { FiveElementsChart } from "./FiveElementsChart";
+import { HybridCharts } from "./HybridCharts";
 import styles from "./page.module.css";
 
 type Props = {
   fortune: DailyFortune;
+  userId: string;
+  referenceDate: string;
 };
 
 type TabKey = "fortune" | "analysis";
@@ -87,6 +91,15 @@ function resolvedCalendarLabel(value: "solar" | "lunar" | "unknown"): string {
   return "달력 기준 미확정";
 }
 
+function kuseongReasonText(fortune: DailyFortune): string {
+  const kuseong = fortune.analysis.hybrid.kuseong;
+  if (!kuseong) {
+    return "";
+  }
+
+  return `본명성 ${kuseong.natalYearStar}, 당월성 ${kuseong.currentMonthStar}, 일성 ${kuseong.currentDayStar} / 중점: ${kuseongFocusLabel(kuseong.focusCategories)} / 톤: ${kuseongToneLabel(kuseong.narrativeTone)}`;
+}
+
 function renderHighlightedText(text: string): ReactNode {
   const parts = text.split(EMPHASIS_PATTERN).filter(Boolean);
 
@@ -148,7 +161,7 @@ function ReadingGuide({ summary, intro, tips }: ReadingGuideProps) {
   );
 }
 
-export function FortuneSections({ fortune }: Props) {
+export function FortuneSections({ fortune, userId, referenceDate }: Props) {
   const [activeTab, setActiveTab] = useState<TabKey>("fortune");
   const [activeAnalysisTab, setActiveAnalysisTab] = useState<AnalysisTabKey>("manse");
   const isCalendarUncertain = fortune.analysis.certainty === "calendar-unknown";
@@ -265,10 +278,16 @@ export function FortuneSections({ fortune }: Props) {
                   <span className={styles.reasonLabel}>오늘 일진 작용</span>
                   <p className={styles.reasonText}>{renderHighlightedText(todayReasonText)}</p>
                 </div>
+              <div className={styles.reasonRow}>
+                <span className={styles.reasonLabel}>용신·기신 흐름</span>
+                <p className={styles.reasonText}>{renderHighlightedText(fortune.analysis.directiveSummary)}</p>
+              </div>
+              {fortune.analysis.hybrid.kuseong ? (
                 <div className={styles.reasonRow}>
-                  <span className={styles.reasonLabel}>용신·기신 흐름</span>
-                  <p className={styles.reasonText}>{renderHighlightedText(fortune.analysis.directiveSummary)}</p>
+                  <span className={styles.reasonLabel}>구성 보정</span>
+                  <p className={styles.reasonText}>{renderHighlightedText(kuseongReasonText(fortune))}</p>
                 </div>
+              ) : null}
               {fortune.analysis.todayBranchInteractions.length > 0 ? (
                 <div className={styles.reasonRow}>
                   <span className={styles.reasonLabel}>지지 상호작용</span>
@@ -795,17 +814,29 @@ export function FortuneSections({ fortune }: Props) {
 
           {activeAnalysisTab === "graph" ? (
             <section className={styles.innerSection}>
-              <h2>사주 오행 그래프</h2>
+              <h2>분석 그래프</h2>
               <ReadingGuide
-                intro="그래프는 오행이 어디에 몰리고 비는지 한눈에 보는 요약입니다. 많고 적음보다 전체 균형을 먼저 보는 편이 맞습니다."
-                summary="오행 그래프 읽는 법"
+                intro="기본 오행 분포에 더해, 오늘 점수가 어떻게 보정됐는지와 질문형 육효가 어떤 구조로 반응하는지 함께 보는 탭입니다."
+                summary="그래프 읽는 법"
                 tips={[
                   "특정 오행이 높으면 그 성향이 강하게 드러날 수 있지만, 항상 좋거나 나쁜 뜻은 아닙니다.",
-                  "낮은 오행은 부족한 자원이나 보완 포인트로 보고, 용신과 같이 해석하는 것이 안전합니다.",
-                  "오늘 운세는 이 기본 분포 위에 오늘 일진이 어떤 자극을 주는지 덧붙여 읽습니다.",
+                  "구성 보정은 사주 기본 점수에 더해지는 오늘의 오버레이로 보고, 과한 해석보다 방향과 타이밍 참고에 쓰는 편이 맞습니다.",
+                  "육효 그래프는 질문형이니, 질문 문장을 바꾸면 괘상과 경향도 같이 바뀝니다.",
                 ]}
               />
-              <FiveElementsChart elements={fortune.elements} />
+              <div className={`${styles.graphCard} ${styles.graphCardPadded}`}>
+                <div className={styles.graphHeader}>
+                  <div>
+                    <p className={styles.graphEyebrow}>Five Elements</p>
+                    <h3>사주 오행 그래프</h3>
+                  </div>
+                </div>
+                <p className={styles.graphCopy}>
+                  오행이 어디에 몰리고 비는지 한눈에 보는 요약이오. 많고 적음보다 전체 균형을 먼저 보는 편이 맞습니다.
+                </p>
+                <FiveElementsChart elements={fortune.elements} />
+              </div>
+              <HybridCharts fortune={fortune} userId={userId} referenceDate={referenceDate} />
             </section>
           ) : null}
         </div>

@@ -19,6 +19,12 @@ import {
 } from "./cards";
 import type { KakaoBasicCardResponse, KakaoProfileLike } from "./types";
 
+function buildDailySourceLine(fortune: ReturnType<typeof generateDailyFortune>): string {
+  const delta = fortune.analysis?.hybrid?.scoreBreakdown?.kuseongDelta ?? 0;
+  const deltaLabel = `${delta > 0 ? "+" : ""}${delta}`;
+  return `풀이 근거: 사주 기본 + 구성 보정(${deltaLabel})`;
+}
+
 export async function createFortuneCard(
   profile: KakaoProfileLike,
   notice?: string,
@@ -38,6 +44,7 @@ export async function createFortuneCard(
     `운세 점수: ${fortune.score}점 (${fortune.grade})`,
     fortune.summary,
     fortune.caution,
+    buildDailySourceLine(fortune),
   ].filter((line): line is string => Boolean(line));
 
   return createBasicCard({
@@ -64,6 +71,7 @@ export async function createQuestionAnswerCard(
   const answer = await answerFortuneQuestion({
     question,
     fortune,
+    userId: profile.userId,
     profileName: profile.name ?? undefined,
     date: now,
   });
@@ -71,7 +79,13 @@ export async function createQuestionAnswerCard(
 
   return createBasicCard({
     title: answer.title,
-    description: [answer.description, "", ...buildQuestionUsageLines(usage, { includeShareHint: true })].join("\n"),
+    description: [
+      answer.description,
+      "",
+      "풀이 근거: 오늘 운세 + 육효 괘상",
+      "",
+      ...buildQuestionUsageLines(usage, { includeShareHint: true }),
+    ].join("\n"),
     buttons: createFortuneButtons(createFortuneUrl(profile.userId)),
     quickReplies: createQuestionQuickReplies(),
   });

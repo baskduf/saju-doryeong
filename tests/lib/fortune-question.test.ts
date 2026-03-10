@@ -27,6 +27,7 @@ describe("fortune question fallback", () => {
     const answer = await answerFortuneQuestion({
       question: "오늘 일은 어떻게 풀릴까?",
       fortune: buildUnknownFortune(),
+      userId: "question-user",
       date: new Date("2026-03-10T09:00:00+09:00"),
     });
 
@@ -34,6 +35,8 @@ describe("fortune question fallback", () => {
     expect(answer.topic).toBe("work");
     expect(answer.title).toBe("도령의 일풀이");
     expect(answer.description).toContain("참고 운세");
+    expect(answer.sources).toEqual(["daily", "yukhyo"]);
+    expect(answer.oracleMeta).toBeDefined();
   });
 
   it("maps relationship and health questions to the right topics", async () => {
@@ -41,11 +44,13 @@ describe("fortune question fallback", () => {
     const relationship = await answerFortuneQuestion({
       question: "오늘 연애운 어때?",
       fortune,
+      userId: "question-user",
       date: new Date("2026-03-10T09:00:00+09:00"),
     });
     const health = await answerFortuneQuestion({
       question: "오늘 컨디션 관리는 어떻게 할까?",
       fortune,
+      userId: "question-user",
       date: new Date("2026-03-10T09:00:00+09:00"),
     });
 
@@ -53,5 +58,21 @@ describe("fortune question fallback", () => {
     expect(relationship.title).toBe("도령의 연정풀이");
     expect(health.topic).toBe("health");
     expect(health.title).toBe("도령의 기력풀이");
+  });
+
+  it("keeps question answers deterministic for the same user and date", async () => {
+    const fortune = buildUnknownFortune();
+    const params = {
+      question: "오늘 연락 보내도 될까?",
+      fortune,
+      userId: "question-user",
+      date: new Date("2026-03-10T09:00:00+09:00"),
+    };
+
+    const first = await answerFortuneQuestion(params);
+    const second = await answerFortuneQuestion(params);
+
+    expect(first.sources).toEqual(["daily", "yukhyo"]);
+    expect(first.oracleMeta).toEqual(second.oracleMeta);
   });
 });

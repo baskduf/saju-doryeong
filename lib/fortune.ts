@@ -1,6 +1,11 @@
 ﻿import { Solar } from "lunar-javascript";
 import { generateFortuneNarrativeOverride } from "./fortune-llm";
 import {
+  buildKuseongDetail,
+  type HybridSourceBadge,
+  type KuseongDetail,
+} from "./kuseong";
+import {
   calculateTraditionalSajuChart,
   detectTodayBranchInteractions,
   elementFromStem,
@@ -17,6 +22,7 @@ import {
 import { getSeoulDateKey, getSeoulDateTimeParts } from "./seoul-time";
 
 export type { FiveElements } from "./saju";
+export type { HybridSourceBadge, KuseongDetail } from "./kuseong";
 
 export type ReferenceMode = "none" | "solar-lunar-blend";
 export type DailyFortuneInsightKey =
@@ -155,6 +161,15 @@ export type DailyFortune = {
       stemKorean: string;
       tenGod: string;
     }>;
+    hybrid: {
+      sources: HybridSourceBadge[];
+      scoreBreakdown: {
+        base: number;
+        kuseongDelta: number;
+        final: number;
+      };
+      kuseong?: KuseongDetail;
+    };
   };
 };
 
@@ -715,6 +730,172 @@ function buildTodayBranchSummary(interactions: TodayBranchInteraction[]): string
 }
 
 type FortuneWithoutInsights = Omit<DailyFortune, "insights" | "featuredInsight">;
+
+function buildInitialHybridAnalysis(params: {
+  score: number;
+  certainty: ChartCertainty;
+}): DailyFortune["analysis"]["hybrid"] {
+  return {
+    sources: [
+      {
+        key: "saju",
+        label: "사주 기본",
+        scoreDelta: 0,
+        summary:
+          params.certainty === "calendar-unknown"
+            ? "양력·음력 공통 흐름을 기준으로 사주 기본 풀이를 잡았소."
+            : "원국과 오늘 일진을 기준으로 사주 기본 풀이를 잡았소.",
+      },
+    ],
+    scoreBreakdown: {
+      base: params.score,
+      kuseongDelta: 0,
+      final: params.score,
+    },
+  };
+}
+
+function appendNarrativeAddon(base: string, addon?: string): string {
+  const normalizedBase = base.trim();
+  const normalizedAddon = addon?.trim();
+
+  if (!normalizedAddon) {
+    return normalizedBase;
+  }
+
+  if (normalizedBase.includes(normalizedAddon)) {
+    return normalizedBase;
+  }
+
+  return `${normalizedBase} ${normalizedAddon}`.trim();
+}
+
+function categoryDisplayLabel(key: CategoryKey): string {
+  switch (key) {
+    case "work":
+      return "일과";
+    case "money":
+      return "재물";
+    case "relationship":
+      return "관계";
+    case "health":
+      return "회복";
+  }
+}
+
+function sortKuseongCategoryKeys(
+  adjustments: KuseongDetail["categoryAdjustments"],
+  direction: "desc" | "asc",
+): CategoryKey[] {
+  const order: CategoryKey[] = ["work", "money", "relationship", "health"];
+
+  return [...order].sort((left, right) => {
+    const diff =
+      direction === "desc"
+        ? adjustments[right] - adjustments[left]
+        : adjustments[left] - adjustments[right];
+    if (diff !== 0) {
+      return diff;
+    }
+    return order.indexOf(left) - order.indexOf(right);
+  });
+}
+
+function buildKuseongFocusAction(kuseong: KuseongDetail): string {
+  const labels = kuseong.focusCategories.map((key) => categoryDisplayLabel(key as CategoryKey));
+  if (labels.length >= 2) {
+    return `${labels[0]}·${labels[1]} 흐름은 오늘 함께 묶어 다루는 편이 좋소.`;
+  }
+  return `${labels[0] ?? "회복"} 쪽은 오늘 먼저 손을 대야 흐름이 풀리오.`;
+}
+
+function buildKuseongWeakCaution(kuseong: KuseongDetail): string {
+  const weakest = sortKuseongCategoryKeys(kuseong.categoryAdjustments, "asc")[0];
+  return `${categoryDisplayLabel(weakest)} 쪽은 오늘 억지로 끌어올리지 말고 한 박자 쉬어 가시오.`;
+}
+
+function applyKuseongHybrid(params: {
+  fortune: FortuneWithoutInsights;
+  birthDate: Date;
+  birthTime?: string;
+  calendarType?: CalendarType;
+  date?: Date;
+}): FortuneWithoutInsights {
+  const kuseong = buildKuseongDetail({
+    birthDate: params.birthDate,
+    birthTime: params.birthTime,
+    calendarType: params.calendarType,
+    date: params.date,
+  });
+  const baseScore = params.fortune.score;
+  const finalScore = clamp(baseScore + kuseong.scoreDelta, 5, 98);
+  const updatedGrade = gradeFromScore(finalScore);
+  const sources: HybridSourceBadge[] = [
+    {
+      key: "saju",
+      label: "사주 기본",
+      scoreDelta: 0,
+      summary:
+        params.fortune.analysis.certainty === "calendar-unknown"
+          ? "양력·음력 공통 흐름을 기준으로 사주 기본 풀이를 잡았소."
+          : "원국과 오늘 일진을 기준으로 사주 기본 풀이를 잡았소.",
+    },
+    {
+      key: "kuseong",
+      label: kuseong.scoreDelta === 0 ? "구성 보정" : `구성 보정 ${kuseong.scoreDelta > 0 ? "+" : ""}${kuseong.scoreDelta}`,
+      scoreDelta: kuseong.scoreDelta,
+      summary: kuseong.summary,
+    },
+  ];
+
+  return {
+    ...params.fortune,
+    score: finalScore,
+    grade: updatedGrade,
+    headline: appendNarrativeAddon(params.fortune.headline, kuseong.narrative.headlineAddon),
+    summary: appendNarrativeAddon(params.fortune.summary, kuseong.narrative.summaryAddon),
+    detail: appendNarrativeAddon(params.fortune.detail, kuseong.narrative.detailAddon),
+    caution: appendNarrativeAddon(params.fortune.caution, kuseong.narrative.cautionAddon),
+    recommendedActions: uniqueOrderedStrings([
+      kuseong.action,
+      buildKuseongFocusAction(kuseong),
+      ...params.fortune.recommendedActions,
+    ]).slice(0, 3),
+    avoidToday: uniqueOrderedStrings([
+      kuseong.caution,
+      buildKuseongWeakCaution(kuseong),
+      ...params.fortune.avoidToday,
+    ]).slice(0, 3),
+    luckyHints: {
+      ...params.fortune.luckyHints,
+      direction: kuseong.direction,
+    },
+    categoryScores: params.fortune.categoryScores.map((category) => {
+      const adjustedScore = clamp(
+        category.score + kuseong.scoreDelta + kuseong.categoryAdjustments[category.key],
+        0,
+        100,
+      );
+      return {
+        ...category,
+        score: adjustedScore,
+        summary: summarizeCategory(adjustedScore, category.label),
+      };
+    }),
+    analysis: {
+      ...params.fortune.analysis,
+      hybrid: {
+        sources,
+        scoreBreakdown: {
+          base: baseScore,
+          kuseongDelta: kuseong.scoreDelta,
+          final: finalScore,
+        },
+        kuseong,
+      },
+    },
+  };
+}
 
 function insightLabel(key: DailyFortuneInsightKey): string {
   switch (key) {
@@ -1426,7 +1607,8 @@ function buildSolarLunarBlendedReferenceFortune(params: {
   const trimmedAvoidToday = uniqueOrderedStrings(avoidToday).slice(0, 3);
 
   return attachFortuneInsights({
-    fortune: {
+    fortune: applyKuseongHybrid({
+      fortune: {
       score: blended.score,
       grade: blended.grade,
       headline,
@@ -1485,8 +1667,17 @@ function buildSolarLunarBlendedReferenceFortune(params: {
         rootCount: 0,
         branchRelations: [],
         visibleTenGods: [],
+        hybrid: buildInitialHybridAnalysis({
+          score: blended.score,
+          certainty: "calendar-unknown",
+        }),
       },
     },
+      birthDate: params.birthDate,
+      birthTime: params.birthTime,
+      calendarType: "unknown",
+      date: params.date,
+    }),
     userId: params.userId,
     date: params.date,
   });
@@ -1885,7 +2076,8 @@ function generateBaseDailyFortune(params: {
   const luckyHints = ELEMENT_LUCK_MAP[yongShin];
 
   return attachFortuneInsights({
-    fortune: {
+    fortune: applyKuseongHybrid({
+      fortune: {
       score,
       grade,
       headline: headlineByGrade[grade],
@@ -1993,6 +2185,10 @@ function generateBaseDailyFortune(params: {
               stemKorean: info.stemKorean,
               tenGod: info.tenGod,
             })),
+            hybrid: buildInitialHybridAnalysis({
+              score,
+              certainty,
+            }),
           }
         : {
             certainty,
@@ -2035,8 +2231,17 @@ function generateBaseDailyFortune(params: {
             rootCount: 0,
             branchRelations: [],
             visibleTenGods: [],
+            hybrid: buildInitialHybridAnalysis({
+              score,
+              certainty,
+            }),
           },
     },
+      birthDate: params.birthDate,
+      birthTime: params.birthTime,
+      calendarType: calendarTypeInput,
+      date: today,
+    }),
     userId: params.userId,
     date: today,
   });

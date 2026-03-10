@@ -4,6 +4,11 @@ import type {
   DailyFortuneInsightKey,
 } from "./fortune";
 import { getSeoulDateKey } from "./seoul-time";
+import {
+  buildYukhyoReading,
+  type YukhyoOracleMeta,
+  type YukhyoReading,
+} from "./yukhyo";
 
 type QuestionTopic = "work" | "money" | "relationship" | "health" | "general";
 type QuestionIntent = "outcome" | "action" | "timing" | "approach" | "caution";
@@ -22,6 +27,8 @@ export type FortuneQuestionAnswer = {
   description: string;
   topic: QuestionTopic;
   usedLlm: boolean;
+  sources: Array<"daily" | "yukhyo">;
+  oracleMeta?: YukhyoOracleMeta;
 };
 
 const QUESTION_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
@@ -248,6 +255,7 @@ function buildCacheKey(params: {
   question: string;
   fortune: DailyFortune;
   analysis: QuestionAnalysis;
+  oracle: YukhyoReading;
   profileName?: string;
   date: Date;
 }): string {
@@ -265,6 +273,10 @@ function buildCacheKey(params: {
     certainty: params.fortune.analysis.certainty,
     referenceMode: params.fortune.analysis.referenceMode,
     uncertaintyMessage: params.fortune.analysis.uncertaintyMessage,
+    primaryHexagram: params.oracle.primaryHexagram,
+    changedHexagram: params.oracle.changedHexagram,
+    movingLines: params.oracle.movingLines,
+    answerTrend: params.oracle.answerTrend,
     model: resolveModel(),
   });
 }
@@ -273,6 +285,7 @@ function buildPromptContext(params: {
   question: string;
   fortune: DailyFortune;
   analysis: QuestionAnalysis;
+  oracle: YukhyoReading;
   profileName?: string;
   date: Date;
 }): string {
@@ -308,6 +321,16 @@ function buildPromptContext(params: {
         serializeInsight("primary", params.analysis.primaryInsight),
         serializeInsight("secondary", params.analysis.secondaryInsight),
       ],
+      oracle: {
+        primaryHexagram: params.oracle.primaryHexagram,
+        changedHexagram: params.oracle.changedHexagram,
+        movingLines: params.oracle.movingLines,
+        answerTrend: params.oracle.answerTrend,
+        summary: params.oracle.summary,
+        action: params.oracle.action,
+        caution: params.oracle.caution,
+        timingHint: params.oracle.timingHint,
+      },
       allowedAnswerFrame: {
         mustMentionAction: true,
         mustMentionCaution: true,
@@ -334,6 +357,7 @@ function parseQuestionAnswer(payload: unknown, topic: QuestionTopic): FortuneQue
     description,
     topic,
     usedLlm: true,
+    sources: ["daily", "yukhyo"],
   };
 }
 
@@ -355,6 +379,7 @@ function fallbackTitle(topic: QuestionTopic, relationshipKind: QuestionRelations
 function buildFallbackDescription(params: {
   analysis: QuestionAnalysis;
   fortune: DailyFortune;
+  oracle: YukhyoReading;
 }): string {
   const uncertaintyLead =
     params.fortune.analysis.certainty === "calendar-unknown"
@@ -364,13 +389,15 @@ function buildFallbackDescription(params: {
     params.analysis.secondaryInsight.key === params.analysis.primaryInsight.key
       ? null
       : `보조로는 ${params.analysis.secondaryInsight.summary}`;
+  const oracleTimingLead = `육효 흐름은 ${params.oracle.timingHint} 쪽에서 결이 더 잘 드러나오.`;
 
   if (params.analysis.intent === "caution") {
     return [
       uncertaintyLead,
+      params.oracle.summary,
       params.analysis.primaryInsight.summary,
+      params.oracle.caution,
       params.analysis.primaryInsight.caution,
-      params.analysis.secondaryInsight.action,
     ]
       .filter((line): line is string => Boolean(line))
       .join(" ");
@@ -379,10 +406,11 @@ function buildFallbackDescription(params: {
   if (params.analysis.intent === "timing") {
     return [
       uncertaintyLead,
+      oracleTimingLead,
+      params.oracle.summary,
       params.analysis.primaryInsight.summary,
       params.analysis.primaryInsight.action,
-      secondarySummary,
-      params.analysis.primaryInsight.caution,
+      params.oracle.caution,
     ]
       .filter((line): line is string => Boolean(line))
       .join(" ");
@@ -391,10 +419,11 @@ function buildFallbackDescription(params: {
   if (params.analysis.intent === "approach") {
     return [
       uncertaintyLead,
+      params.oracle.summary,
       params.analysis.primaryInsight.summary,
+      params.oracle.action,
       params.analysis.primaryInsight.action,
-      secondarySummary,
-      params.analysis.secondaryInsight.caution,
+      params.oracle.caution,
     ]
       .filter((line): line is string => Boolean(line))
       .join(" ");
@@ -403,9 +432,10 @@ function buildFallbackDescription(params: {
   if (params.analysis.intent === "action") {
     return [
       uncertaintyLead,
+      params.oracle.summary,
       params.analysis.primaryInsight.summary,
-      `${params.analysis.primaryInsight.action} ${params.analysis.secondaryInsight.summary}`,
-      params.analysis.primaryInsight.caution,
+      `${params.analysis.primaryInsight.action} ${params.oracle.action}`,
+      params.oracle.caution,
     ]
       .filter((line): line is string => Boolean(line))
       .join(" ");
@@ -413,10 +443,11 @@ function buildFallbackDescription(params: {
 
   return [
     uncertaintyLead,
+    params.oracle.summary,
     params.analysis.primaryInsight.summary,
     secondarySummary,
     params.analysis.primaryInsight.action,
-    params.analysis.secondaryInsight.caution,
+    params.oracle.caution,
   ]
     .filter((line): line is string => Boolean(line))
     .join(" ");
@@ -426,30 +457,46 @@ function buildFallbackAnswer(params: {
   question: string;
   fortune: DailyFortune;
   analysis: QuestionAnalysis;
+  oracle: YukhyoReading;
 }): FortuneQuestionAnswer {
   return {
     title: fallbackTitle(params.analysis.topic, params.analysis.relationshipKind),
     description: buildFallbackDescription({
       analysis: params.analysis,
       fortune: params.fortune,
+      oracle: params.oracle,
     }),
     topic: params.analysis.topic,
     usedLlm: false,
+    sources: ["daily", "yukhyo"],
+    oracleMeta: {
+      primaryHexagram: params.oracle.primaryHexagram,
+      changedHexagram: params.oracle.changedHexagram,
+      movingLines: params.oracle.movingLines,
+      answerTrend: params.oracle.answerTrend,
+    },
   };
 }
 
 export async function answerFortuneQuestion(params: {
   question: string;
   fortune: DailyFortune;
+  userId?: string;
   profileName?: string;
   date?: Date;
 }): Promise<FortuneQuestionAnswer> {
   const date = params.date ?? new Date();
   const analysis = buildQuestionAnalysis(params.question, params.fortune);
+  const oracle = buildYukhyoReading({
+    userId: params.userId,
+    question: params.question,
+    date,
+  });
   const fallback = buildFallbackAnswer({
     question: params.question,
     fortune: params.fortune,
     analysis,
+    oracle,
   });
 
   if (!hasOpenAiApiKey()) {
@@ -461,6 +508,7 @@ export async function answerFortuneQuestion(params: {
     question: params.question,
     fortune: params.fortune,
     analysis,
+    oracle,
     profileName: params.profileName,
     date,
   });
@@ -486,6 +534,7 @@ export async function answerFortuneQuestion(params: {
           question: params.question,
           fortune: params.fortune,
           analysis,
+          oracle,
           profileName: params.profileName,
           date,
         }),
@@ -509,12 +558,23 @@ export async function answerFortuneQuestion(params: {
       return fallback;
     }
 
+    const answer = {
+      ...parsed,
+      sources: ["daily", "yukhyo"] as Array<"daily" | "yukhyo">,
+      oracleMeta: {
+        primaryHexagram: oracle.primaryHexagram,
+        changedHexagram: oracle.changedHexagram,
+        movingLines: oracle.movingLines,
+        answerTrend: oracle.answerTrend,
+      },
+    };
+
     questionCache.set(cacheKey, {
       expiresAt: Date.now() + QUESTION_CACHE_TTL_MS,
-      value: parsed,
+      value: answer,
     });
 
-    return parsed;
+    return answer;
   } catch {
     return fallback;
   }

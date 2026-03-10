@@ -32,6 +32,32 @@ type FortuneNarrativeBase = {
     usedNoonFallback: boolean;
     calendarTypeInput: CalendarType;
     calendarTypeResolved: CalendarType;
+    hybrid: {
+      sources: Array<{
+        key: string;
+        label: string;
+        scoreDelta: number;
+        summary: string;
+      }>;
+      scoreBreakdown: {
+        base: number;
+        kuseongDelta: number;
+        final: number;
+      };
+      kuseong?: {
+        summary: string;
+        direction: string;
+        categoryAdjustments: Record<string, number>;
+        focusCategories: string[];
+        narrativeTone: string;
+        narrative: {
+          headlineAddon: string;
+          summaryAddon: string;
+          detailAddon: string;
+          cautionAddon: string;
+        };
+      };
+    };
   };
 };
 
@@ -192,6 +218,14 @@ function buildPromptContext(params: {
         calendarTypeInput: fortune.analysis.calendarTypeInput,
         calendarTypeResolved: fortune.analysis.calendarTypeResolved,
         usedNoonFallback: fortune.analysis.usedNoonFallback,
+        hybridSources: fortune.analysis.hybrid.sources,
+        hybridScoreBreakdown: fortune.analysis.hybrid.scoreBreakdown,
+        kuseongSummary: fortune.analysis.hybrid.kuseong?.summary ?? null,
+        kuseongDirection: fortune.analysis.hybrid.kuseong?.direction ?? null,
+        kuseongCategoryAdjustments: fortune.analysis.hybrid.kuseong?.categoryAdjustments ?? null,
+        kuseongFocusCategories: fortune.analysis.hybrid.kuseong?.focusCategories ?? null,
+        kuseongNarrativeTone: fortune.analysis.hybrid.kuseong?.narrativeTone ?? null,
+        kuseongNarrativeAddons: fortune.analysis.hybrid.kuseong?.narrative ?? null,
       },
     },
     null,
@@ -227,6 +261,14 @@ function buildCacheKey(params: {
     calendarTypeResolved: params.fortune.analysis.calendarTypeResolved,
     certainty: params.fortune.analysis.certainty,
     uncertaintyMessage: params.fortune.analysis.uncertaintyMessage,
+    hybridSources: params.fortune.analysis.hybrid.sources,
+    hybridScoreBreakdown: params.fortune.analysis.hybrid.scoreBreakdown,
+    kuseongSummary: params.fortune.analysis.hybrid.kuseong?.summary ?? null,
+    kuseongDirection: params.fortune.analysis.hybrid.kuseong?.direction ?? null,
+    kuseongCategoryAdjustments: params.fortune.analysis.hybrid.kuseong?.categoryAdjustments ?? null,
+    kuseongFocusCategories: params.fortune.analysis.hybrid.kuseong?.focusCategories ?? null,
+    kuseongNarrativeTone: params.fortune.analysis.hybrid.kuseong?.narrativeTone ?? null,
+    kuseongNarrativeAddons: params.fortune.analysis.hybrid.kuseong?.narrative ?? null,
     model: resolveModel(),
   });
 }
@@ -282,8 +324,8 @@ export async function generateFortuneNarrativeOverride(params: {
         body: JSON.stringify({
           model: resolveModel(),
           store: false,
-          instructions:
-            "You write Korean daily fortune copy for a saju chatbot. Facts are deterministic and must not be changed or invented. Return strict JSON only with keys headline, summary, detail, recommendedActions. headline must be one concise sentence. summary/detail must each be natural Korean prose, concise and concrete. recommendedActions must be an array of exactly 3 short imperative Korean sentences. Keep the intent of the base recommendedActions, do not contradict avoidToday or caution, and do not add risky or exaggerated advice. Use a light 도령체 consistently. Do not use 합니다/입니다/하십시오 style. Prefer 하오, 좋소, 이로다, 하시오 naturally and sparingly. Mention uncertainty when birth time is unknown, calendarTypeInput is unknown, or certainty is calendar-unknown. Never imply an exact manse or confirmed lunar/solar basis when certainty is calendar-unknown. If referenceMode is solar-lunar-blend, describe it as a shared trend across both calendar possibilities. No markdown, no code fences, no emojis.",
+        instructions:
+          "You write Korean daily fortune copy for a saju chatbot. Facts are deterministic and must not be changed or invented. Return strict JSON only with keys headline, summary, detail, recommendedActions. headline must be one concise sentence. summary/detail must each be natural Korean prose, concise and concrete. recommendedActions must be an array of exactly 3 short imperative Korean sentences. Keep the intent of the base recommendedActions, do not contradict avoidToday or caution, and do not add risky or exaggerated advice. Use a light 도령체 consistently. Do not use 합니다/입니다/하십시오 style. Prefer 하오, 좋소, 이로다, 하시오 naturally and sparingly. Mention uncertainty when birth time is unknown, calendarTypeInput is unknown, or certainty is calendar-unknown. Never imply an exact manse or confirmed lunar/solar basis when certainty is calendar-unknown. If referenceMode is solar-lunar-blend, describe it as a shared trend across both calendar possibilities. Do not change category priorities or score polarity decided by kuseongCategoryAdjustments. You may paraphrase kuseong focus and tone, but must preserve the same focus categories and caution direction. No markdown, no code fences, no emojis.",
           input: buildPromptContext(params),
         }),
         cache: "no-store",

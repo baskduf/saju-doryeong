@@ -110,9 +110,16 @@ export default async function FortuneDetailPage({ params, searchParams }: PagePr
           <p className={styles.scoreLabel}>오늘의 운세 점수</p>
           <p className={styles.scoreValue}>{fortune.score}</p>
           <p className={styles.scoreGrade}>{fortune.grade}</p>
+          <div className={styles.sourceBadges}>
+            {fortune.analysis.hybrid.sources.map((source) => (
+              <span key={source.key} className={styles.sourceBadge}>
+                {source.label}
+              </span>
+            ))}
+          </div>
         </section>
 
-        <FortuneSections fortune={fortune} />
+        <FortuneSections fortune={fortune} userId={profile.userId} referenceDate={today.toISOString()} />
       </section>
     </main>
   );

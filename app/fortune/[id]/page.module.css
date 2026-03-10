@@ -135,6 +135,27 @@
   color: #8b4e1f;
 }
 
+.sourceBadges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.sourceBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(131, 77, 28, 0.28);
+  background: rgba(255, 248, 233, 0.82);
+  color: #6d3e18;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
 .section {
   margin-top: 20px;
   padding: 20px;
@@ -433,6 +454,465 @@
 
 .uncertaintyText + .uncertaintyText {
   margin-top: 8px;
+}
+
+.graphStack {
+  display: grid;
+  gap: 18px;
+}
+
+.graphCard {
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(145, 93, 40, 0.18);
+  background: linear-gradient(180deg, rgba(255, 248, 232, 0.96), rgba(250, 236, 206, 0.88));
+}
+
+.graphCardPadded {
+  padding-top: 24px;
+  padding-bottom: 32px;
+  margin-bottom: 18px;
+}
+
+.graphHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.graphHeader h3 {
+  margin: 4px 0 0;
+  color: #4a2a11;
+  font-size: 18px;
+}
+
+.graphEyebrow {
+  margin: 0;
+  color: #8b5422;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.graphCopy {
+  margin: 0 0 14px;
+  color: #4a2a11;
+  line-height: 1.7;
+}
+
+.graphSubsection + .graphSubsection {
+  margin-top: 12px;
+}
+
+.graphSectionTitle {
+  margin: 0 0 6px;
+  color: #7a4a23;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.kuseongBoard {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.kuseongCell {
+  min-height: 132px;
+  padding: 10px;
+  border-radius: 16px;
+  border: 1px solid rgba(145, 93, 40, 0.16);
+  background: rgba(255, 252, 245, 0.86);
+}
+
+.kuseongCellHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: #7a4a23;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.kuseongCellBody {
+  display: grid;
+  gap: 8px;
+}
+
+.kuseongToken {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(145, 93, 40, 0.14);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.kuseongToken small {
+  color: #6d4b25;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.kuseongTokenNatal {
+  background: rgba(176, 125, 47, 0.12);
+  color: #734919;
+}
+
+.kuseongTokenMonth {
+  background: rgba(79, 119, 45, 0.12);
+  color: #35581d;
+}
+
+.kuseongTokenDay {
+  background: rgba(156, 102, 68, 0.14);
+  color: #6f3715;
+}
+
+.graphMetricGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.graphMetricCard {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(145, 93, 40, 0.14);
+  background: rgba(255, 252, 245, 0.88);
+}
+
+.graphMetricCard span {
+  color: #84572b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.graphMetricCard strong {
+  color: #412711;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.reactionRow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.reactionChip {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(145, 93, 40, 0.14);
+}
+
+.reactionChip span {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.reactionChip strong {
+  font-size: 16px;
+}
+
+.reactionChipPositive {
+  background: rgba(156, 102, 68, 0.12);
+  color: #6f3715;
+}
+
+.reactionChipNegative {
+  background: rgba(188, 71, 73, 0.1);
+  color: #9f3135;
+}
+
+.towerRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.hexagramTower,
+.hexagramStableCard {
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(145, 93, 40, 0.14);
+  background: rgba(255, 252, 245, 0.88);
+}
+
+.hexagramStableCard p:last-child {
+  margin: 0;
+  color: #5a4632;
+  line-height: 1.7;
+}
+
+.hexagramRows {
+  display: grid;
+  gap: 10px;
+}
+
+.hexagramRow {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  align-items: center;
+  gap: 12px;
+}
+
+.hexagramLineLabel {
+  color: #84572b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.hexagramLine {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hexagramSolid,
+.hexagramBroken {
+  display: block;
+  height: 12px;
+  border-radius: 999px;
+  background: #6d3e18;
+}
+
+.hexagramSolid {
+  width: 100%;
+}
+
+.hexagramBroken {
+  width: calc(50% - 4px);
+}
+
+.hexagramBrokenGap {
+  width: 8px;
+  height: 12px;
+}
+
+.hexagramLineMoving .hexagramSolid,
+.hexagramLineMoving .hexagramBroken {
+  background: #bc4749;
+}
+
+.networkWrap {
+  position: relative;
+  min-height: 270px;
+  border-radius: 18px;
+  border: 1px solid rgba(145, 93, 40, 0.14);
+  background:
+    radial-gradient(circle at top left, rgba(255, 249, 236, 0.9), rgba(252, 241, 214, 0.76)),
+    rgba(255, 252, 245, 0.88);
+  overflow: hidden;
+}
+
+.networkSvg {
+  width: 100%;
+  height: 270px;
+  color: #7a4a23;
+}
+
+.networkLine {
+  stroke: currentColor;
+  stroke-width: 2.5px;
+}
+
+.networkEdgeLabel {
+  fill: currentColor;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.networkEdgeSupport {
+  color: #3a6a2c;
+}
+
+.networkEdgeManaged {
+  color: #8b6a2c;
+}
+
+.networkEdgeControl {
+  color: #9f3135;
+}
+
+.networkTransition {
+  stroke: rgba(122, 74, 35, 0.35);
+  stroke-width: 1.5px;
+  stroke-dasharray: 5 5;
+}
+
+.networkNode {
+  position: absolute;
+  width: 112px;
+  margin-left: -56px;
+  margin-top: -26px;
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(145, 93, 40, 0.14);
+  background: rgba(255, 253, 248, 0.95);
+  box-shadow: 0 8px 20px rgba(115, 73, 25, 0.08);
+}
+
+.networkNodeTitle {
+  color: #4a2a11;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.networkNodeMeta {
+  color: #7a4a23;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.graphViewport {
+  width: 100%;
+  height: 240px;
+}
+
+.graphViewportTall {
+  width: 100%;
+  height: 260px;
+}
+
+.graphBadgeRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.graphBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(145, 93, 40, 0.18);
+  background: rgba(255, 251, 242, 0.92);
+  color: #6d3e18;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.graphTrendBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.graphTrendPositive {
+  background: rgba(85, 128, 73, 0.14);
+  color: #3a6a2c;
+}
+
+.graphTrendNeutral {
+  background: rgba(149, 118, 71, 0.12);
+  color: #7b5529;
+}
+
+.graphTrendNegative {
+  background: rgba(188, 71, 73, 0.14);
+  color: #9f3135;
+}
+
+.graphQuestionRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.graphQuestionChip {
+  padding: 9px 12px;
+  border: 1px solid rgba(145, 93, 40, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 249, 237, 0.9);
+  color: #6d3e18;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.graphQuestionChip:hover {
+  transform: translateY(-1px);
+}
+
+.graphQuestionChipActive {
+  border-color: rgba(133, 79, 32, 0.46);
+  background: rgba(247, 227, 188, 0.94);
+}
+
+.graphInputLabel {
+  display: block;
+  margin-bottom: 8px;
+  color: #8a5a2a;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.graphInput {
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(145, 93, 40, 0.2);
+  border-radius: 14px;
+  background: rgba(255, 252, 246, 0.94);
+  color: #412711;
+  font: inherit;
+}
+
+.graphInput:focus {
+  outline: 2px solid rgba(186, 122, 50, 0.22);
+  outline-offset: 1px;
+}
+
+.graphFootnote {
+  margin: 12px 0 0;
+  color: #68411b;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+@media (max-width: 720px) {
+  .kuseongBoard,
+  .reactionRow,
+  .graphMetricGrid,
+  .towerRow {
+    grid-template-columns: 1fr;
+  }
+
+  .networkWrap {
+    min-height: 360px;
+  }
+
+  .networkSvg {
+    height: 360px;
+  }
+
+  .networkNode {
+    width: 104px;
+    margin-left: -52px;
+  }
 }
 
 .keywordChip {
@@ -1185,5 +1665,13 @@
 
   .analysisTabButton {
     width: 100%;
+  }
+
+  .graphHeader {
+    flex-direction: column;
+  }
+
+  .graphBadgeRow {
+    justify-content: flex-start;
   }
 }

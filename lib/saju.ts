@@ -14,9 +14,9 @@ export type ElementKey = keyof FiveElements;
 export type FivePhaseRelation = "비겁" | "식상" | "재성" | "관성" | "인성";
 export type TenGod = "비견" | "겁재" | "식신" | "상관" | "편재" | "정재" | "편관" | "정관" | "편인" | "정인";
 export type PillarKey = "year" | "month" | "day" | "hour";
+export type BranchRelationType = "합" | "충" | "형";
 
 type YinYang = "yang" | "yin";
-type BranchRelationType = "합" | "충" | "형";
 
 export type PillarInfo = {
   ganji: string;
@@ -94,6 +94,16 @@ export type TraditionalSajuAnalysis = {
     }>;
     summary: string[];
   };
+};
+
+export type TodayBranchInteraction = {
+  pillar: PillarKey;
+  pillarLabel: string;
+  branch: string;
+  branchKorean: string;
+  type: BranchRelationType;
+  weight: number;
+  description: string;
 };
 
 export type TraditionalSajuChart = {
@@ -557,6 +567,95 @@ function stemVisiblePillarLabel(pillar: Exclude<PillarKey, "day">): string {
   }
 }
 
+function detectBranchRelationTypes(leftBranch: string, rightBranch: string): BranchRelationType[] {
+  const types: BranchRelationType[] = [];
+
+  if (BRANCH_COMBINATIONS.some((pair) => isSamePair(pair, leftBranch, rightBranch))) {
+    types.push("합");
+  }
+
+  if (BRANCH_CLASHES.some((pair) => isSamePair(pair, leftBranch, rightBranch))) {
+    types.push("충");
+  }
+
+  if (BRANCH_PUNISHMENTS.some((pair) => isSamePair(pair, leftBranch, rightBranch))) {
+    types.push("형");
+  }
+
+  return types;
+}
+
+function branchRelationLabel(type: BranchRelationType): string {
+  switch (type) {
+    case "합":
+      return "합";
+    case "충":
+      return "충";
+    case "형":
+      return "형";
+  }
+}
+
+function describeBranchRelation(params: {
+  leftLabel: string;
+  leftBranchKorean: string;
+  rightLabel: string;
+  rightBranchKorean: string;
+  type: BranchRelationType;
+}): string {
+  switch (params.type) {
+    case "합":
+      return `${params.leftLabel} ${params.leftBranchKorean}와 ${params.rightLabel} ${params.rightBranchKorean}가 합을 이루오.`;
+    case "충":
+      return `${params.leftLabel} ${params.leftBranchKorean}와 ${params.rightLabel} ${params.rightBranchKorean}가 충을 이루어 변화성이 크오.`;
+    case "형":
+      return `${params.leftLabel} ${params.leftBranchKorean}와 ${params.rightLabel} ${params.rightBranchKorean} 사이에 형살 기운이 있소.`;
+  }
+}
+
+function buildBranchRelationPairs(params: {
+  leftKey: PillarKey;
+  leftBranch: string;
+  leftBranchKorean: string;
+  rightKey: PillarKey;
+  rightBranch: string;
+  rightBranchKorean: string;
+}): TraditionalSajuAnalysis["branchRelations"]["pairs"] {
+  const branches: [string, string] = [params.leftBranch, params.rightBranch];
+  const labelBase = `${PILLAR_LABEL[params.leftKey]}-${PILLAR_LABEL[params.rightKey]}`;
+
+  return detectBranchRelationTypes(params.leftBranch, params.rightBranch).map((type) => ({
+    pillars: [params.leftKey, params.rightKey] as [PillarKey, PillarKey],
+    type,
+    branches,
+    label: `${labelBase} ${branchRelationLabel(type)}`,
+    description: describeBranchRelation({
+      leftLabel: PILLAR_LABEL[params.leftKey],
+      leftBranchKorean: params.leftBranchKorean,
+      rightLabel: PILLAR_LABEL[params.rightKey],
+      rightBranchKorean: params.rightBranchKorean,
+      type,
+    }),
+  }));
+}
+
+function todayBranchPillarWeight(type: BranchRelationType, pillar: PillarKey): number {
+  const baseWeight: Record<BranchRelationType, number> = {
+    합: 3,
+    충: -5,
+    형: -3,
+  };
+
+  const pillarMultiplier: Record<PillarKey, number> = {
+    year: 1,
+    month: 1.25,
+    day: 1.5,
+    hour: 1,
+  };
+
+  return Math.min(6, Math.max(-8, Math.round(baseWeight[type] * pillarMultiplier[pillar])));
+}
+
 function detectBranchRelations(pillars: Record<PillarKey, PillarInfo>): TraditionalSajuAnalysis["branchRelations"] {
   const entries = Object.entries(pillars) as Array<[PillarKey, PillarInfo]>;
   const pairs: TraditionalSajuAnalysis["branchRelations"]["pairs"] = [];
@@ -565,38 +664,16 @@ function detectBranchRelations(pillars: Record<PillarKey, PillarInfo>): Traditio
     for (let j = i + 1; j < entries.length; j += 1) {
       const [leftKey, leftPillar] = entries[i];
       const [rightKey, rightPillar] = entries[j];
-      const branches: [string, string] = [leftPillar.branch, rightPillar.branch];
-      const labelBase = `${PILLAR_LABEL[leftKey]}-${PILLAR_LABEL[rightKey]}`;
-
-      if (BRANCH_COMBINATIONS.some((pair) => isSamePair(pair, leftPillar.branch, rightPillar.branch))) {
-        pairs.push({
-          pillars: [leftKey, rightKey],
-          type: "합",
-          branches,
-          label: `${labelBase} 합`,
-          description: `${PILLAR_LABEL[leftKey]} ${leftPillar.branchKorean}와 ${PILLAR_LABEL[rightKey]} ${rightPillar.branchKorean}가 합을 이루오.`,
-        });
-      }
-
-      if (BRANCH_CLASHES.some((pair) => isSamePair(pair, leftPillar.branch, rightPillar.branch))) {
-        pairs.push({
-          pillars: [leftKey, rightKey],
-          type: "충",
-          branches,
-          label: `${labelBase} 충`,
-          description: `${PILLAR_LABEL[leftKey]} ${leftPillar.branchKorean}와 ${PILLAR_LABEL[rightKey]} ${rightPillar.branchKorean}가 충을 이루어 변화성이 크오.`,
-        });
-      }
-
-      if (BRANCH_PUNISHMENTS.some((pair) => isSamePair(pair, leftPillar.branch, rightPillar.branch))) {
-        pairs.push({
-          pillars: [leftKey, rightKey],
-          type: "형",
-          branches,
-          label: `${labelBase} 형`,
-          description: `${PILLAR_LABEL[leftKey]} ${leftPillar.branchKorean}와 ${PILLAR_LABEL[rightKey]} ${rightPillar.branchKorean} 사이에 형살 기운이 있소.`,
-        });
-      }
+      pairs.push(
+        ...buildBranchRelationPairs({
+          leftKey,
+          leftBranch: leftPillar.branch,
+          leftBranchKorean: leftPillar.branchKorean,
+          rightKey,
+          rightBranch: rightPillar.branch,
+          rightBranchKorean: rightPillar.branchKorean,
+        }),
+      );
     }
   }
 
@@ -607,6 +684,36 @@ function detectBranchRelations(pillars: Record<PillarKey, PillarInfo>): Traditio
         ? pairs.map((pair) => pair.description)
         : ["지지 간 큰 충돌은 약한 편이니 흐름이 비교적 단정하오."],
   };
+}
+
+export function detectTodayBranchInteractions(
+  todayBranch: string,
+  pillars: Record<PillarKey, PillarInfo>,
+): TodayBranchInteraction[] {
+  const todayBranchKorean = BRANCH_KOREAN[todayBranch] ?? todayBranch;
+  const interactions: TodayBranchInteraction[] = [];
+
+  for (const [pillarKey, pillar] of Object.entries(pillars) as Array<[PillarKey, PillarInfo]>) {
+    for (const type of detectBranchRelationTypes(todayBranch, pillar.branch)) {
+      interactions.push({
+        pillar: pillarKey,
+        pillarLabel: PILLAR_LABEL[pillarKey],
+        branch: pillar.branch,
+        branchKorean: pillar.branchKorean,
+        type,
+        weight: todayBranchPillarWeight(type, pillarKey),
+        description: describeBranchRelation({
+          leftLabel: "금일",
+          leftBranchKorean: todayBranchKorean,
+          rightLabel: PILLAR_LABEL[pillarKey],
+          rightBranchKorean: pillar.branchKorean,
+          type,
+        }),
+      });
+    }
+  }
+
+  return interactions;
 }
 
 function analyzeTraditionalSajuChart(params: {

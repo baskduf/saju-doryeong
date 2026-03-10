@@ -120,6 +120,13 @@ function buildCacheKey(params: {
     grade: params.fortune.grade,
     todayGanji: params.fortune.analysis.todayGanji,
     todayRelation: params.fortune.analysis.todayRelation,
+    todayBranchImpact: params.fortune.analysis.todayBranchImpact,
+    todayBranchSummary: params.fortune.analysis.todayBranchSummary,
+    todayBranchInteractions: params.fortune.analysis.todayBranchInteractions.map((interaction) => ({
+      pillar: interaction.pillar,
+      type: interaction.type,
+      weight: interaction.weight,
+    })),
     model: resolveModel(),
   });
 }
@@ -156,6 +163,9 @@ function buildPromptContext(params: {
         analysis: {
           todayGanji: params.fortune.analysis.todayGanji,
           todayRelation: params.fortune.analysis.todayRelation,
+          todayBranchImpact: params.fortune.analysis.todayBranchImpact,
+          todayBranchSummary: params.fortune.analysis.todayBranchSummary,
+          todayBranchInteractions: params.fortune.analysis.todayBranchInteractions,
           strengthLevel: params.fortune.analysis.strengthLevel,
           dominantTenGod: params.fortune.analysis.dominantTenGod,
           patternName: params.fortune.analysis.patternName,
@@ -216,19 +226,30 @@ function buildFallbackAnswer(params: {
 
   const focusAction = params.fortune.recommendedActions[0] ?? "지금 할 일을 차분히 정리해 보시오.";
   const caution = params.fortune.avoidToday[0] ?? params.fortune.caution;
+  const branchSummary =
+    params.fortune.analysis.todayBranchInteractions.length > 0 &&
+    !params.fortune.summary.includes(params.fortune.analysis.todayBranchSummary)
+      ? params.fortune.analysis.todayBranchSummary
+      : null;
 
   const description =
     params.topic === "general"
       ? [
           `오늘 전체 흐름은 ${params.fortune.score}점이라 ${params.fortune.grade} 쪽에 가깝소.`,
           params.fortune.summary,
+          branchSummary,
           `우선 ${focusAction} 쪽으로 움직이고, ${caution}`,
-        ].join(" ")
+        ]
+          .filter((line): line is string => Boolean(line))
+          .join(" ")
       : [
           `${category.label} 흐름은 ${category.score}점 정도로 읽히오.`,
           category.summary,
+          branchSummary,
           `이 일에는 ${focusAction} 쪽이 맞겠으나, ${caution}`,
-        ].join(" ");
+        ]
+          .filter((line): line is string => Boolean(line))
+          .join(" ");
 
   return {
     title: fallbackTitle(params.topic),

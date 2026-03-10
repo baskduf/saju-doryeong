@@ -2,6 +2,7 @@ import { Solar } from "lunar-javascript";
 import { generateFortuneNarrativeOverride } from "./fortune-llm";
 import {
   calculateTraditionalSajuChart,
+  detectTodayBranchInteractions,
   elementFromStem,
   elementLabel,
   fivePhaseRelation,
@@ -9,6 +10,7 @@ import {
   type ElementKey,
   type FiveElements,
   type PillarKey,
+  type TodayBranchInteraction,
   type TraditionalSajuChart,
 } from "./saju";
 
@@ -83,6 +85,17 @@ export type DailyFortune = {
     unfavorableElements: ElementKey[];
     todayGanji: string;
     todayRelation: "비겁" | "식상" | "재성" | "관성" | "인성";
+    todayBranchImpact: number;
+    todayBranchSummary: string;
+    todayBranchInteractions: Array<{
+      pillar: PillarKey;
+      pillarLabel: string;
+      branch: string;
+      branchKorean: string;
+      type: TodayBranchInteraction["type"];
+      weight: number;
+      description: string;
+    }>;
     usedNoonFallback: boolean;
     calendarTypeInput: CalendarType;
     calendarTypeResolved: "solar" | "lunar";
@@ -430,6 +443,48 @@ function buildAvoidToday(params: {
   return avoid.slice(0, 3);
 }
 
+function todayBranchInteractionPriority(pillar: PillarKey): number {
+  switch (pillar) {
+    case "day":
+      return 0;
+    case "month":
+      return 1;
+    case "hour":
+      return 2;
+    case "year":
+      return 3;
+  }
+}
+
+function sortTodayBranchInteractions(interactions: TodayBranchInteraction[]): TodayBranchInteraction[] {
+  return [...interactions].sort((left, right) => {
+    const pillarDiff = todayBranchInteractionPriority(left.pillar) - todayBranchInteractionPriority(right.pillar);
+    if (pillarDiff !== 0) return pillarDiff;
+    return Math.abs(right.weight) - Math.abs(left.weight);
+  });
+}
+
+function buildTodayBranchSummary(interactions: TodayBranchInteraction[]): string {
+  if (interactions.length === 0) {
+    return "금일 일지는 원국 지지와 큰 합충형 없이 무난히 흐르오.";
+  }
+
+  const sorted = sortTodayBranchInteractions(interactions);
+  const primary = sorted[0];
+  const extraCount = sorted.length - 1;
+  const extraPhrase = extraCount > 0 ? ` 이 밖에도 ${extraCount}건의 지지 작용이 더 감지되오.` : "";
+
+  if (primary.type === "충") {
+    return `${primary.description} ${primary.pillarLabel} 자리를 흔들 수 있으니 일정과 감정의 충돌을 먼저 다스리시오.${extraPhrase}`;
+  }
+
+  if (primary.type === "형") {
+    return `${primary.description} 자책이나 압박이 쌓이기 쉬우니 서두르기보다 순서를 바로 세우는 편이 낫소.${extraPhrase}`;
+  }
+
+  return `${primary.description} ${primary.pillarLabel} 흐름이 부드럽게 이어질 수 있으니 만남과 협의를 차분히 이어 가시오.${extraPhrase}`;
+}
+
 export function generateDailyFortune(params: {
   userId: string;
   birthDate: Date;
@@ -528,6 +583,22 @@ export function generateDailyFortune(params: {
   const usefulTodayScore = usefulElements.reduce((sum, key) => sum + todayElements[key], 0);
   const unfavorableTodayScore = unfavorableElements.reduce((sum, key) => sum + todayElements[key], 0);
   const todayGanji = `${todayDayGan}${todayDayZhi}`;
+  const todayBranchInteractions = chart ? detectTodayBranchInteractions(todayDayZhi, chart.pillars) : [];
+  const prioritizedTodayBranchInteractions = sortTodayBranchInteractions(todayBranchInteractions);
+  const todayBranchImpact = clamp(
+    prioritizedTodayBranchInteractions.reduce((sum, interaction) => sum + interaction.weight, 0),
+    -8,
+    6,
+  );
+  const todayBranchSummary = buildTodayBranchSummary(prioritizedTodayBranchInteractions);
+  const primaryTodayBranchPressure = prioritizedTodayBranchInteractions.find(
+    (interaction) =>
+      (interaction.type === "충" || interaction.type === "형") &&
+      (interaction.pillar === "day" || interaction.pillar === "month"),
+  );
+  const primaryTodayBranchHarmony = prioritizedTodayBranchInteractions.find(
+    (interaction) => interaction.type === "합" && (interaction.pillar === "day" || interaction.pillar === "month"),
+  );
 
   const spread =
     Math.max(chartElements.wood, chartElements.fire, chartElements.earth, chartElements.metal, chartElements.water) -
@@ -544,7 +615,11 @@ export function generateDailyFortune(params: {
   const balanceBonus = clamp(28 - spread, -12, 18);
   const natalBonus = Math.round((usefulNatalScore - unfavorableNatalScore) * 0.18);
   const dailyBonus = Math.round((usefulTodayScore - unfavorableTodayScore) * 0.15);
-  const score = clamp(58 + balanceBonus + natalBonus + dailyBonus + relationBonus + strengthBonus - branchPenalty, 5, 98);
+  const score = clamp(
+    58 + balanceBonus + natalBonus + dailyBonus + relationBonus + strengthBonus - branchPenalty + todayBranchImpact,
+    5,
+    98,
+  );
   const grade = gradeFromScore(score);
 
   const headlineByGrade: Record<DailyFortune["grade"], string> = {
@@ -557,21 +632,26 @@ export function generateDailyFortune(params: {
   const summary = [
     `일주 주기운은 ${dayMasterLabel}이며, 원국은 ${pillarSummary}로 잡혔소.`,
     strengthSummary,
+    prioritizedTodayBranchInteractions.length > 0 ? todayBranchSummary : undefined,
     `강한 오행은 ${elementLabel(dominant)}, 약한 오행은 ${elementLabel(weakest)}이니 균형을 우선하시오.`,
-  ].join(" ");
+  ]
+    .filter((line): line is string => Boolean(line))
+    .join(" ");
 
   const detailLines = [
     seasonalSummary,
     `서울 기준 금일 일진은 ${todayDayGan}${todayDayZhi}이며, 일주 대비 ${relation}의 흐름이 감지되오.`,
     `주요 십신 흐름은 ${dominantTenGod}, 일간 세는 ${strengthLevelLabel(dayMasterStrengthLevel)} 쪽으로 읽히오.`,
     `${patternSummary} 용신은 ${elementLabel(yongShin)}으로 보오.`,
+    prioritizedTodayBranchInteractions.length > 0 ? todayBranchSummary : undefined,
     branchRelationSummary.length > 0 ? branchRelationSummary.join(" ") : undefined,
     `점수는 ${score}점(${grade})으로, 길한 오행(${formatElementList(usefulElements)})과 부담 오행(${formatElementList(unfavorableElements)})의 차이를 함께 반영했소.`,
   ].filter((line): line is string => Boolean(line));
   const detail = detailLines.join(" ");
 
-  const caution =
-    grade === "주의"
+  const caution = primaryTodayBranchPressure
+    ? `금일 ${primaryTodayBranchPressure.description} ${primaryTodayBranchPressure.pillarLabel} 쪽 마찰이 먼저 드러날 수 있으니 중요한 결정은 한 박자 늦추고 사람과 일정의 충돌부터 풀어내시오.`
+    : grade === "주의"
       ? `오늘은 ${elementLabel(weakest)} 보완과 일정 충돌 관리가 급하니 중요한 결정을 밤늦게 미루지 마시오.`
       : `금일은 ${elementLabel(weakest)} 보완(휴식, 수분, 호흡 정리)을 지키고 ${formatElementList(usefulElements.slice(0, 2))} 방향의 실무를 살리면 흐름이 더 고르게 펴지리다.`;
 
@@ -584,6 +664,11 @@ export function generateDailyFortune(params: {
   recommendedActions.push(`용신 ${elementLabel(yongShin)} 흐름을 먼저 살리고, 기신 ${elementLabel(giShin)} 편중은 줄이시오.`);
   if (branchPenalty > 0) {
     recommendedActions.push("사람과 일정 사이의 충돌을 미리 조율해 형충의 마찰을 줄이시오.");
+  }
+  if (primaryTodayBranchPressure) {
+    recommendedActions.push(`${primaryTodayBranchPressure.pillarLabel} 자리와 부딪히는 기운이 있으니 약속과 답변은 한 번 더 조율하고 움직이시오.`);
+  } else if (primaryTodayBranchHarmony) {
+    recommendedActions.push(`${primaryTodayBranchHarmony.pillarLabel} 자리와 합이 닿으니 만남, 협의, 조율이 필요한 일은 오늘 차분히 풀어 보시오.`);
   }
 
   if (usedNoonFallback && grade !== "주의") {
@@ -608,6 +693,10 @@ export function generateDailyFortune(params: {
     branchPenalty,
     relation,
   });
+  if (primaryTodayBranchPressure) {
+    avoidToday.unshift(`${primaryTodayBranchPressure.pillarLabel} 자리와 얽힌 약속, 감정 반응, 즉답은 서두르지 마시오.`);
+  }
+  const trimmedAvoidToday = avoidToday.slice(0, 3);
   const luckyHints = ELEMENT_LUCK_MAP[yongShin];
 
   return {
@@ -620,7 +709,7 @@ export function generateDailyFortune(params: {
     recommendedActions,
     keywords,
     categoryScores,
-    avoidToday,
+    avoidToday: trimmedAvoidToday,
     luckyHints,
     elements: chartElements,
     manse: chart
@@ -684,6 +773,9 @@ export function generateDailyFortune(params: {
           unfavorableElements,
           todayGanji,
           todayRelation: relation,
+          todayBranchImpact,
+          todayBranchSummary,
+          todayBranchInteractions: prioritizedTodayBranchInteractions,
           usedNoonFallback,
           calendarTypeInput,
           calendarTypeResolved,
@@ -724,6 +816,9 @@ export function generateDailyFortune(params: {
           unfavorableElements,
           todayGanji,
           todayRelation: relation,
+          todayBranchImpact,
+          todayBranchSummary,
+          todayBranchInteractions: prioritizedTodayBranchInteractions,
           usedNoonFallback,
           calendarTypeInput,
           calendarTypeResolved,

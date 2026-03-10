@@ -81,6 +81,13 @@ export type TraditionalSajuAnalysis = {
     giShin: ElementKey;
     guShin: ElementKey[];
     summary: string;
+    priorityScores: Record<ElementKey, { useful: number; unfavorable: number }>;
+    reasons: {
+      yongShin: string;
+      heeShin: string[];
+      giShin: string;
+      guShin: string[];
+    };
   };
   usefulElements: ElementKey[];
   unfavorableElements: ElementKey[];
@@ -363,10 +370,58 @@ function sortElementsByWeight(
     .map((item) => item.element);
 }
 
-function strongestElement(elements: FiveElements): ElementKey {
-  const entries = Object.entries(elements) as Array<[ElementKey, number]>;
-  entries.sort((a, b) => b[1] - a[1]);
-  return entries[0][0];
+function rankedElements(elements: FiveElements, direction: "asc" | "desc"): ElementKey[] {
+  return sortElementsByWeight(["wood", "fire", "earth", "metal", "water"], elements, direction);
+}
+
+function emptyPriorityScores(): Record<ElementKey, { useful: number; unfavorable: number }> {
+  return {
+    wood: { useful: 0, unfavorable: 0 },
+    fire: { useful: 0, unfavorable: 0 },
+    earth: { useful: 0, unfavorable: 0 },
+    metal: { useful: 0, unfavorable: 0 },
+    water: { useful: 0, unfavorable: 0 },
+  };
+}
+
+function emptyPriorityReasons(): Record<ElementKey, { useful: string[]; unfavorable: string[] }> {
+  return {
+    wood: { useful: [], unfavorable: [] },
+    fire: { useful: [], unfavorable: [] },
+    earth: { useful: [], unfavorable: [] },
+    metal: { useful: [], unfavorable: [] },
+    water: { useful: [], unfavorable: [] },
+  };
+}
+
+function pushUsefulDirective(
+  priorityScores: Record<ElementKey, { useful: number; unfavorable: number }>,
+  priorityReasons: Record<ElementKey, { useful: string[]; unfavorable: string[] }>,
+  element: ElementKey,
+  score: number,
+  reason: string,
+): void {
+  priorityScores[element].useful += score;
+  priorityReasons[element].useful.push(reason);
+}
+
+function pushUnfavorableDirective(
+  priorityScores: Record<ElementKey, { useful: number; unfavorable: number }>,
+  priorityReasons: Record<ElementKey, { useful: string[]; unfavorable: string[] }>,
+  element: ElementKey,
+  score: number,
+  reason: string,
+): void {
+  priorityScores[element].unfavorable += score;
+  priorityReasons[element].unfavorable.push(reason);
+}
+
+function formatDirectiveReason(
+  reasons: string[],
+  fallback: string,
+): string {
+  if (reasons.length === 0) return fallback;
+  return Array.from(new Set(reasons)).slice(0, 2).join(" ");
 }
 
 function addStemWeight(bucket: Record<ElementKey, number>, stem: string, weight: number): void {
@@ -524,6 +579,14 @@ export function tenGodFromStem(dayStem: string, otherStem: string): TenGod {
   if (relation === "재성") return samePolarity ? "편재" : "정재";
   if (relation === "관성") return samePolarity ? "편관" : "정관";
   return samePolarity ? "편인" : "정인";
+}
+
+function tenGodGroup(tenGod: TenGod): FivePhaseRelation {
+  if (tenGod === "비견" || tenGod === "겁재") return "비겁";
+  if (tenGod === "식신" || tenGod === "상관") return "식상";
+  if (tenGod === "편재" || tenGod === "정재") return "재성";
+  if (tenGod === "편관" || tenGod === "정관") return "관성";
+  return "인성";
 }
 
 function seasonalInfluence(relation: FivePhaseRelation): number {
@@ -759,19 +822,6 @@ function analyzeTraditionalSajuChart(params: {
   const level: TraditionalSajuAnalysis["dayMasterStrength"]["level"] =
     strengthScore >= 12 ? "strong" : strengthScore <= -6 ? "weak" : "balanced";
 
-  const usefulElements =
-    level === "strong"
-      ? uniqueElements([outputElement, wealthElement, officerElement, BRANCH_MAIN_ELEMENT[monthPillar.branch] ?? outputElement])
-      : level === "weak"
-        ? uniqueElements([dayMasterElement, resourceElement])
-        : uniqueElements([wealthElement, officerElement, outputElement]);
-  const unfavorableElements =
-    level === "strong"
-      ? uniqueElements([dayMasterElement, resourceElement])
-      : level === "weak"
-        ? uniqueElements([outputElement, wealthElement, officerElement])
-        : uniqueElements([strongestElement(params.fiveElements)]);
-
   const stemTenGods: TraditionalSajuAnalysis["tenGods"]["stems"] = {
     year: {
       stem: params.pillars.year.stem,
@@ -843,36 +893,6 @@ function analyzeTraditionalSajuChart(params: {
     })
     .sort((left, right) => right.score - left.score || right.weight - left.weight);
 
-  const preferredUsefulElements =
-    level === "strong"
-      ? dominantTenGod === "비견" || dominantTenGod === "겁재" || dominantTenGod === "편인" || dominantTenGod === "정인"
-        ? [outputElement, wealthElement, officerElement, seasonalElement]
-        : [wealthElement, officerElement, outputElement, seasonalElement]
-      : level === "weak"
-        ? seasonalRelation === "관성" || seasonalRelation === "재성"
-          ? [resourceElement, dayMasterElement]
-          : [dayMasterElement, resourceElement]
-        : seasonalRelation === "비겁" || seasonalRelation === "인성"
-          ? [outputElement, wealthElement, officerElement]
-          : [wealthElement, officerElement, outputElement];
-  const preferredUnfavorableElements =
-    level === "strong"
-      ? [dayMasterElement, resourceElement]
-      : level === "weak"
-        ? [officerElement, wealthElement, outputElement]
-        : [strongestElement(params.fiveElements), dayMasterElement];
-
-  const sortedUsefulElements = sortElementsByWeight(
-    [...preferredUsefulElements, ...usefulElements],
-    params.fiveElements,
-    "asc",
-  );
-  const sortedUnfavorableElements = sortElementsByWeight(
-    [...preferredUnfavorableElements, ...unfavorableElements],
-    params.fiveElements,
-    "desc",
-  );
-
   const primaryPatternCandidate = patternCandidates[0] ?? {
     stem: monthPillar.stem,
     stemKorean: monthPillar.stemKorean,
@@ -891,15 +911,122 @@ function analyzeTraditionalSajuChart(params: {
     patternRevealedPillars.length > 0
       ? `${patternRevealedPillars.map((pillar) => stemVisiblePillarLabel(pillar)).join(", ")} 투간`
       : "미투간";
-  const yongShin = sortedUsefulElements[0] ?? usefulElements[0] ?? dayMasterElement;
-  const heeShin = sortedUsefulElements.slice(1, 3);
-  const giShin = sortedUnfavorableElements[0] ?? unfavorableElements[0] ?? strongestElement(params.fiveElements);
-  const guShin = sortedUnfavorableElements.slice(1, 3);
+
+  const priorityScores = emptyPriorityScores();
+  const priorityReasons = emptyPriorityReasons();
+  const weakestRank = rankedElements(params.fiveElements, "asc");
+  const strongestRank = rankedElements(params.fiveElements, "desc");
+  const dominantGroup = tenGodGroup(dominantTenGod);
+  const strongestCurrentElement = strongestRank[0] ?? dayMasterElement;
+  const weakestCurrentElement = weakestRank[0] ?? dayMasterElement;
+  const secondWeakestElement = weakestRank[1] ?? weakestCurrentElement;
+  const usefulCore: ElementKey[] = [];
+  const unfavorableCore: ElementKey[] = [];
+
+  if (level === "strong") {
+    pushUsefulDirective(priorityScores, priorityReasons, outputElement, 3, "신강한 명식은 식상으로 기운을 흘려 주는 편이 좋소.");
+    pushUsefulDirective(priorityScores, priorityReasons, wealthElement, 4, "신강한 명식은 재성으로 현실 감각을 세울 때 균형이 잡히오.");
+    pushUsefulDirective(priorityScores, priorityReasons, officerElement, 3, "관성 기운이 들어오면 흐름이 단정해지기 쉽소.");
+    pushUnfavorableDirective(priorityScores, priorityReasons, dayMasterElement, 4, "비겁이 과해지면 자기 기운이 너무 불어나 흐름이 답답해질 수 있소.");
+    pushUnfavorableDirective(priorityScores, priorityReasons, resourceElement, 4, "인성이 겹치면 기운이 안으로만 쌓여 답답해질 수 있소.");
+    usefulCore.push(outputElement, wealthElement, officerElement);
+    unfavorableCore.push(dayMasterElement, resourceElement);
+  } else if (level === "weak") {
+    pushUsefulDirective(priorityScores, priorityReasons, dayMasterElement, 4, "신약한 명식은 비겁으로 중심을 세워야 버티는 힘이 생기오.");
+    pushUsefulDirective(priorityScores, priorityReasons, resourceElement, 5, "인성이 받쳐 주어야 약한 기운이 다시 숨을 고르오.");
+    pushUnfavorableDirective(priorityScores, priorityReasons, outputElement, 3, "식상이 강해지면 기운이 더 빠져나가 버거워질 수 있소.");
+    pushUnfavorableDirective(priorityScores, priorityReasons, wealthElement, 3, "재성이 과하면 감당할 일과 욕심이 함께 늘어날 수 있소.");
+    pushUnfavorableDirective(priorityScores, priorityReasons, officerElement, 3, "관성이 눌러오면 압박이 먼저 느껴지기 쉬운 명식이오.");
+    usefulCore.push(dayMasterElement, resourceElement);
+    unfavorableCore.push(outputElement, wealthElement, officerElement);
+  } else {
+    pushUsefulDirective(priorityScores, priorityReasons, wealthElement, 3, "중화된 명식은 재성으로 현실 감각을 세울 때 흐름이 정리되오.");
+    pushUsefulDirective(priorityScores, priorityReasons, officerElement, 3, "관성이 들어오면 균형이 흐트러지지 않고 단정해지오.");
+    pushUsefulDirective(priorityScores, priorityReasons, outputElement, 2, "식상이 부드럽게 열리면 막힌 기운이 풀리기 쉽소.");
+    pushUnfavorableDirective(priorityScores, priorityReasons, strongestCurrentElement, 2, `이미 강한 ${elementLabel(strongestCurrentElement)} 기운이 더 세지면 한쪽으로 치우칠 수 있소.`);
+    usefulCore.push(wealthElement, officerElement, outputElement);
+    unfavorableCore.push(strongestCurrentElement);
+  }
+
+  if (usefulCore.includes(seasonalElement)) {
+    pushUsefulDirective(
+      priorityScores,
+      priorityReasons,
+      seasonalElement,
+      2,
+      `월령의 ${elementLabel(seasonalElement)} 기운이 지금 명식에 필요한 축을 받쳐 주오.`,
+    );
+  }
+  if (unfavorableCore.includes(seasonalElement)) {
+    pushUnfavorableDirective(
+      priorityScores,
+      priorityReasons,
+      seasonalElement,
+      2,
+      `월령의 ${elementLabel(seasonalElement)} 기운이 이미 과한 흐름을 더 밀어 올릴 수 있소.`,
+    );
+  }
+
+  if (level === "strong" && (dominantGroup === "비겁" || dominantGroup === "인성")) {
+    pushUsefulDirective(priorityScores, priorityReasons, outputElement, 2, "주도 십신이 비겁·인성 쪽이라 식상으로 기운을 풀어내야 숨통이 트이오.");
+    pushUsefulDirective(priorityScores, priorityReasons, wealthElement, 2, "재성으로 현실 감각을 세워야 무거워진 기운이 정리되오.");
+    pushUnfavorableDirective(priorityScores, priorityReasons, dayMasterElement, 2, "비겁이 더 겹치면 자기 기운이 과도하게 부풀 수 있소.");
+    pushUnfavorableDirective(priorityScores, priorityReasons, resourceElement, 2, "인성이 더 쌓이면 생각과 준비만 늘어질 수 있소.");
+  }
+
+  if (level === "weak" && (dominantGroup === "재성" || dominantGroup === "관성" || dominantGroup === "식상")) {
+    pushUsefulDirective(priorityScores, priorityReasons, dayMasterElement, 2, "주도 십신이 새어나가거나 눌리는 축이라 비겁으로 중심을 보강해야 하오.");
+    pushUsefulDirective(priorityScores, priorityReasons, resourceElement, 2, "인성으로 기력을 채워야 흐름을 견디기 쉬워지오.");
+    pushUnfavorableDirective(priorityScores, priorityReasons, wealthElement, 2, "재성이 더 강해지면 감당 범위를 넘기기 쉬운 형세요.");
+    pushUnfavorableDirective(priorityScores, priorityReasons, officerElement, 2, "관성이 겹치면 해야 할 일보다 압박이 먼저 커질 수 있소.");
+  }
+
+  pushUsefulDirective(priorityScores, priorityReasons, weakestCurrentElement, 2, `가장 약한 ${elementLabel(weakestCurrentElement)} 기운을 보완해야 균형이 빨리 살아나오.`);
+  pushUsefulDirective(priorityScores, priorityReasons, secondWeakestElement, 1, `${elementLabel(secondWeakestElement)} 기운도 보조로 살려 두면 균형이 부드럽게 이어지오.`);
+  pushUnfavorableDirective(priorityScores, priorityReasons, strongestCurrentElement, 2, `가장 강한 ${elementLabel(strongestCurrentElement)} 기운이 더 세지면 흐름이 한쪽으로 거칠어질 수 있소.`);
+
+  const usefulRanking = (["wood", "fire", "earth", "metal", "water"] as ElementKey[]).sort((left, right) => {
+    const scoreDelta = priorityScores[right].useful - priorityScores[left].useful;
+    if (scoreDelta !== 0) return scoreDelta;
+    const weightDelta = params.fiveElements[left] - params.fiveElements[right];
+    if (weightDelta !== 0) return weightDelta;
+    return 0;
+  });
+  const unfavorableRanking = (["wood", "fire", "earth", "metal", "water"] as ElementKey[]).sort((left, right) => {
+    const scoreDelta = priorityScores[right].unfavorable - priorityScores[left].unfavorable;
+    if (scoreDelta !== 0) return scoreDelta;
+    const weightDelta = params.fiveElements[right] - params.fiveElements[left];
+    if (weightDelta !== 0) return weightDelta;
+    return 0;
+  });
+
+  const yongShin = usefulRanking[0] ?? dayMasterElement;
+  const heeShin = usefulRanking.slice(1, 3);
+  const giShin = unfavorableRanking[0] ?? strongestCurrentElement;
+  const guShin = unfavorableRanking.slice(1, 3);
+  const usefulElements = usefulRanking.filter((element) => priorityScores[element].useful > 0).slice(0, 3);
+  const unfavorableElements = unfavorableRanking.filter((element) => priorityScores[element].unfavorable > 0).slice(0, 3);
+
+  const yongShinReason = formatDirectiveReason(
+    priorityReasons[yongShin].useful,
+    `${elementLabel(yongShin)} 기운이 지금 명식의 균형을 세워 주는 축이오.`,
+  );
+  const giShinReason = formatDirectiveReason(
+    priorityReasons[giShin].unfavorable,
+    `${elementLabel(giShin)} 기운이 과해지면 흐름을 거칠게 만들기 쉽소.`,
+  );
+  const heeShinReasons = heeShin.map((element) =>
+    formatDirectiveReason(priorityReasons[element].useful, `${elementLabel(element)} 기운이 보조로 균형을 거들어 주오.`),
+  );
+  const guShinReasons = guShin.map((element) =>
+    formatDirectiveReason(priorityReasons[element].unfavorable, `${elementLabel(element)} 기운이 따라오면 부담이 더 커질 수 있소.`),
+  );
+
   const branchRelations = detectBranchRelations(params.pillars);
   const rootSummary =
     roots.length > 0
-      ? `${roots.length}곳에 통근하여 뿌리가 이어지오.`
-      : "통근이 약해 외부 기세에 민감하오.";
+      ? `${roots.length}곳에 통근되어 뿌리가 이어지오.`
+      : "통근이 엷어 바깥 기세에 민감하오.";
 
   return {
     seasonalForce: {
@@ -939,15 +1066,22 @@ function analyzeTraditionalSajuChart(params: {
         revealed: candidate.revealed,
       })),
       summary: primaryPatternCandidate.revealed
-        ? `월지 ${monthPillar.branchKorean}의 주기 ${monthLeaderStem}${monthLeaderStemKorean}이 ${patternRevealLabel}하여 ${patternName} 성향이 또렷하오.`
-        : `월지 ${monthPillar.branchKorean}의 주기 ${monthLeaderStem}${monthLeaderStemKorean}이 아직 투간하지 않아 ${patternName} 후보로 보수적으로 읽히오.`,
+        ? `월지 ${monthPillar.branchKorean}의 주기 ${monthLeaderStem}${monthLeaderStemKorean}이 ${patternRevealLabel}되어 ${patternName} 성향을 드러내오.`
+        : `월지 ${monthPillar.branchKorean}의 주기 ${monthLeaderStem}${monthLeaderStemKorean}이 아직 투간되지 않아 ${patternName} 후보로 보수적으로 봅니다.`,
     },
     balanceDirectives: {
       yongShin,
       heeShin,
       giShin,
       guShin,
-      summary: `용신은 ${elementLabel(yongShin)}으로 잡고, 희신은 ${heeShin.length > 0 ? heeShin.map((item) => elementLabel(item)).join(", ") : "보조 오행을 더 보아야"} 쪽으로 둡니다. 기신은 ${elementLabel(giShin)}이며, 구신은 ${guShin.length > 0 ? guShin.map((item) => elementLabel(item)).join(", ") : "상황 따라 달라질 수 있소"}.`,
+      summary: `지금 명식은 ${elementLabel(yongShin)} 기운으로 균형을 잡고, ${elementLabel(giShin)} 기운이 과해지면 흐름이 거칠어집니다.`,
+      priorityScores,
+      reasons: {
+        yongShin: yongShinReason,
+        heeShin: heeShinReasons,
+        giShin: giShinReason,
+        guShin: guShinReasons,
+      },
     },
     usefulElements,
     unfavorableElements,

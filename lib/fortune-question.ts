@@ -120,6 +120,11 @@ function buildCacheKey(params: {
     grade: params.fortune.grade,
     todayGanji: params.fortune.analysis.todayGanji,
     todayRelation: params.fortune.analysis.todayRelation,
+    directiveDelta: params.fortune.analysis.directiveDelta,
+    yongShin: params.fortune.analysis.yongShin,
+    giShin: params.fortune.analysis.giShin,
+    relationStrengthSummary: params.fortune.analysis.relationStrengthSummary,
+    relationStrengthAction: params.fortune.analysis.relationStrengthAction,
     todayBranchImpact: params.fortune.analysis.todayBranchImpact,
     todayBranchSummary: params.fortune.analysis.todayBranchSummary,
     todayBranchInteractions: params.fortune.analysis.todayBranchInteractions.map((interaction) => ({
@@ -163,6 +168,13 @@ function buildPromptContext(params: {
         analysis: {
           todayGanji: params.fortune.analysis.todayGanji,
           todayRelation: params.fortune.analysis.todayRelation,
+          directiveDelta: params.fortune.analysis.directiveDelta,
+          directiveSummary: params.fortune.analysis.directiveSummary,
+          relationStrengthSummary: params.fortune.analysis.relationStrengthSummary,
+          relationStrengthDetail: params.fortune.analysis.relationStrengthDetail,
+          relationStrengthCaution: params.fortune.analysis.relationStrengthCaution,
+          relationStrengthAction: params.fortune.analysis.relationStrengthAction,
+          relationStrengthAvoid: params.fortune.analysis.relationStrengthAvoid,
           todayBranchImpact: params.fortune.analysis.todayBranchImpact,
           todayBranchSummary: params.fortune.analysis.todayBranchSummary,
           todayBranchInteractions: params.fortune.analysis.todayBranchInteractions,
@@ -170,7 +182,11 @@ function buildPromptContext(params: {
           dominantTenGod: params.fortune.analysis.dominantTenGod,
           patternName: params.fortune.analysis.patternName,
           yongShin: params.fortune.analysis.yongShin,
+          heeShin: params.fortune.analysis.heeShin,
           giShin: params.fortune.analysis.giShin,
+          guShin: params.fortune.analysis.guShin,
+          yongShinReason: params.fortune.analysis.yongShinReason,
+          giShinReason: params.fortune.analysis.giShinReason,
           usefulElements: params.fortune.analysis.usefulElements,
           unfavorableElements: params.fortune.analysis.unfavorableElements,
         },
@@ -231,22 +247,35 @@ function buildFallbackAnswer(params: {
     !params.fortune.summary.includes(params.fortune.analysis.todayBranchSummary)
       ? params.fortune.analysis.todayBranchSummary
       : null;
+  const directiveLine =
+    params.fortune.analysis.directiveDelta >= 3
+      ? "오늘은 용신 쪽이 받쳐 주니 밀어도 되는 일과 접어 둘 일을 또렷이 가르는 편이 좋소."
+      : params.fortune.analysis.directiveDelta <= -3
+        ? "오늘은 기신이 올라오니 무리하게 밀기보다 보수적으로 흐름을 살피는 편이 낫소."
+        : null;
+  const relationLine = params.fortune.analysis.relationStrengthSummary;
+  const relationAction = params.fortune.analysis.relationStrengthAction;
+  const relationCaution = params.fortune.analysis.relationStrengthCaution;
 
   const description =
     params.topic === "general"
       ? [
           `오늘 전체 흐름은 ${params.fortune.score}점이라 ${params.fortune.grade} 쪽에 가깝소.`,
           params.fortune.summary,
+          relationLine,
           branchSummary,
-          `우선 ${focusAction} 쪽으로 움직이고, ${caution}`,
+          directiveLine,
+          `우선 ${relationAction ?? focusAction} 쪽으로 움직이고, ${relationCaution ?? caution}`,
         ]
           .filter((line): line is string => Boolean(line))
           .join(" ")
       : [
           `${category.label} 흐름은 ${category.score}점 정도로 읽히오.`,
           category.summary,
+          relationLine,
           branchSummary,
-          `이 일에는 ${focusAction} 쪽이 맞겠으나, ${caution}`,
+          directiveLine,
+          `이 일에는 ${relationAction ?? focusAction} 쪽이 맞겠으나, ${relationCaution ?? caution}`,
         ]
           .filter((line): line is string => Boolean(line))
           .join(" ");

@@ -304,6 +304,42 @@
   line-height: 1.6;
 }
 
+.privacyNotice {
+  display: grid;
+  gap: 10px;
+  padding: 16px 16px 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(117, 80, 34, 0.14);
+  background: linear-gradient(180deg, rgba(124, 84, 33, 0.07), rgba(124, 84, 33, 0.03));
+}
+
+.privacyTitle {
+  margin: 0;
+  color: #5a3a18;
+  font-size: 0.96rem;
+  font-weight: 800;
+}
+
+.privacyRows {
+  display: grid;
+  gap: 8px;
+}
+
+.privacyRow {
+  margin: 0;
+  color: #6d5236;
+  font-size: 0.9rem;
+  line-height: 1.65;
+}
+
+.privacyLabel {
+  display: inline-block;
+  min-width: 72px;
+  margin-right: 8px;
+  color: #7a5120;
+  font-weight: 800;
+}
+
 .submitButton {
   min-height: 56px;
   border: 0;

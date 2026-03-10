@@ -214,6 +214,28 @@ export default function RegisterForm({ initialUserId, fromKakao, accessToken }: 
         ) : null}
       </fieldset>
 
+      <section className={styles.privacyNotice} aria-label="개인정보 수집 이용 안내">
+        <p className={styles.privacyTitle}>개인정보 수집·이용 안내</p>
+        <div className={styles.privacyRows}>
+          <p className={styles.privacyRow}>
+            <span className={styles.privacyLabel}>수집 항목</span>
+            이름, 생년월일, 출생시간(선택), 달력 기준, 카카오 사용자 식별값
+          </p>
+          <p className={styles.privacyRow}>
+            <span className={styles.privacyLabel}>이용 목적</span>
+            사주 계산, 오늘 운세 제공, 질문 답변 개인화, 공유 링크 생성
+          </p>
+          <p className={styles.privacyRow}>
+            <span className={styles.privacyLabel}>보관 안내</span>
+            입력 정보와 생성된 운세 데이터는 서비스 운영 DB에 저장됩니다.
+          </p>
+          <p className={styles.privacyRow}>
+            <span className={styles.privacyLabel}>거부 시</span>
+            필수 정보 제공을 원하지 않으면 상세 운세 등록과 개인화 답변 이용이 어렵습니다.
+          </p>
+        </div>
+      </section>
+
       {error ? <p className={styles.error}>{error}</p> : null}
 
       <button className={styles.submitButton} type="submit" disabled={submitting}>

@@ -3,15 +3,18 @@ import { Prisma } from "@prisma/client";
 import { generateDailyFortune } from "../../../lib/fortune";
 import { answerFortuneQuestion } from "../../../lib/fortune-question";
 import {
-  DAILY_QUESTION_LIMIT,
+  BASE_DAILY_QUESTION_LIMIT,
+  DAILY_SHARE_REWARD_LIMIT,
   buildInitialSajuData,
   findProfileByUserId,
   getQuestionUsageSummary,
   hasDatabaseUrl,
   hasPendingQuestionInput,
   incrementQuestionUsage,
+  incrementShareReward,
   isNonEmptyString,
   parseRegistrationFields,
+  type QuestionUsageSummary,
   type SajuProfileRecord,
   setPendingQuestionInput,
   upsertProfile,
@@ -112,6 +115,28 @@ function mergeQuickReplies(extraQuickReplies?: KakaoQuickReply[]): KakaoQuickRep
 
 function createQuestionQuickReplies(): KakaoQuickReply[] {
   return QUESTION_EXAMPLE_QUICK_REPLIES.map((reply) => ({ ...reply }));
+}
+
+function buildQuestionUsageLines(
+  usage: QuestionUsageSummary,
+  options?: {
+    includeShareHint?: boolean;
+  },
+): string[] {
+  const lines = [
+    `기본 질문은 하루 ${BASE_DAILY_QUESTION_LIMIT}회까지 가능하오.`,
+    `오늘 질문은 총 ${usage.totalLimitToday}회까지 가능하고, 남은 횟수는 ${usage.remaining}회요.`,
+  ];
+
+  if (usage.rewardCountToday > 0) {
+    lines.push(`오늘 공유 적립은 ${usage.rewardCountToday}/${DAILY_SHARE_REWARD_LIMIT}회이오.`);
+  }
+
+  if (options?.includeShareHint && usage.rewardRemainingToday > 0) {
+    lines.push(`친구에게 공유하기로 질문 ${usage.rewardRemainingToday}회까지 더 적립할 수 있소.`);
+  }
+
+  return lines;
 }
 
 function createBasicCard(params: {
@@ -459,29 +484,29 @@ async function createQuestionAnswerCard(profile: SajuProfileRecord, question: st
 
   return createBasicCard({
     title: answer.title,
-    description: [
-      answer.description,
-      "",
-      `오늘의 운세 질문은 하루 ${DAILY_QUESTION_LIMIT}회까지 가능하오. 남은 횟수: ${usage.remaining}회`,
-    ].join("\n"),
+    description: [answer.description, "", ...buildQuestionUsageLines(usage, { includeShareHint: true })].join("\n"),
     buttons: createFortuneButtons(createFortuneUrl(profile.userId)),
     quickReplies: createQuestionQuickReplies(),
   });
 }
 
-async function createSharePromptCard(profile: KakaoProfileLike): Promise<KakaoBasicCardResponse> {
+async function createSharePromptCard(params: {
+  profile: KakaoProfileLike;
+  usage: QuestionUsageSummary;
+  rewarded: boolean;
+}): Promise<KakaoBasicCardResponse> {
   const now = new Date();
   const fortune = generateDailyFortune({
-    userId: profile.userId,
-    birthDate: profile.birthDate,
-    birthTime: profile.birthTime ?? undefined,
-    calendarType: profile.calendarType as "solar" | "lunar" | "unknown",
-    sajuData: profile.sajuData,
+    userId: params.profile.userId,
+    birthDate: params.profile.birthDate,
+    birthTime: params.profile.birthTime ?? undefined,
+    calendarType: params.profile.calendarType as "solar" | "lunar" | "unknown",
+    sajuData: params.profile.sajuData,
     date: now,
   });
   const shared = await upsertFortuneShareSnapshot({
-    userId: profile.userId,
-    profileName: profile.name,
+    userId: params.profile.userId,
+    profileName: params.profile.name,
     fortune,
     date: now,
   });
@@ -489,10 +514,13 @@ async function createSharePromptCard(profile: KakaoProfileLike): Promise<KakaoBa
   return createBasicCard({
     title: "운세도령의 공유 카드",
     description: [
-      profile.name ? `${profile.name} 님의 오늘 운세를 나눌 수 있소.` : "오늘의 운세를 나눌 수 있소.",
+      params.profile.name ? `${params.profile.name} 님의 오늘 운세를 나눌 수 있소.` : "오늘의 운세를 나눌 수 있소.",
+      params.rewarded
+        ? `질문 1개를 적립했소. 오늘 공유 적립 ${params.usage.rewardCountToday}/${DAILY_SHARE_REWARD_LIMIT}회`
+        : `오늘 공유 적립은 이미 ${DAILY_SHARE_REWARD_LIMIT}회를 채웠소.`,
+      `오늘 질문은 총 ${params.usage.totalLimitToday}회까지 가능하고, 남은 횟수는 ${params.usage.remaining}회요.`,
       `운세 점수: ${fortune.score}점(${fortune.grade})`,
       fortune.headline,
-      fortune.summary,
     ].join("\n\n"),
     thumbnailUrl: `${resolveAppBaseUrl()}/character_result.png`,
     buttons: createSharePromptButtons(createShareUrl(shared.snapshotId, shared.token)),
@@ -501,7 +529,7 @@ async function createSharePromptCard(profile: KakaoProfileLike): Promise<KakaoBa
 
 function createQuestionGuideCard(params: {
   hasProfile: boolean;
-  remaining?: number;
+  usage?: QuestionUsageSummary;
 }): KakaoBasicCardResponse {
   return createBasicCard({
     title: "운세도령",
@@ -510,9 +538,10 @@ function createQuestionGuideCard(params: {
           "궁금한 일을 한 문장으로 적어 보시오.",
           "예: 오늘 고백해도 될까 / 오늘 돈 써도 괜찮아?",
           "자네에게는 오늘의 운세를 바탕으로 풀이해 드리겠소.",
-          `하루 질문은 ${DAILY_QUESTION_LIMIT}회까지 가능하오${
-            typeof params.remaining === "number" ? `. 남은 횟수: ${params.remaining}회` : "."
-          }`,
+          ...buildQuestionUsageLines(
+            params.usage ?? getQuestionUsageSummary(null),
+            { includeShareHint: true },
+          ),
         ].join("\n")
       : [
           "운세 질문을 받기 전에 먼저 사주 정보를 기록해야 하오.",
@@ -522,13 +551,20 @@ function createQuestionGuideCard(params: {
   });
 }
 
-function createQuestionLimitCard(): KakaoBasicCardResponse {
+function createQuestionLimitCard(usage: QuestionUsageSummary): KakaoBasicCardResponse {
   return createBasicCard({
     title: "운세도령",
-    description: [
-      `오늘 운세 질문은 하루 ${DAILY_QUESTION_LIMIT}회까지이오.`,
-      "오늘 몫은 모두 마쳤으니, 내일 다시 물어보시오.",
-    ].join("\n"),
+    description:
+      usage.rewardRemainingToday > 0
+        ? [
+            `오늘 질문 ${usage.usedCount}회는 모두 썼소.`,
+            `친구에게 공유하기로 질문 ${usage.rewardRemainingToday}회까지 더 적립할 수 있소.`,
+            `현재 공유 적립은 ${usage.rewardCountToday}/${DAILY_SHARE_REWARD_LIMIT}회요.`,
+          ].join("\n")
+        : [
+            `오늘 질문 ${usage.usedCount}회는 모두 썼소.`,
+            `오늘 공유 적립도 ${DAILY_SHARE_REWARD_LIMIT}회를 모두 채웠으니 내일 다시 물어보시오.`,
+          ].join("\n"),
   });
 }
 
@@ -607,7 +643,7 @@ export async function POST(request: NextRequest) {
       if (profile) {
         if (questionUsage.isLimited) {
           await setPendingQuestionInput(profile, false);
-          return NextResponse.json(createQuestionLimitCard());
+          return NextResponse.json(createQuestionLimitCard(questionUsage));
         }
 
         await setPendingQuestionInput(profile, true);
@@ -616,7 +652,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         createQuestionGuideCard({
           hasProfile: Boolean(profile),
-          remaining: profile ? questionUsage.remaining : undefined,
+          usage: profile ? questionUsage : undefined,
         }),
       );
     }
@@ -630,7 +666,14 @@ export async function POST(request: NextRequest) {
         await setPendingQuestionInput(profile, false);
       }
 
-      return NextResponse.json(await createSharePromptCard(profile));
+      const rewardResult = await incrementShareReward(profile);
+      return NextResponse.json(
+        await createSharePromptCard({
+          profile: rewardResult.profile,
+          usage: rewardResult.usage,
+          rewarded: rewardResult.rewarded,
+        }),
+      );
     }
 
     const shouldHandleRegistration = !profile ? registrationParams.hasAny : Boolean(registrationParams.birthDate);
@@ -686,7 +729,7 @@ export async function POST(request: NextRequest) {
     if (utterance && !registrationParams.hasAny && !isReservedUtterance(utterance) && pendingQuestionInput) {
       if (questionUsage.isLimited) {
         await setPendingQuestionInput(profile, false);
-        return NextResponse.json(createQuestionLimitCard());
+        return NextResponse.json(createQuestionLimitCard(questionUsage));
       }
 
       await setPendingQuestionInput(profile, false);

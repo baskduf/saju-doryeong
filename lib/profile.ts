@@ -15,6 +15,8 @@ export const PROFILE_SELECT = {
   sajuData: true,
   questionUsageDateKey: true,
   questionUsageCount: true,
+  shareRewardDateKey: true,
+  shareRewardCount: true,
   pendingQuestionInput: true,
   pendingQuestionExpiresAt: true,
   createdAt: true,
@@ -32,7 +34,8 @@ export type UpsertProfileInput = {
   sajuData: Prisma.InputJsonValue;
 };
 
-export const DAILY_QUESTION_LIMIT = 10;
+export const BASE_DAILY_QUESTION_LIMIT = 5;
+export const DAILY_SHARE_REWARD_LIMIT = 10;
 const QUESTION_MODE_TTL_MS = 90 * 1000;
 
 export function isNonEmptyString(value: unknown): value is string {
@@ -306,21 +309,51 @@ export function hasPendingQuestionInput(profile: SajuProfileRecord | null): bool
   return profile.pendingQuestionExpiresAt.getTime() > Date.now();
 }
 
-export function getQuestionUsageSummary(profile: SajuProfileRecord | null): {
+export type QuestionUsageSummary = {
   count: number;
+  usedCount: number;
+  baseLimit: number;
+  rewardCountToday: number;
+  rewardRemainingToday: number;
+  totalLimitToday: number;
   remaining: number;
   isLimited: boolean;
-} {
+};
+
+function readTodayCount(
+  dateKey: string | null | undefined,
+  count: number | null | undefined,
+  today: string,
+  maxValue?: number,
+): number {
+  if (dateKey !== today || !Number.isFinite(count)) {
+    return 0;
+  }
+
+  const normalized = Math.max(0, Number(count));
+  return typeof maxValue === "number" ? Math.min(maxValue, normalized) : normalized;
+}
+
+export function getQuestionUsageSummary(profile: SajuProfileRecord | null): QuestionUsageSummary {
   const today = getSeoulDateKey();
-  const count =
-    profile?.questionUsageDateKey === today && Number.isFinite(profile.questionUsageCount)
-      ? Math.max(0, profile.questionUsageCount)
-      : 0;
+  const usedCount = readTodayCount(profile?.questionUsageDateKey, profile?.questionUsageCount, today);
+  const rewardCountToday = readTodayCount(
+    profile?.shareRewardDateKey,
+    profile?.shareRewardCount,
+    today,
+    DAILY_SHARE_REWARD_LIMIT,
+  );
+  const totalLimitToday = BASE_DAILY_QUESTION_LIMIT + rewardCountToday;
 
   return {
-    count,
-    remaining: Math.max(0, DAILY_QUESTION_LIMIT - count),
-    isLimited: count >= DAILY_QUESTION_LIMIT,
+    count: usedCount,
+    usedCount,
+    baseLimit: BASE_DAILY_QUESTION_LIMIT,
+    rewardCountToday,
+    rewardRemainingToday: Math.max(0, DAILY_SHARE_REWARD_LIMIT - rewardCountToday),
+    totalLimitToday,
+    remaining: Math.max(0, totalLimitToday - usedCount),
+    isLimited: usedCount >= totalLimitToday,
   };
 }
 
@@ -347,7 +380,14 @@ export async function incrementQuestionUsage(profile: SajuProfileRecord): Promis
       "questionUsageDateKey" = ${dateKey},
       "questionUsageCount" = CASE
         WHEN "questionUsageDateKey" = ${dateKey}
-          THEN LEAST(${DAILY_QUESTION_LIMIT}, COALESCE("questionUsageCount", 0) + 1)
+          THEN LEAST(
+            ${BASE_DAILY_QUESTION_LIMIT} + CASE
+              WHEN "shareRewardDateKey" = ${dateKey}
+                THEN LEAST(${DAILY_SHARE_REWARD_LIMIT}, GREATEST(COALESCE("shareRewardCount", 0), 0))
+              ELSE 0
+            END,
+            GREATEST(COALESCE("questionUsageCount", 0), 0) + 1
+          )
         ELSE 1
       END
     WHERE "userId" = ${profile.userId}
@@ -360,6 +400,58 @@ export async function incrementQuestionUsage(profile: SajuProfileRecord): Promis
   }
 
   return updatedProfile;
+}
+
+export async function incrementShareReward(profile: SajuProfileRecord): Promise<{
+  profile: SajuProfileRecord;
+  usage: QuestionUsageSummary;
+  rewarded: boolean;
+}> {
+  const dateKey = getSeoulDateKey();
+  const [result] = await prisma.$queryRaw<{ rewarded: boolean }[]>(Prisma.sql`
+    WITH current_state AS (
+      SELECT
+        CASE
+          WHEN "shareRewardDateKey" = ${dateKey}
+            THEN LEAST(${DAILY_SHARE_REWARD_LIMIT}, GREATEST(COALESCE("shareRewardCount", 0), 0))
+          ELSE 0
+        END AS "previousRewardCount"
+      FROM "SajuProfile"
+      WHERE "userId" = ${profile.userId}
+    ),
+    updated AS (
+      UPDATE "SajuProfile"
+      SET
+        "shareRewardDateKey" = ${dateKey},
+        "shareRewardCount" = CASE
+          WHEN "shareRewardDateKey" = ${dateKey}
+            THEN LEAST(${DAILY_SHARE_REWARD_LIMIT}, GREATEST(COALESCE("shareRewardCount", 0), 0) + 1)
+          ELSE 1
+        END
+      WHERE "userId" = ${profile.userId}
+      RETURNING
+        CASE
+          WHEN "shareRewardDateKey" = ${dateKey}
+            THEN LEAST(${DAILY_SHARE_REWARD_LIMIT}, GREATEST(COALESCE("shareRewardCount", 0), 0))
+          ELSE 0
+        END AS "updatedRewardCount"
+    )
+    SELECT updated."updatedRewardCount" > current_state."previousRewardCount" AS rewarded
+    FROM updated
+    CROSS JOIN current_state
+  `);
+
+  const updatedProfile = await findProfileByUserId(profile.userId);
+  if (!updatedProfile) {
+    throw new Error(`Profile not found after share reward update: ${profile.userId}`);
+  }
+
+  const usage = getQuestionUsageSummary(updatedProfile);
+  return {
+    profile: updatedProfile,
+    usage,
+    rewarded: result?.rewarded ?? false,
+  };
 }
 
 export async function upsertProfile(input: UpsertProfileInput): Promise<SajuProfileRecord> {

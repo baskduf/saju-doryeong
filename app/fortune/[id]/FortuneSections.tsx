@@ -228,9 +228,39 @@ export function FortuneSections({ fortune }: Props) {
             </section>
           ) : null}
 
+          <section className={styles.innerSection}>
+            <h2>오늘의 포인트</h2>
+            <div className={`${styles.reasonCard} ${styles.pointCard}`}>
+              <div className={styles.reasonRow}>
+                <span className={styles.reasonLabel}>{fortune.featuredInsight.label}</span>
+                <p className={styles.reasonText}>
+                  <strong className={styles.inlineHighlight}>{fortune.featuredInsight.title}</strong>{" "}
+                  {renderHighlightedText(fortune.featuredInsight.summary)}
+                </p>
+              </div>
+              <div className={styles.reasonRow}>
+                <span className={styles.reasonLabel}>움직임</span>
+                <p className={styles.reasonText}>{renderHighlightedText(fortune.featuredInsight.action)}</p>
+              </div>
+              <div className={styles.reasonRow}>
+                <span className={styles.reasonLabel}>주의</span>
+                <p className={styles.reasonText}>{renderHighlightedText(fortune.featuredInsight.caution)}</p>
+              </div>
+              <div className={styles.pointFlowerOverlay} aria-hidden="true">
+                <Image
+                  src="/flower.png"
+                  alt=""
+                  width={180}
+                  height={180}
+                  className={styles.pointFlower}
+                />
+              </div>
+            </div>
+          </section>
+
             <section className={styles.innerSection}>
               <h2>오늘 풀이의 근거</h2>
-              <div className={styles.reasonCard}>
+              <div className={`${styles.reasonCard} ${styles.pointCard}`}>
                 <div className={styles.reasonRow}>
                   <span className={styles.reasonLabel}>오늘 일진 작용</span>
                   <p className={styles.reasonText}>{renderHighlightedText(todayReasonText)}</p>
@@ -245,6 +275,15 @@ export function FortuneSections({ fortune }: Props) {
                   <p className={styles.reasonText}>{renderHighlightedText(fortune.analysis.todayBranchSummary)}</p>
                 </div>
               ) : null}
+              <div className={styles.pointFlowerOverlay} aria-hidden="true">
+                <Image
+                  src="/flower.png"
+                  alt=""
+                  width={180}
+                  height={180}
+                  className={styles.pointFlower}
+                />
+              </div>
             </div>
           </section>
 

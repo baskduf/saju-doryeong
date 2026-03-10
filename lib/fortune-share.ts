@@ -1,7 +1,9 @@
 import { prisma } from "./prisma";
 import { createShareAccessToken } from "./access-token";
-import { type DailyFortune } from "./fortune";
+import { type DailyFortune, type PublicFortuneInsight, toPublicFortuneInsight } from "./fortune";
 import { getSeoulDateKey } from "./seoul-time";
+
+export type FortuneShareInsightPayload = PublicFortuneInsight;
 
 export type FortuneShareSnapshotPayload = {
   displayName: string;
@@ -12,6 +14,7 @@ export type FortuneShareSnapshotPayload = {
   caution: string;
   certainty: DailyFortune["analysis"]["certainty"];
   uncertaintyMessage: string | null;
+  featuredInsight?: FortuneShareInsightPayload;
   avoidToday?: string[];
   recommendedActions: string[];
   targetDateKey: string;
@@ -46,6 +49,7 @@ function buildSharePayload(params: {
     caution: params.fortune.caution,
     certainty: params.fortune.analysis.certainty,
     uncertaintyMessage: params.fortune.analysis.uncertaintyMessage,
+    featuredInsight: toPublicFortuneInsight(params.fortune.featuredInsight),
     avoidToday: params.fortune.avoidToday.slice(0, 3),
     recommendedActions: params.fortune.recommendedActions.slice(0, 3),
     targetDateKey,

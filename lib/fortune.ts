@@ -14,11 +14,35 @@ import {
   type TodayBranchInteraction,
   type TraditionalSajuChart,
 } from "./saju";
-import { getSeoulDateTimeParts } from "./seoul-time";
+import { getSeoulDateKey, getSeoulDateTimeParts } from "./seoul-time";
 
 export type { FiveElements } from "./saju";
 
 export type ReferenceMode = "none" | "solar-lunar-blend";
+export type DailyFortuneInsightKey =
+  | "work"
+  | "money"
+  | "relationship"
+  | "health"
+  | "timing"
+  | "approach"
+  | "risk";
+
+export type PublicFortuneInsight = {
+  label: string;
+  title: string;
+  summary: string;
+  action: string;
+  caution: string;
+};
+
+export type DailyFortuneInsight = PublicFortuneInsight & {
+  key: DailyFortuneInsightKey;
+  priority: number;
+  publicSummary: string;
+  publicAction: string;
+  publicCaution: string;
+};
 
 export type DailyFortune = {
   score: number;
@@ -43,6 +67,8 @@ export type DailyFortune = {
     timing: string;
     number: string;
   };
+  insights: DailyFortuneInsight[];
+  featuredInsight: DailyFortuneInsight;
   elements: FiveElements;
   manse: {
     solarDateTime: string;
@@ -538,6 +564,22 @@ function uniqueKeywords(keywords: string[]): string[] {
   return Array.from(new Set(keywords)).slice(0, 4);
 }
 
+function hasBatchim(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  const lastChar = trimmed[trimmed.length - 1];
+  const code = lastChar.charCodeAt(0);
+  if (code < 0xac00 || code > 0xd7a3) {
+    return false;
+  }
+
+  return (code - 0xac00) % 28 !== 0;
+}
+
+function withTopicParticle(text: string): string {
+  return `${text}${hasBatchim(text) ? "은" : "는"}`;
+}
+
 function buildKeywords(params: {
   grade: DailyFortune["grade"];
   relation: DailyFortune["analysis"]["todayRelation"];
@@ -563,10 +605,10 @@ function buildKeywords(params: {
 }
 
 function summarizeCategory(score: number, label: string): string {
-  if (score >= 80) return `${label} 흐름이 부드럽게 열리는 편입니다.`;
-  if (score >= 65) return `${label}은 무난하게 밀고 가기 좋습니다.`;
-  if (score >= 45) return `${label}은 유지 중심으로 보는 편이 안전합니다.`;
-  return `${label}은 속도를 늦추고 보수적으로 접근하는 편이 낫습니다.`;
+  if (score >= 80) return `${label} 흐름이 부드럽게 열리는 편이오.`;
+  if (score >= 65) return `${withTopicParticle(label)} 무난하게 밀고 가기 좋소.`;
+  if (score >= 45) return `${withTopicParticle(label)} 유지 중심으로 보는 편이 안전하오.`;
+  return `${withTopicParticle(label)} 속도를 늦추고 보수적으로 접근하는 편이 낫소.`;
 }
 
 function buildCategoryScores(params: {
@@ -614,17 +656,17 @@ function buildAvoidToday(params: {
   const avoid = [
     params.directiveDelta <= -3
       ? `오늘은 기신 ${elementLabel(params.giShin)} 흐름이 세지기 쉬우니 ${ELEMENT_RISK_MAP[params.giShin]}을 먼저 경계하시오.`
-      : `${ELEMENT_RISK_MAP[params.giShin]}은 오늘 특히 과해지기 쉽습니다.`,
+      : `${withTopicParticle(ELEMENT_RISK_MAP[params.giShin])} 오늘 특히 과해지기 쉽소.`,
     `${elementLabel(params.weakest)} 기운이 약하니 컨디션 관리 없는 무리수는 피하시오.`,
     params.relationAvoid,
   ];
 
   if (params.branchPenalty > 0) {
-    avoid.push("사람 문제와 일정 문제를 한 번에 처리하려 들면 마찰이 커집니다.");
+    avoid.push("사람 문제와 일정 문제를 한 번에 처리하려 들면 마찰이 커지오.");
   }
 
   if (params.grade === "주의") {
-    avoid.unshift("결론을 급히 내리기보다 한 번 더 미루는 편이 낫습니다.");
+    avoid.unshift("결론을 급히 내리기보다 한 번 더 미루는 편이 낫소.");
   }
 
   return avoid.slice(0, 3);
@@ -670,6 +712,299 @@ function buildTodayBranchSummary(interactions: TodayBranchInteraction[]): string
   }
 
   return `${primary.description} ${primary.pillarLabel} 흐름이 부드럽게 이어질 수 있으니 만남과 협의를 차분히 이어 가시오.${extraPhrase}`;
+}
+
+type FortuneWithoutInsights = Omit<DailyFortune, "insights" | "featuredInsight">;
+
+function insightLabel(key: DailyFortuneInsightKey): string {
+  switch (key) {
+    case "work":
+      return "일과 포인트";
+    case "money":
+      return "재물 포인트";
+    case "relationship":
+      return "관계 포인트";
+    case "health":
+      return "회복 포인트";
+    case "timing":
+      return "타이밍 포인트";
+    case "approach":
+      return "움직임 포인트";
+    case "risk":
+      return "주의 포인트";
+  }
+}
+
+function categoryInsightTitle(category: DailyFortune["categoryScores"][number]): string {
+  if (category.score >= 80) {
+    if (category.key === "work") return "일의 주도권을 잡기 좋은 흐름이오.";
+    if (category.key === "money") return "재물 흐름을 먼저 챙기기 좋은 날이오.";
+    if (category.key === "relationship") return "관계의 결이 부드럽게 풀리기 쉬운 날이오.";
+    return "회복과 균형이 잘 붙는 흐름이오.";
+  }
+
+  if (category.score >= 65) {
+    if (category.key === "work") return "일은 무난히 밀되 순서를 먼저 세우시오.";
+    if (category.key === "money") return "재물은 무리 없이 운용하되 점검이 필요하오.";
+    if (category.key === "relationship") return "관계는 속도보다 결을 맞추는 편이 좋소.";
+    return "회복은 유지 중심으로 챙기면 흐름이 좋소.";
+  }
+
+  if (category.score >= 45) {
+    if (category.key === "work") return "일은 유지 중심으로 다루는 편이 낫소.";
+    if (category.key === "money") return "재물은 보수적으로 보는 편이 안전하오.";
+    if (category.key === "relationship") return "관계는 거리와 속도를 차분히 보아야 하오.";
+    return "회복은 무리 없이 균형을 잡는 편이 낫소.";
+  }
+
+  if (category.key === "work") return "일은 무리해서 밀기보다 정리가 먼저이오.";
+  if (category.key === "money") return "재물은 지출과 판단을 더 조심해야 하오.";
+  if (category.key === "relationship") return "관계는 감정보다 분위기 조율이 먼저이오.";
+  return "회복은 쉬는 결을 먼저 살려야 하오.";
+}
+
+function categoryInsightAction(category: DailyFortune["categoryScores"][number]): string {
+  if (category.key === "work") {
+    if (category.score >= 70) return "중요한 일은 미루지 말고 먼저 확정하시오.";
+    if (category.score >= 55) return "급한 일보다 순서를 먼저 정리하시오.";
+    return "새 일보다 기존 일부터 정리하시오.";
+  }
+
+  if (category.key === "money") {
+    if (category.score >= 70) return "들어오고 나가는 흐름을 바로 점검하시오.";
+    if (category.score >= 55) return "필수 지출과 선택 지출을 나눠 보시오.";
+    return "소비와 계약은 한 번 더 검토하시오.";
+  }
+
+  if (category.key === "relationship") {
+    if (category.score >= 70) return "먼저 말의 톤을 부드럽게 맞추고 다가가시오.";
+    if (category.score >= 55) return "거리와 속도를 차분히 조율하시오.";
+    return "감정보다 분위기부터 고르게 맞추시오.";
+  }
+
+  if (category.score >= 70) return "회복 리듬을 유지하며 몸을 가볍게 움직이시오.";
+  if (category.score >= 55) return "휴식과 일정의 균형을 먼저 맞추시오.";
+  return "무리한 일정부터 덜어내고 쉬시오.";
+}
+
+function categoryInsightCaution(
+  category: DailyFortune["categoryScores"][number],
+  fallbackCaution: string,
+): string {
+  if (category.key === "work") {
+    return category.score < 55 ? "한 번에 여러 답을 내려 하지 마시오." : fallbackCaution;
+  }
+  if (category.key === "money") {
+    return category.score < 55 ? "즉흥 소비와 성급한 판단은 피하시오." : fallbackCaution;
+  }
+  if (category.key === "relationship") {
+    return category.score < 55 ? "감정이 앞서 말이 빨라지는 흐름을 경계하시오." : fallbackCaution;
+  }
+  return category.score < 55 ? "컨디션을 무시하고 무리수부터 두지 마시오." : fallbackCaution;
+}
+
+function categoryInsightBoost(category: DailyFortune["categoryScores"][number]): string {
+  if (category.score >= 70) return "흐름을 과장하지 않고 차분히 밀면 성과가 붙기 쉽소.";
+  if (category.score >= 55) return "무난한 흐름이니 과속만 줄이면 충분하오.";
+  return "방향은 유지하되 속도는 한 박자 늦추는 편이 낫소.";
+}
+
+function buildInsightSummary(params: {
+  fortune: FortuneWithoutInsights;
+  key: DailyFortuneInsightKey;
+  summary: string;
+  action: string;
+  caution: string;
+  priority: number;
+  title: string;
+  publicSummary?: string;
+  publicAction?: string;
+  publicCaution?: string;
+}): DailyFortuneInsight {
+  return {
+    key: params.key,
+    label: insightLabel(params.key),
+    title: params.title,
+    summary: params.summary,
+    action: params.action,
+    caution: params.caution,
+    priority: params.priority,
+    publicSummary: params.publicSummary ?? params.summary,
+    publicAction: params.publicAction ?? params.action,
+    publicCaution: params.publicCaution ?? params.caution,
+  };
+}
+
+function buildCategoryInsights(fortune: FortuneWithoutInsights): DailyFortuneInsight[] {
+  const referenceLead =
+    fortune.analysis.certainty === "calendar-unknown" ? "공통 흐름 기준으로 " : "";
+
+  return fortune.categoryScores.map((category) => {
+    const title = categoryInsightTitle(category);
+    const action = categoryInsightAction(category);
+    const caution = categoryInsightCaution(category, fortune.avoidToday[0] ?? fortune.caution);
+
+    return buildInsightSummary({
+      fortune,
+      key: category.key,
+      title,
+      summary: `${referenceLead}${category.summary} ${categoryInsightBoost(category)}`,
+      action,
+      caution,
+      priority: category.score,
+      publicSummary: `${referenceLead}${category.summary}`,
+      publicAction: action,
+      publicCaution: caution,
+    });
+  });
+}
+
+function buildTimingInsight(fortune: FortuneWithoutInsights): DailyFortuneInsight {
+  const referenceLead =
+    fortune.analysis.certainty === "calendar-unknown" ? "공통 흐름 기준으로 " : "";
+  const timing = fortune.luckyHints.timing;
+  const positive = fortune.analysis.directiveDelta >= 0;
+
+  return buildInsightSummary({
+    fortune,
+    key: "timing",
+    title: `${timing} 흐름을 먼저 쓰는 편이 좋소.`,
+    summary: `${referenceLead}${timing} 쪽이 오늘 호흡을 맞추기 좋소. ${
+      positive ? "움직일 일은 앞당기고" : "서두름은 줄이고"
+    } 리듬을 맞추는 편이 흐름이 고르오.`,
+    action: `${timing}에 중요한 연락과 결정부터 두시오.`,
+    caution: `${timing}을 놓친 뒤 급히 만회하려 들지 마시오.`,
+    priority:
+      55 +
+      Math.min(20, Math.abs(fortune.analysis.directiveDelta) * 4) +
+      (fortune.analysis.todayRelation === "식상" || fortune.analysis.todayRelation === "관성" ? 10 : 0),
+    publicSummary: `${referenceLead}${timing} 쪽에 맞춰 움직이는 편이 오늘은 더 자연스럽소.`,
+    publicAction: `${timing}에 중요한 순서를 먼저 잡으시오.`,
+    publicCaution: "때를 놓친 뒤 급히 속도를 올리려 하지 마시오.",
+  });
+}
+
+function buildApproachInsight(fortune: FortuneWithoutInsights): DailyFortuneInsight {
+  const referenceLead =
+    fortune.analysis.certainty === "calendar-unknown" ? "공통 흐름 기준으로 " : "";
+  const directiveDelta = fortune.analysis.directiveDelta;
+  const title =
+    directiveDelta >= 3
+      ? "밀기보다 결을 맞추면 성과가 붙는 날이오."
+      : directiveDelta <= -3
+        ? "서두르지 말고 보수적으로 다루는 편이 낫소."
+        : "속도보다 결을 먼저 맞추는 편이 좋소.";
+
+  return buildInsightSummary({
+    fortune,
+    key: "approach",
+    title,
+    summary: `${referenceLead}${fortune.analysis.relationStrengthSummary} ${fortune.analysis.directiveSummary}`,
+    action: fortune.analysis.relationStrengthAction,
+    caution: fortune.analysis.relationStrengthCaution,
+    priority: 50 + Math.min(15, Math.abs(directiveDelta) * 3) + (fortune.score >= 60 ? 10 : 0),
+    publicSummary: `${referenceLead}${fortune.analysis.relationStrengthSummary}`,
+    publicAction: fortune.analysis.relationStrengthAction,
+    publicCaution: fortune.analysis.relationStrengthCaution,
+  });
+}
+
+function buildRiskInsight(fortune: FortuneWithoutInsights): DailyFortuneInsight {
+  const referenceLead =
+    fortune.analysis.certainty === "calendar-unknown" ? "공통 흐름 기준으로 " : "";
+  const caution = fortune.avoidToday[0] ?? fortune.caution;
+  const title =
+    fortune.grade === "주의" || fortune.analysis.directiveDelta <= -3
+      ? "오늘은 무리수 한 번이 크게 번질 수 있소."
+      : "작은 과속이 흐름을 거칠게 만들기 쉬운 날이오.";
+
+  return buildInsightSummary({
+    fortune,
+    key: "risk",
+    title,
+    summary:
+      fortune.analysis.todayBranchImpact > 0 && fortune.analysis.certainty !== "calendar-unknown"
+        ? `${referenceLead}${fortune.analysis.todayBranchSummary}`
+        : `${referenceLead}${fortune.caution}`,
+    action: "중요한 결정은 한 박자 늦추고 다시 확인하시오.",
+    caution,
+    priority:
+      45 +
+      Math.max(0, -fortune.analysis.directiveDelta) * 5 +
+      Math.min(20, Math.max(0, fortune.analysis.todayBranchImpact) * 4) +
+      (fortune.grade === "주의" ? 10 : 0),
+    publicSummary: `${referenceLead}${fortune.caution}`,
+    publicAction: "중요한 결정은 한 박자 늦추고 확인하시오.",
+    publicCaution: caution,
+  });
+}
+
+function buildFortuneInsights(fortune: FortuneWithoutInsights): DailyFortuneInsight[] {
+  return [
+    ...buildCategoryInsights(fortune),
+    buildTimingInsight(fortune),
+    buildApproachInsight(fortune),
+    buildRiskInsight(fortune),
+  ];
+}
+
+function stableHash(input: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return Math.abs(hash >>> 0);
+}
+
+function selectFeaturedInsight(params: {
+  insights: DailyFortuneInsight[];
+  userId: string;
+  date?: Date;
+}): DailyFortuneInsight {
+  const ranked = [...params.insights].sort((left, right) => {
+    const priorityDiff = right.priority - left.priority;
+    if (priorityDiff !== 0) {
+      return priorityDiff;
+    }
+
+    return left.key.localeCompare(right.key);
+  });
+  const candidates = ranked.slice(0, Math.min(4, ranked.length));
+  const dateKey = getSeoulDateKey(params.date);
+  const index = stableHash(`${params.userId}:${dateKey}`) % Math.max(candidates.length, 1);
+
+  return candidates[index] ?? ranked[0];
+}
+
+function attachFortuneInsights(params: {
+  fortune: FortuneWithoutInsights;
+  userId: string;
+  date?: Date;
+}): DailyFortune {
+  const insights = buildFortuneInsights(params.fortune);
+  const featuredInsight = selectFeaturedInsight({
+    insights,
+    userId: params.userId,
+    date: params.date,
+  });
+
+  return {
+    ...params.fortune,
+    insights,
+    featuredInsight,
+  };
+}
+
+export function toPublicFortuneInsight(insight: DailyFortuneInsight): PublicFortuneInsight {
+  return {
+    label: insight.label,
+    title: insight.title,
+    summary: insight.publicSummary,
+    action: insight.publicAction,
+    caution: insight.publicCaution,
+  };
 }
 
 type BlendedReferenceContext = {
@@ -1090,67 +1425,71 @@ function buildSolarLunarBlendedReferenceFortune(params: {
   });
   const trimmedAvoidToday = uniqueOrderedStrings(avoidToday).slice(0, 3);
 
-  return {
-    score: blended.score,
-    grade: blended.grade,
-    headline,
-    summary,
-    detail,
-    caution,
-    recommendedActions,
-    keywords: buildKeywords({
+  return attachFortuneInsights({
+    fortune: {
+      score: blended.score,
       grade: blended.grade,
-      relation: blended.todayRelation,
-      usefulElements: blended.usefulElements,
-    }),
-    categoryScores: blended.categoryScores,
-    avoidToday: trimmedAvoidToday,
-    luckyHints: ELEMENT_LUCK_MAP[blended.yongShin],
-    elements: blended.elements,
-    manse: null,
-    analysis: {
-      certainty: "calendar-unknown",
-      referenceMode: "solar-lunar-blend",
-      uncertaintyMessage: blended.uncertaintyMessage,
-      strengthLevel: blended.strengthLevel,
-      strengthScore: blended.strengthScore,
-      strengthSummary: blended.strengthSummary,
-      seasonalSummary: blended.seasonalSummary,
-      dominantTenGod: blended.dominantTenGod,
-      patternName: blended.patternName,
-      patternSummary: blended.patternSummary,
-      patternTentative: blended.patternTentative,
-      patternRevealLabel: blended.patternRevealLabel,
-      patternCandidates: blended.patternCandidates,
-      yongShin: blended.yongShin,
-      heeShin: blended.heeShin,
-      giShin: blended.giShin,
-      guShin: blended.guShin,
-      balanceSummary: blended.balanceSummary,
-      directiveDelta: blended.directiveDelta,
-      directiveSummary: blended.directiveSummary,
-      yongShinReason: blended.yongShinReason,
-      giShinReason: blended.giShinReason,
-      relationStrengthSummary: blended.relationStrengthSummary,
-      relationStrengthDetail: blended.relationStrengthDetail,
-      relationStrengthCaution: blended.relationStrengthCaution,
-      relationStrengthAction: blended.relationStrengthAction,
-      relationStrengthAvoid: blended.relationStrengthAvoid,
-      usefulElements: blended.usefulElements,
-      unfavorableElements: blended.unfavorableElements,
-      todayGanji: blended.todayGanji,
-      todayRelation: blended.todayRelation,
-      todayBranchImpact: blended.todayBranchImpact,
-      todayBranchSummary: blended.todayBranchSummary,
-      todayBranchInteractions: blended.todayBranchInteractions,
-      usedNoonFallback: blended.usedNoonFallback,
-      calendarTypeInput: "unknown",
-      calendarTypeResolved: "unknown",
-      rootCount: 0,
-      branchRelations: [],
-      visibleTenGods: [],
+      headline,
+      summary,
+      detail,
+      caution,
+      recommendedActions,
+      keywords: buildKeywords({
+        grade: blended.grade,
+        relation: blended.todayRelation,
+        usefulElements: blended.usefulElements,
+      }),
+      categoryScores: blended.categoryScores,
+      avoidToday: trimmedAvoidToday,
+      luckyHints: ELEMENT_LUCK_MAP[blended.yongShin],
+      elements: blended.elements,
+      manse: null,
+      analysis: {
+        certainty: "calendar-unknown",
+        referenceMode: "solar-lunar-blend",
+        uncertaintyMessage: blended.uncertaintyMessage,
+        strengthLevel: blended.strengthLevel,
+        strengthScore: blended.strengthScore,
+        strengthSummary: blended.strengthSummary,
+        seasonalSummary: blended.seasonalSummary,
+        dominantTenGod: blended.dominantTenGod,
+        patternName: blended.patternName,
+        patternSummary: blended.patternSummary,
+        patternTentative: blended.patternTentative,
+        patternRevealLabel: blended.patternRevealLabel,
+        patternCandidates: blended.patternCandidates,
+        yongShin: blended.yongShin,
+        heeShin: blended.heeShin,
+        giShin: blended.giShin,
+        guShin: blended.guShin,
+        balanceSummary: blended.balanceSummary,
+        directiveDelta: blended.directiveDelta,
+        directiveSummary: blended.directiveSummary,
+        yongShinReason: blended.yongShinReason,
+        giShinReason: blended.giShinReason,
+        relationStrengthSummary: blended.relationStrengthSummary,
+        relationStrengthDetail: blended.relationStrengthDetail,
+        relationStrengthCaution: blended.relationStrengthCaution,
+        relationStrengthAction: blended.relationStrengthAction,
+        relationStrengthAvoid: blended.relationStrengthAvoid,
+        usefulElements: blended.usefulElements,
+        unfavorableElements: blended.unfavorableElements,
+        todayGanji: blended.todayGanji,
+        todayRelation: blended.todayRelation,
+        todayBranchImpact: blended.todayBranchImpact,
+        todayBranchSummary: blended.todayBranchSummary,
+        todayBranchInteractions: blended.todayBranchInteractions,
+        usedNoonFallback: blended.usedNoonFallback,
+        calendarTypeInput: "unknown",
+        calendarTypeResolved: "unknown",
+        rootCount: 0,
+        branchRelations: [],
+        visibleTenGods: [],
+      },
     },
-  };
+    userId: params.userId,
+    date: params.date,
+  });
 }
 
 export function buildUnknownReferenceProfileData(params: {
@@ -1481,7 +1820,7 @@ function generateBaseDailyFortune(params: {
     certainty === "calendar-unknown"
       ? `${uncertaintyMessage ?? "달력 기준이 미확정인 상태라"} 큰 결정은 확정 결과처럼 밀어붙이지 말고, 가능하면 양력이나 음력을 다시 정한 뒤 한 번 더 보시오.`
       : primaryTodayBranchPressure
-        ? `금일 ${primaryTodayBranchPressure.description} ${primaryTodayBranchPressure.pillarLabel} 쪽 마찰이 먼저 드러날 수 있으니 중요한 결정은 한 박자 늦추고 사람과 일정의 충돌부터 풀어내시오.`
+        ? `${primaryTodayBranchPressure.description} ${primaryTodayBranchPressure.pillarLabel} 쪽 마찰이 먼저 드러날 수 있으니 중요한 결정은 한 박자 늦추고 사람과 일정의 충돌부터 풀어내시오.`
         : giActivated
           ? `오늘은 기신 ${elementLabel(giShin)} 흐름이 올라오니 ${giShinReason} ${relationGuide.caution}`
           : grade === "주의"
@@ -1545,158 +1884,162 @@ function generateBaseDailyFortune(params: {
   const trimmedAvoidToday = avoidToday.slice(0, 3);
   const luckyHints = ELEMENT_LUCK_MAP[yongShin];
 
-  return {
-    score,
-    grade,
-    headline: headlineByGrade[grade],
-    summary,
-    detail,
-    caution,
-    recommendedActions,
-    keywords,
-    categoryScores,
-    avoidToday: trimmedAvoidToday,
-    luckyHints,
-    elements: chartElements,
-    manse: exactChart
-      ? {
-          solarDateTime: exactChart.solarDateTime,
-          lunarDateKorean: exactChart.lunarDateKorean,
-          calendarTypeResolved: exactChart.calendarTypeResolved,
-          usedNoonFallback,
-          pillars: (["year", "month", "day", "hour"] as PillarKey[]).map((pillarKey) => {
-            const pillar = exactChart.pillars[pillarKey];
-            const naYin =
-              pillarKey === "year"
-                ? exactChart.auxiliary.naYin.year
-                : pillarKey === "month"
-                  ? exactChart.auxiliary.naYin.month
-                  : pillarKey === "day"
-                    ? exactChart.auxiliary.naYin.day
-                    : exactChart.auxiliary.naYin.hour;
-
-            return {
-              key: pillarKey,
-              label:
+  return attachFortuneInsights({
+    fortune: {
+      score,
+      grade,
+      headline: headlineByGrade[grade],
+      summary,
+      detail,
+      caution,
+      recommendedActions,
+      keywords,
+      categoryScores,
+      avoidToday: trimmedAvoidToday,
+      luckyHints,
+      elements: chartElements,
+      manse: exactChart
+        ? {
+            solarDateTime: exactChart.solarDateTime,
+            lunarDateKorean: exactChart.lunarDateKorean,
+            calendarTypeResolved: exactChart.calendarTypeResolved,
+            usedNoonFallback,
+            pillars: (["year", "month", "day", "hour"] as PillarKey[]).map((pillarKey) => {
+              const pillar = exactChart.pillars[pillarKey];
+              const naYin =
                 pillarKey === "year"
-                  ? "연주"
+                  ? exactChart.auxiliary.naYin.year
                   : pillarKey === "month"
-                    ? "월주"
+                    ? exactChart.auxiliary.naYin.month
                     : pillarKey === "day"
-                      ? "일주"
-                      : "시주",
-              ganji: pillar.ganji,
-              ganjiKorean: pillar.ganjiKorean,
-              stem: pillar.stem,
-              stemKorean: pillar.stemKorean,
-              branch: pillar.branch,
-              branchKorean: pillar.branchKorean,
-              hiddenStems: pillar.hiddenStems,
-              hiddenStemsKorean: pillar.hiddenStemsKorean,
-              naYin,
-            };
-          }),
-        }
-      : null,
-    analysis: exactChart
-      ? {
-          certainty,
-          referenceMode: "none",
-          uncertaintyMessage,
-          strengthLevel: dayMasterStrengthLevel,
-          strengthScore: exactChart.analysis.dayMasterStrength.score,
-          strengthSummary,
-          seasonalSummary,
-          dominantTenGod,
-          patternName,
-          patternSummary,
-          patternTentative,
-          patternRevealLabel,
-          patternCandidates,
-          yongShin,
-          heeShin,
-          giShin,
-          guShin,
-          balanceSummary,
-          directiveDelta,
-          directiveSummary,
-          yongShinReason,
-          giShinReason,
-          relationStrengthSummary: relationGuide.summary,
-          relationStrengthDetail: relationGuide.detail,
-          relationStrengthCaution: relationGuide.caution,
-          relationStrengthAction: relationGuide.action,
-          relationStrengthAvoid: relationGuide.avoid,
-          usefulElements,
-          unfavorableElements,
-          todayGanji,
-          todayRelation: relation,
-          todayBranchImpact,
-          todayBranchSummary,
-          todayBranchInteractions: prioritizedTodayBranchInteractions,
-          usedNoonFallback,
-          calendarTypeInput,
-          calendarTypeResolved,
-          rootCount: exactChart.analysis.dayMasterStrength.roots.length,
-          branchRelations: exactChart.analysis.branchRelations.pairs.map((pair) => ({
-            pillars: pair.pillars,
-            label: pair.label,
-            type: pair.type,
-            description: pair.description,
-          })),
-          visibleTenGods: (Object.entries(exactChart.analysis.tenGods.stems) as Array<
-            [Exclude<PillarKey, "day">, (typeof exactChart.analysis.tenGods.stems)[keyof typeof exactChart.analysis.tenGods.stems]]
-          >).map(([pillar, info]) => ({
-            pillar,
-            pillarLabel: pillarLabel(pillar),
-            stem: info.stem,
-            stemKorean: info.stemKorean,
-            tenGod: info.tenGod,
-          })),
-        }
-      : {
-          certainty,
-          referenceMode: "none",
-          uncertaintyMessage,
-          strengthLevel: dayMasterStrengthLevel,
-          strengthScore: fallbackDayMasterStrong ? 8 : -8,
-          strengthSummary,
-          seasonalSummary,
-          dominantTenGod,
-          patternName,
-          patternSummary,
-          patternTentative,
-          patternRevealLabel,
-          patternCandidates,
-          yongShin,
-          heeShin,
-          giShin,
-          guShin,
-          balanceSummary,
-          directiveDelta,
-          directiveSummary,
-          yongShinReason,
-          giShinReason,
-          relationStrengthSummary: relationGuide.summary,
-          relationStrengthDetail: relationGuide.detail,
-          relationStrengthCaution: relationGuide.caution,
-          relationStrengthAction: relationGuide.action,
-          relationStrengthAvoid: relationGuide.avoid,
-          usefulElements,
-          unfavorableElements,
-          todayGanji,
-          todayRelation: relation,
-          todayBranchImpact,
-          todayBranchSummary,
-          todayBranchInteractions: prioritizedTodayBranchInteractions,
-          usedNoonFallback,
-          calendarTypeInput,
-          calendarTypeResolved,
-          rootCount: 0,
-          branchRelations: [],
-          visibleTenGods: [],
-        },
-  };
+                      ? exactChart.auxiliary.naYin.day
+                      : exactChart.auxiliary.naYin.hour;
+
+              return {
+                key: pillarKey,
+                label:
+                  pillarKey === "year"
+                    ? "연주"
+                    : pillarKey === "month"
+                      ? "월주"
+                      : pillarKey === "day"
+                        ? "일주"
+                        : "시주",
+                ganji: pillar.ganji,
+                ganjiKorean: pillar.ganjiKorean,
+                stem: pillar.stem,
+                stemKorean: pillar.stemKorean,
+                branch: pillar.branch,
+                branchKorean: pillar.branchKorean,
+                hiddenStems: pillar.hiddenStems,
+                hiddenStemsKorean: pillar.hiddenStemsKorean,
+                naYin,
+              };
+            }),
+          }
+        : null,
+      analysis: exactChart
+        ? {
+            certainty,
+            referenceMode: "none",
+            uncertaintyMessage,
+            strengthLevel: dayMasterStrengthLevel,
+            strengthScore: exactChart.analysis.dayMasterStrength.score,
+            strengthSummary,
+            seasonalSummary,
+            dominantTenGod,
+            patternName,
+            patternSummary,
+            patternTentative,
+            patternRevealLabel,
+            patternCandidates,
+            yongShin,
+            heeShin,
+            giShin,
+            guShin,
+            balanceSummary,
+            directiveDelta,
+            directiveSummary,
+            yongShinReason,
+            giShinReason,
+            relationStrengthSummary: relationGuide.summary,
+            relationStrengthDetail: relationGuide.detail,
+            relationStrengthCaution: relationGuide.caution,
+            relationStrengthAction: relationGuide.action,
+            relationStrengthAvoid: relationGuide.avoid,
+            usefulElements,
+            unfavorableElements,
+            todayGanji,
+            todayRelation: relation,
+            todayBranchImpact,
+            todayBranchSummary,
+            todayBranchInteractions: prioritizedTodayBranchInteractions,
+            usedNoonFallback,
+            calendarTypeInput,
+            calendarTypeResolved,
+            rootCount: exactChart.analysis.dayMasterStrength.roots.length,
+            branchRelations: exactChart.analysis.branchRelations.pairs.map((pair) => ({
+              pillars: pair.pillars,
+              label: pair.label,
+              type: pair.type,
+              description: pair.description,
+            })),
+            visibleTenGods: (Object.entries(exactChart.analysis.tenGods.stems) as Array<
+              [Exclude<PillarKey, "day">, (typeof exactChart.analysis.tenGods.stems)[keyof typeof exactChart.analysis.tenGods.stems]]
+            >).map(([pillar, info]) => ({
+              pillar,
+              pillarLabel: pillarLabel(pillar),
+              stem: info.stem,
+              stemKorean: info.stemKorean,
+              tenGod: info.tenGod,
+            })),
+          }
+        : {
+            certainty,
+            referenceMode: "none",
+            uncertaintyMessage,
+            strengthLevel: dayMasterStrengthLevel,
+            strengthScore: fallbackDayMasterStrong ? 8 : -8,
+            strengthSummary,
+            seasonalSummary,
+            dominantTenGod,
+            patternName,
+            patternSummary,
+            patternTentative,
+            patternRevealLabel,
+            patternCandidates,
+            yongShin,
+            heeShin,
+            giShin,
+            guShin,
+            balanceSummary,
+            directiveDelta,
+            directiveSummary,
+            yongShinReason,
+            giShinReason,
+            relationStrengthSummary: relationGuide.summary,
+            relationStrengthDetail: relationGuide.detail,
+            relationStrengthCaution: relationGuide.caution,
+            relationStrengthAction: relationGuide.action,
+            relationStrengthAvoid: relationGuide.avoid,
+            usefulElements,
+            unfavorableElements,
+            todayGanji,
+            todayRelation: relation,
+            todayBranchImpact,
+            todayBranchSummary,
+            todayBranchInteractions: prioritizedTodayBranchInteractions,
+            usedNoonFallback,
+            calendarTypeInput,
+            calendarTypeResolved,
+            rootCount: 0,
+            branchRelations: [],
+            visibleTenGods: [],
+          },
+    },
+    userId: params.userId,
+    date: today,
+  });
 }
 
 export function generateDailyFortune(params: {

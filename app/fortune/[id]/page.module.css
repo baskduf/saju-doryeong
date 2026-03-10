@@ -364,6 +364,33 @@
   background: linear-gradient(180deg, rgba(255, 248, 232, 0.92), rgba(250, 236, 206, 0.84));
 }
 
+.pointCard {
+  position: relative;
+  overflow: hidden;
+  padding-right: 16px;
+  padding-bottom: 16px;
+}
+
+.pointCard .reasonRow {
+  position: relative;
+  z-index: 2;
+}
+
+.pointFlowerOverlay {
+  position: absolute;
+  right: 6px;
+  bottom: 4px;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.pointFlower {
+  width: 380px;
+  height: auto;
+  opacity: 0.18;
+  filter: drop-shadow(0 12px 20px rgba(118, 76, 37, 0.18));
+}
+
 .reasonRow + .reasonRow {
   padding-top: 14px;
   border-top: 1px solid rgba(145, 93, 40, 0.12);
@@ -1115,6 +1142,21 @@
   .fortuneWarningOverlay {
     right: -24px;
     bottom: -14px;
+  }
+
+  .pointCard {
+    padding-right: 16px;
+    padding-bottom: 16px;
+  }
+
+  .pointFlowerOverlay {
+    right: 0;
+    bottom: -4px;
+  }
+
+  .pointFlower {
+    width: 300px;
+    opacity: 0.16;
   }
 
   .scoreBox {

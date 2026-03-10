@@ -77,14 +77,37 @@ function normalizeActions(value: unknown): string[] | null {
   return normalized.length === 3 ? normalized : null;
 }
 
+function normalizeFortuneTone(text: string): string {
+  return text
+    .replace(/하십시오/g, "하시오")
+    .replace(/해 주십시오/g, "해 주시오")
+    .replace(/해주십시오/g, "해주시오")
+    .replace(/입니다\./g, "이오.")
+    .replace(/입니다/g, "이오")
+    .replace(/됩니다\./g, "되오.")
+    .replace(/됩니다/g, "되오")
+    .replace(/좋습니다\./g, "좋소.")
+    .replace(/좋습니다/g, "좋소")
+    .replace(/낫습니다\./g, "낫소.")
+    .replace(/낫습니다/g, "낫소")
+    .replace(/안전합니다\./g, "안전하오.")
+    .replace(/안전합니다/g, "안전하오")
+    .replace(/중요합니다\./g, "중요하오.")
+    .replace(/중요합니다/g, "중요하오")
+    .replace(/필요합니다\./g, "필요하오.")
+    .replace(/필요합니다/g, "필요하오")
+    .trim();
+}
+
 function parseNarrativeOverride(payload: unknown): FortuneNarrativeOverride | null {
   if (!payload || typeof payload !== "object") return null;
 
   const source = payload as Record<string, unknown>;
-  const headline = typeof source.headline === "string" ? source.headline.trim() : "";
-  const summary = typeof source.summary === "string" ? source.summary.trim() : "";
-  const detail = typeof source.detail === "string" ? source.detail.trim() : "";
-  const recommendedActions = normalizeActions(source.recommendedActions);
+  const headline = typeof source.headline === "string" ? normalizeFortuneTone(source.headline) : "";
+  const summary = typeof source.summary === "string" ? normalizeFortuneTone(source.summary) : "";
+  const detail = typeof source.detail === "string" ? normalizeFortuneTone(source.detail) : "";
+  const recommendedActions =
+    normalizeActions(source.recommendedActions)?.map((action) => normalizeFortuneTone(action)) ?? null;
 
   if (!headline || !summary || !detail || !recommendedActions) {
     return null;
@@ -260,7 +283,7 @@ export async function generateFortuneNarrativeOverride(params: {
           model: resolveModel(),
           store: false,
           instructions:
-            "You write Korean daily fortune copy for a saju chatbot. Facts are deterministic and must not be changed or invented. Return strict JSON only with keys headline, summary, detail, recommendedActions. headline must be one concise sentence. summary/detail must each be natural Korean prose, concise and concrete. recommendedActions must be an array of exactly 3 short imperative Korean sentences. Keep the intent of the base recommendedActions, do not contradict avoidToday or caution, and do not add risky or exaggerated advice. Mention uncertainty when birth time is unknown, calendarTypeInput is unknown, or certainty is calendar-unknown. Never imply an exact manse or confirmed lunar/solar basis when certainty is calendar-unknown. If referenceMode is solar-lunar-blend, describe it as a shared trend across both calendar possibilities. No markdown, no code fences, no emojis.",
+            "You write Korean daily fortune copy for a saju chatbot. Facts are deterministic and must not be changed or invented. Return strict JSON only with keys headline, summary, detail, recommendedActions. headline must be one concise sentence. summary/detail must each be natural Korean prose, concise and concrete. recommendedActions must be an array of exactly 3 short imperative Korean sentences. Keep the intent of the base recommendedActions, do not contradict avoidToday or caution, and do not add risky or exaggerated advice. Use a light 도령체 consistently. Do not use 합니다/입니다/하십시오 style. Prefer 하오, 좋소, 이로다, 하시오 naturally and sparingly. Mention uncertainty when birth time is unknown, calendarTypeInput is unknown, or certainty is calendar-unknown. Never imply an exact manse or confirmed lunar/solar basis when certainty is calendar-unknown. If referenceMode is solar-lunar-blend, describe it as a shared trend across both calendar possibilities. No markdown, no code fences, no emojis.",
           input: buildPromptContext(params),
         }),
         cache: "no-store",

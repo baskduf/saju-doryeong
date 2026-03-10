@@ -5,6 +5,7 @@ import detailStyles from "../../../fortune/[id]/page.module.css";
 import { verifyShareAccessToken } from "../../../../lib/access-token";
 import {
   findFortuneShareSnapshotById,
+  type FortuneShareInsightPayload,
   type FortuneShareSnapshotPayload,
 } from "../../../../lib/fortune-share";
 import { ShareActions } from "./ShareActions";
@@ -78,6 +79,13 @@ const DEMO_SHARE_PAYLOAD: FortuneShareSnapshotPayload = {
   ],
   certainty: "exact",
   uncertaintyMessage: null,
+  featuredInsight: {
+    label: "타이밍 포인트",
+    title: "오전에 흐름을 먼저 잡는 편이 좋소.",
+    summary: "오전 쪽에 맞춰 순서를 잡으면 오늘 흐름이 더 반듯하게 이어지오.",
+    action: "오전에 중요한 연락과 우선순위부터 정하시오.",
+    caution: "타이밍을 놓친 뒤 급히 만회하려 들지 마시오.",
+  },
   recommendedActions: [
     "중요한 일은 오전에 우선순위를 먼저 적어 두시오.",
     "만남과 협의는 차분히 조율하며 속도를 고르게 맞추시오.",
@@ -103,10 +111,28 @@ function isSharePayload(value: unknown): value is FortuneShareSnapshotPayload {
     (payload.uncertaintyMessage === null ||
       payload.uncertaintyMessage === undefined ||
       typeof payload.uncertaintyMessage === "string") &&
+    (payload.featuredInsight === undefined ||
+      payload.featuredInsight === null ||
+      (typeof payload.featuredInsight === "object" &&
+        typeof (payload.featuredInsight as Record<string, unknown>).label === "string" &&
+        typeof (payload.featuredInsight as Record<string, unknown>).title === "string" &&
+        typeof (payload.featuredInsight as Record<string, unknown>).summary === "string" &&
+        typeof (payload.featuredInsight as Record<string, unknown>).action === "string" &&
+        typeof (payload.featuredInsight as Record<string, unknown>).caution === "string")) &&
     (payload.avoidToday === undefined || Array.isArray(payload.avoidToday)) &&
     Array.isArray(payload.recommendedActions) &&
     typeof payload.targetDateKey === "string"
   );
+}
+
+function buildFallbackFeaturedInsight(fortune: FortuneShareSnapshotPayload): FortuneShareInsightPayload {
+  return {
+    label: "오늘의 포인트",
+    title: "공유용 대표 흐름을 먼저 보시오.",
+    summary: fortune.summary,
+    action: fortune.recommendedActions[0] ?? "지금 할 수 있는 일부터 차분히 움직이시오.",
+    caution: fortune.avoidToday?.[0] ?? fortune.caution,
+  };
 }
 
 function renderHighlightedText(text: string): ReactNode {
@@ -141,6 +167,7 @@ export default async function SharedFortunePage({ params, searchParams }: PagePr
 
           return snapshot.payload;
         })();
+  const featuredInsight = fortune.featuredInsight ?? buildFallbackFeaturedInsight(fortune);
 
   return (
     <main className={detailStyles.container}>
@@ -189,6 +216,36 @@ export default async function SharedFortunePage({ params, searchParams }: PagePr
                 className={detailStyles.fortuneCharacter}
                 priority
               />
+            </div>
+          </section>
+
+          <section className={detailStyles.innerSection}>
+            <h2>오늘의 포인트</h2>
+            <div className={`${detailStyles.reasonCard} ${detailStyles.pointCard}`}>
+              <div className={detailStyles.reasonRow}>
+                <span className={detailStyles.reasonLabel}>{featuredInsight.label}</span>
+                <p className={detailStyles.reasonText}>
+                  <strong className={detailStyles.inlineHighlight}>{featuredInsight.title}</strong>{" "}
+                  {renderHighlightedText(featuredInsight.summary)}
+                </p>
+              </div>
+              <div className={detailStyles.reasonRow}>
+                <span className={detailStyles.reasonLabel}>움직임</span>
+                <p className={detailStyles.reasonText}>{renderHighlightedText(featuredInsight.action)}</p>
+              </div>
+              <div className={detailStyles.reasonRow}>
+                <span className={detailStyles.reasonLabel}>주의</span>
+                <p className={detailStyles.reasonText}>{renderHighlightedText(featuredInsight.caution)}</p>
+              </div>
+              <div className={detailStyles.pointFlowerOverlay} aria-hidden="true">
+                <Image
+                  src="/flower.png"
+                  alt=""
+                  width={180}
+                  height={180}
+                  className={detailStyles.pointFlower}
+                />
+              </div>
             </div>
           </section>
 

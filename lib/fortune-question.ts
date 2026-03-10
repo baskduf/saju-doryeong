@@ -1,7 +1,21 @@
-﻿import type { DailyFortune } from "./fortune";
+import type {
+  DailyFortune,
+  DailyFortuneInsight,
+  DailyFortuneInsightKey,
+} from "./fortune";
 import { getSeoulDateKey } from "./seoul-time";
 
 type QuestionTopic = "work" | "money" | "relationship" | "health" | "general";
+type QuestionIntent = "outcome" | "action" | "timing" | "approach" | "caution";
+type QuestionRelationshipKind = "romance" | "social" | "generic";
+
+type QuestionAnalysis = {
+  topic: QuestionTopic;
+  intent: QuestionIntent;
+  relationshipKind: QuestionRelationshipKind;
+  primaryInsight: DailyFortuneInsight;
+  secondaryInsight: DailyFortuneInsight;
+};
 
 export type FortuneQuestionAnswer = {
   title: string;
@@ -20,6 +34,20 @@ const TOPIC_KEYWORDS: Record<QuestionTopic, string[]> = {
   relationship: ["연애", "사랑", "썸", "소개팅", "애인", "커플", "인간관계", "모임", "친구", "대인관계"],
   health: ["건강", "몸", "컨디션", "체력", "운동", "휴식", "병원", "잠", "회복"],
   general: [],
+};
+
+const INTENT_KEYWORDS: Array<[QuestionIntent, string[]]> = [
+  ["caution", ["조심", "피해야", "위험", "실수", "망칠", "문제", "싸울"]],
+  ["timing", ["언제", "지금", "오늘", "오전", "오후", "타이밍", "먼저", "기다릴", "미뤄"]],
+  ["approach", ["어떻게", "어떤 태도", "말투", "거리", "조율", "대화", "방식"]],
+  ["action", ["할까", "해도", "가도", "보내도", "연락", "고백", "지원", "투자", "시작", "움직일"]],
+  ["outcome", ["될까", "어떨까", "괜찮을까", "잘될까", "통할까", "붙을까", "성공"]],
+];
+
+const RELATIONSHIP_KIND_KEYWORDS: Record<QuestionRelationshipKind, string[]> = {
+  romance: ["연애", "사랑", "썸", "소개팅", "애인", "고백", "재회", "데이트"],
+  social: ["친구", "인간관계", "대인관계", "모임", "동료", "상사", "팀", "가족"],
+  generic: [],
 };
 
 function hasOpenAiApiKey(): boolean {
@@ -89,6 +117,10 @@ function normalizeQuestion(question: string): string {
   return question.trim().replace(/\s+/g, " ");
 }
 
+function includesAny(text: string, keywords: string[]): boolean {
+  return keywords.some((keyword) => text.includes(keyword.toLowerCase()));
+}
+
 export function isLikelyFortuneQuestion(question: string): boolean {
   const normalized = normalizeQuestion(question).toLowerCase();
   if (!normalized) return false;
@@ -98,8 +130,10 @@ export function isLikelyFortuneQuestion(question: string): boolean {
     return true;
   }
 
-  return (Object.keys(TOPIC_KEYWORDS) as QuestionTopic[]).some((topic) =>
-    TOPIC_KEYWORDS[topic].some((keyword) => normalized.includes(keyword.toLowerCase())),
+  return (
+    (Object.keys(TOPIC_KEYWORDS) as QuestionTopic[]).some((topic) =>
+      TOPIC_KEYWORDS[topic].some((keyword) => normalized.includes(keyword.toLowerCase())),
+    ) || INTENT_KEYWORDS.some(([, keywords]) => includesAny(normalized, keywords))
   );
 }
 
@@ -116,9 +150,104 @@ function inferQuestionTopic(question: string): QuestionTopic {
   return "general";
 }
 
+function inferQuestionIntent(question: string): QuestionIntent {
+  const normalized = normalizeQuestion(question).toLowerCase();
+
+  for (const [intent, keywords] of INTENT_KEYWORDS) {
+    if (includesAny(normalized, keywords)) {
+      return intent;
+    }
+  }
+
+  return "outcome";
+}
+
+function inferRelationshipKind(question: string): QuestionRelationshipKind {
+  const normalized = normalizeQuestion(question).toLowerCase();
+
+  if (includesAny(normalized, RELATIONSHIP_KIND_KEYWORDS.romance)) {
+    return "romance";
+  }
+  if (includesAny(normalized, RELATIONSHIP_KIND_KEYWORDS.social)) {
+    return "social";
+  }
+
+  return "generic";
+}
+
+function resolveInsightKeys(params: {
+  topic: QuestionTopic;
+  intent: QuestionIntent;
+  relationshipKind: QuestionRelationshipKind;
+}): [DailyFortuneInsightKey, DailyFortuneInsightKey] {
+  const { topic, intent, relationshipKind } = params;
+
+  if (topic === "work") {
+    if (intent === "outcome") return ["work", "approach"];
+    if (intent === "action") return ["work", "timing"];
+    if (intent === "timing") return ["timing", "work"];
+    if (intent === "approach") return ["approach", "work"];
+    return ["risk", "work"];
+  }
+
+  if (topic === "money") {
+    if (intent === "outcome") return ["money", "risk"];
+    if (intent === "action") return ["money", "timing"];
+    if (intent === "timing") return ["timing", "money"];
+    if (intent === "approach") return ["approach", "money"];
+    return ["risk", "money"];
+  }
+
+  if (topic === "health") {
+    if (intent === "outcome") return ["health", "approach"];
+    if (intent === "action") return ["health", "timing"];
+    if (intent === "timing") return ["timing", "health"];
+    if (intent === "approach") return ["approach", "health"];
+    return ["risk", "health"];
+  }
+
+  if (topic === "relationship") {
+    if (intent === "outcome") return ["relationship", relationshipKind === "romance" ? "timing" : "approach"];
+    if (intent === "action") return [relationshipKind === "romance" ? "timing" : "approach", "relationship"];
+    if (intent === "timing") return ["timing", "relationship"];
+    if (intent === "approach") return ["approach", "relationship"];
+    return ["risk", "relationship"];
+  }
+
+  if (intent === "outcome") return ["approach", "risk"];
+  if (intent === "action") return ["approach", "timing"];
+  if (intent === "timing") return ["timing", "approach"];
+  if (intent === "approach") return ["approach", "risk"];
+  return ["risk", "approach"];
+}
+
+function findInsight(fortune: DailyFortune, key: DailyFortuneInsightKey): DailyFortuneInsight {
+  return fortune.insights.find((insight) => insight.key === key) ?? fortune.featuredInsight;
+}
+
+function buildQuestionAnalysis(question: string, fortune: DailyFortune): QuestionAnalysis {
+  const topic = inferQuestionTopic(question);
+  const intent = inferQuestionIntent(question);
+  const relationshipKind = topic === "relationship" ? inferRelationshipKind(question) : "generic";
+  const [primaryKey, secondaryKey] = resolveInsightKeys({
+    topic,
+    intent,
+    relationshipKind,
+  });
+
+  return {
+    topic,
+    intent,
+    relationshipKind,
+    primaryInsight: findInsight(fortune, primaryKey),
+    secondaryInsight: findInsight(fortune, secondaryKey),
+  };
+}
+
 function buildCacheKey(params: {
   question: string;
   fortune: DailyFortune;
+  analysis: QuestionAnalysis;
   profileName?: string;
   date: Date;
 }): string {
@@ -128,23 +257,14 @@ function buildCacheKey(params: {
     date: getSeoulDateKey(params.date),
     score: params.fortune.score,
     grade: params.fortune.grade,
-    todayGanji: params.fortune.analysis.todayGanji,
-    todayRelation: params.fortune.analysis.todayRelation,
-    directiveDelta: params.fortune.analysis.directiveDelta,
-    yongShin: params.fortune.analysis.yongShin,
-    giShin: params.fortune.analysis.giShin,
-    referenceMode: params.fortune.analysis.referenceMode,
-    relationStrengthSummary: params.fortune.analysis.relationStrengthSummary,
-    relationStrengthAction: params.fortune.analysis.relationStrengthAction,
+    topic: params.analysis.topic,
+    intent: params.analysis.intent,
+    relationshipKind: params.analysis.relationshipKind,
+    primaryInsight: params.analysis.primaryInsight.key,
+    secondaryInsight: params.analysis.secondaryInsight.key,
     certainty: params.fortune.analysis.certainty,
+    referenceMode: params.fortune.analysis.referenceMode,
     uncertaintyMessage: params.fortune.analysis.uncertaintyMessage,
-    todayBranchImpact: params.fortune.analysis.todayBranchImpact,
-    todayBranchSummary: params.fortune.analysis.todayBranchSummary,
-    todayBranchInteractions: params.fortune.analysis.todayBranchInteractions.map((interaction) => ({
-      pillar: interaction.pillar,
-      type: interaction.type,
-      weight: interaction.weight,
-    })),
     model: resolveModel(),
   });
 }
@@ -152,62 +272,46 @@ function buildCacheKey(params: {
 function buildPromptContext(params: {
   question: string;
   fortune: DailyFortune;
+  analysis: QuestionAnalysis;
   profileName?: string;
   date: Date;
-  topic: QuestionTopic;
 }): string {
-  const category =
-    params.topic === "general"
-      ? null
-      : params.fortune.categoryScores.find(
-          (item) => item.key === params.topic || (params.topic === "relationship" && item.key === "relationship"),
-        );
+  const serializeInsight = (role: "primary" | "secondary", insight: DailyFortuneInsight) => ({
+    role,
+    key: insight.key,
+    label: insight.label,
+    title: insight.title,
+    summary: insight.summary,
+    action: insight.action,
+    caution: insight.caution,
+  });
 
   return JSON.stringify(
     {
       profileName: params.profileName ?? null,
       question: normalizeQuestion(params.question),
-      topic: params.topic,
       todayDate: getSeoulDateKey(params.date),
-      fortune: {
+      questionAnalysis: {
+        topic: params.analysis.topic,
+        intent: params.analysis.intent,
+        relationshipKind: params.analysis.relationshipKind,
+      },
+      overallTone: {
         score: params.fortune.score,
         grade: params.fortune.grade,
         headline: params.fortune.headline,
-        summary: params.fortune.summary,
-        detail: params.fortune.detail,
-        caution: params.fortune.caution,
-        recommendedActions: params.fortune.recommendedActions,
-        avoidToday: params.fortune.avoidToday,
-        keywords: params.fortune.keywords,
-        category,
-        analysis: {
-          todayGanji: params.fortune.analysis.todayGanji,
-          todayRelation: params.fortune.analysis.todayRelation,
-          certainty: params.fortune.analysis.certainty,
-          uncertaintyMessage: params.fortune.analysis.uncertaintyMessage,
-          referenceMode: params.fortune.analysis.referenceMode,
-          directiveDelta: params.fortune.analysis.directiveDelta,
-          directiveSummary: params.fortune.analysis.directiveSummary,
-          relationStrengthSummary: params.fortune.analysis.relationStrengthSummary,
-          relationStrengthDetail: params.fortune.analysis.relationStrengthDetail,
-          relationStrengthCaution: params.fortune.analysis.relationStrengthCaution,
-          relationStrengthAction: params.fortune.analysis.relationStrengthAction,
-          relationStrengthAvoid: params.fortune.analysis.relationStrengthAvoid,
-          todayBranchImpact: params.fortune.analysis.todayBranchImpact,
-          todayBranchSummary: params.fortune.analysis.todayBranchSummary,
-          todayBranchInteractions: params.fortune.analysis.todayBranchInteractions,
-          strengthLevel: params.fortune.analysis.strengthLevel,
-          dominantTenGod: params.fortune.analysis.dominantTenGod,
-          patternName: params.fortune.analysis.patternName,
-          yongShin: params.fortune.analysis.yongShin,
-          heeShin: params.fortune.analysis.heeShin,
-          giShin: params.fortune.analysis.giShin,
-          guShin: params.fortune.analysis.guShin,
-          yongShinReason: params.fortune.analysis.yongShinReason,
-          giShinReason: params.fortune.analysis.giShinReason,
-          usefulElements: params.fortune.analysis.usefulElements,
-          unfavorableElements: params.fortune.analysis.unfavorableElements,
-        },
+        certainty: params.fortune.analysis.certainty,
+        referenceMode: params.fortune.analysis.referenceMode,
+        uncertaintyMessage: params.fortune.analysis.uncertaintyMessage,
+      },
+      selectedInsights: [
+        serializeInsight("primary", params.analysis.primaryInsight),
+        serializeInsight("secondary", params.analysis.secondaryInsight),
+      ],
+      allowedAnswerFrame: {
+        mustMentionAction: true,
+        mustMentionCaution: true,
+        canPreferSecondaryInsight: true,
       },
     },
     null,
@@ -233,14 +337,14 @@ function parseQuestionAnswer(payload: unknown, topic: QuestionTopic): FortuneQue
   };
 }
 
-function fallbackTitle(topic: QuestionTopic): string {
+function fallbackTitle(topic: QuestionTopic, relationshipKind: QuestionRelationshipKind): string {
   switch (topic) {
     case "work":
       return "도령의 일풀이";
     case "money":
       return "도령의 재물풀이";
     case "relationship":
-      return "도령의 인연풀이";
+      return relationshipKind === "romance" ? "도령의 연정풀이" : "도령의 인연풀이";
     case "health":
       return "도령의 기력풀이";
     default:
@@ -248,66 +352,88 @@ function fallbackTitle(topic: QuestionTopic): string {
   }
 }
 
-function buildFallbackAnswer(params: {
-  question: string;
+function buildFallbackDescription(params: {
+  analysis: QuestionAnalysis;
   fortune: DailyFortune;
-  topic: QuestionTopic;
-}): FortuneQuestionAnswer {
-  const category =
-    params.topic === "general"
-      ? params.fortune.categoryScores[0]
-      : params.fortune.categoryScores.find((item) => item.key === params.topic) ?? params.fortune.categoryScores[0];
-
-  const focusAction = params.fortune.recommendedActions[0] ?? "지금 할 수 있는 일을 차분히 정리해 보시오.";
-  const caution = params.fortune.avoidToday[0] ?? params.fortune.caution;
-  const branchSummary =
-    params.fortune.analysis.todayBranchInteractions.length > 0 &&
-    !params.fortune.summary.includes(params.fortune.analysis.todayBranchSummary)
-      ? params.fortune.analysis.todayBranchSummary
-      : null;
-  const directiveLine =
-    params.fortune.analysis.directiveDelta >= 3
-      ? "오늘은 용신 쪽이 받쳐 주니, 가볍게 움직여도 흐름을 세우기 좋소."
-      : params.fortune.analysis.directiveDelta <= -3
-        ? "오늘은 기신이 올라오니, 무리하게 밀기보다 보수적으로 흐름을 다루는 편이 낫소."
-        : null;
-  const relationLine = params.fortune.analysis.relationStrengthSummary;
-  const relationAction = params.fortune.analysis.relationStrengthAction;
-  const relationCaution = params.fortune.analysis.relationStrengthCaution;
+}): string {
   const uncertaintyLead =
     params.fortune.analysis.certainty === "calendar-unknown"
       ? params.fortune.analysis.uncertaintyMessage ?? "달력 기준이 확정되지 않아 참고용 풀이로만 보아야 하오."
       : null;
+  const secondarySummary =
+    params.analysis.secondaryInsight.key === params.analysis.primaryInsight.key
+      ? null
+      : `보조로는 ${params.analysis.secondaryInsight.summary}`;
 
-  const description =
-    params.topic === "general"
-      ? [
-          uncertaintyLead,
-          `오늘 전체 흐름은 ${params.fortune.score}점인 ${params.fortune.grade} 쪽에 가깝소.`,
-          params.fortune.summary,
-          relationLine,
-          branchSummary,
-          directiveLine,
-          `우선 ${relationAction ?? focusAction} 쪽으로 움직이고, ${relationCaution ?? caution}`,
-        ]
-          .filter((line): line is string => Boolean(line))
-          .join(" ")
-      : [
-          uncertaintyLead,
-          `${category.label} 흐름은 ${category.score}점 정도로 읽히오.`,
-          category.summary,
-          relationLine,
-          branchSummary,
-          directiveLine,
-          `이 일에는 ${relationAction ?? focusAction} 쪽이 맞겠으나, ${relationCaution ?? caution}`,
-        ]
-          .filter((line): line is string => Boolean(line))
-          .join(" ");
+  if (params.analysis.intent === "caution") {
+    return [
+      uncertaintyLead,
+      params.analysis.primaryInsight.summary,
+      params.analysis.primaryInsight.caution,
+      params.analysis.secondaryInsight.action,
+    ]
+      .filter((line): line is string => Boolean(line))
+      .join(" ");
+  }
 
+  if (params.analysis.intent === "timing") {
+    return [
+      uncertaintyLead,
+      params.analysis.primaryInsight.summary,
+      params.analysis.primaryInsight.action,
+      secondarySummary,
+      params.analysis.primaryInsight.caution,
+    ]
+      .filter((line): line is string => Boolean(line))
+      .join(" ");
+  }
+
+  if (params.analysis.intent === "approach") {
+    return [
+      uncertaintyLead,
+      params.analysis.primaryInsight.summary,
+      params.analysis.primaryInsight.action,
+      secondarySummary,
+      params.analysis.secondaryInsight.caution,
+    ]
+      .filter((line): line is string => Boolean(line))
+      .join(" ");
+  }
+
+  if (params.analysis.intent === "action") {
+    return [
+      uncertaintyLead,
+      params.analysis.primaryInsight.summary,
+      `${params.analysis.primaryInsight.action} ${params.analysis.secondaryInsight.summary}`,
+      params.analysis.primaryInsight.caution,
+    ]
+      .filter((line): line is string => Boolean(line))
+      .join(" ");
+  }
+
+  return [
+    uncertaintyLead,
+    params.analysis.primaryInsight.summary,
+    secondarySummary,
+    params.analysis.primaryInsight.action,
+    params.analysis.secondaryInsight.caution,
+  ]
+    .filter((line): line is string => Boolean(line))
+    .join(" ");
+}
+
+function buildFallbackAnswer(params: {
+  question: string;
+  fortune: DailyFortune;
+  analysis: QuestionAnalysis;
+}): FortuneQuestionAnswer {
   return {
-    title: fallbackTitle(params.topic),
-    description,
-    topic: params.topic,
+    title: fallbackTitle(params.analysis.topic, params.analysis.relationshipKind),
+    description: buildFallbackDescription({
+      analysis: params.analysis,
+      fortune: params.fortune,
+    }),
+    topic: params.analysis.topic,
     usedLlm: false,
   };
 }
@@ -319,11 +445,11 @@ export async function answerFortuneQuestion(params: {
   date?: Date;
 }): Promise<FortuneQuestionAnswer> {
   const date = params.date ?? new Date();
-  const topic = inferQuestionTopic(params.question);
+  const analysis = buildQuestionAnalysis(params.question, params.fortune);
   const fallback = buildFallbackAnswer({
     question: params.question,
     fortune: params.fortune,
-    topic,
+    analysis,
   });
 
   if (!hasOpenAiApiKey()) {
@@ -334,6 +460,7 @@ export async function answerFortuneQuestion(params: {
   const cacheKey = buildCacheKey({
     question: params.question,
     fortune: params.fortune,
+    analysis,
     profileName: params.profileName,
     date,
   });
@@ -350,17 +477,17 @@ export async function answerFortuneQuestion(params: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
       },
-        body: JSON.stringify({
-          model: resolveModel(),
-          store: false,
-          instructions:
-          "You answer Korean daily fortune questions for a Kakao chatbot. Facts are deterministic and must not be changed or invented. Return strict JSON only with keys title and description. title must be under 18 Korean characters. description must be 2 to 4 concise Korean sentences, under 260 characters if possible. Answer only from the provided fortune facts. Use a concise respectful fortune-teller tone in Korean, a light 도령체. Prefer endings like 하오, 좋겠소, 이로구나 naturally and sparingly. Never use plain modern customer-service tone. Do not give medical, legal, or investment advice. Do not exaggerate. Mention one helpful action and one caution naturally when relevant. If certainty is calendar-unknown, clearly say the answer is reference-only and never imply an exact manse or confirmed lunar/solar basis. If referenceMode is solar-lunar-blend, explain it as a common trend across both solar and lunar possibilities. No markdown, no code fences, no emojis.",
+      body: JSON.stringify({
+        model: resolveModel(),
+        store: false,
+        instructions:
+          "You answer Korean daily fortune questions for a Kakao chatbot. Facts are deterministic and must not be changed or invented. The topic, intent, relationshipKind, and selectedInsights are already chosen. You may decide whether to foreground the primary or secondary insight, but you must not introduce any new facts, conclusions, or exact saju details outside selectedInsights and overallTone. Return strict JSON only with keys title and description. title must be under 18 Korean characters. description must be 2 to 4 concise Korean sentences, under 260 characters if possible. Use a concise respectful fortune-teller tone in Korean, a light 도령체. Mention one helpful action and one caution naturally. If certainty is calendar-unknown, clearly say the answer is reference-only and never imply an exact manse or confirmed lunar/solar basis. If referenceMode is solar-lunar-blend, describe it as a common trend across both solar and lunar possibilities. No markdown, no code fences, no emojis.",
         input: buildPromptContext({
           question: params.question,
           fortune: params.fortune,
+          analysis,
           profileName: params.profileName,
           date,
-          topic,
         }),
       }),
       cache: "no-store",
@@ -377,7 +504,7 @@ export async function answerFortuneQuestion(params: {
       return fallback;
     }
 
-    const parsed = parseQuestionAnswer(JSON.parse(cleanModelJson(outputText)), topic);
+    const parsed = parseQuestionAnswer(JSON.parse(cleanModelJson(outputText)), analysis.topic);
     if (!parsed) {
       return fallback;
     }

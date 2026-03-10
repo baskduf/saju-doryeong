@@ -902,7 +902,7 @@ function buildBlendedReferenceRelationGuide(params: {
         "오늘 간지는 같지만 원국의 기준축이 갈릴 수 있어, 특정 관계 십신을 확정하지 않고 겹치는 조언만 남겨 참고용으로 풀었소.",
       caution: "달력 기준이 미정인 날에는 결과를 확정 판단처럼 밀어붙이지 말고 중요한 결정은 한 번 더 확인하시오.",
       action: "공통으로 겹치는 조언만 가볍게 반영하고, 큰 결정은 양력이나 음력을 정한 뒤 다시 보시오.",
-      avoid: "참고용 풀이를 exact 만세력처럼 받아들이고 큰 결정을 바로 내리지 마시오.",
+      avoid: "참고용 풀이를 확정 만세력처럼 받아들이고 큰 결정을 바로 내리지 마시오.",
     };
   }
 
@@ -1059,26 +1059,19 @@ function buildSolarLunarBlendedReferenceFortune(params: {
 
   const headline = blendedReferenceHeadline(blended.grade);
   const summary = [
-    blended.uncertaintyMessage,
-    `양력·음력 두 가능성의 공통 경향을 겹쳐 보니 ${strengthLevelLabel(blended.strengthLevel)} 쪽 흐름이 두드러지오.`,
+    `공통 흐름으로 보면 ${strengthLevelLabel(blended.strengthLevel)} 쪽 기세가 먼저 드러나오.`,
     blended.relationStrengthSummary,
-    blended.directiveSummary,
-    `강한 오행은 ${elementLabel(blended.dominantElement)}, 약한 오행은 ${elementLabel(blended.weakestElement)}이니 균형을 먼저 보시오.`,
+    `용신은 ${elementLabel(blended.yongShin)}, 부담은 ${elementLabel(blended.giShin)} 쪽이니 균형을 먼저 보시오.`,
   ].join(" ");
   const detail = [
-    blended.uncertaintyMessage,
     blended.seasonalSummary,
-    blended.strengthSummary,
     blended.relationStrengthDetail,
-    `${blended.patternSummary} 용신은 ${elementLabel(blended.yongShin)} 쪽 공통분모로 보오.`,
     blended.yongShinReason,
     blended.giShinReason,
-    blended.directiveSummary,
-    `점수는 ${blended.score}점(${blended.grade})으로, 양력·음력 두 후보의 공통 경향과 평균치를 참고용으로 합성했소.`,
+    `강한 오행은 ${elementLabel(blended.dominantElement)}, 약한 오행은 ${elementLabel(blended.weakestElement)}이오.`,
   ].join(" ");
-  const caution = `${blended.uncertaintyMessage} ${blended.relationStrengthCaution}`;
+  const caution = blended.relationStrengthCaution;
   const recommendedActions = uniqueOrderedStrings([
-    "양력이나 음력 기준을 정하면 더 정확한 만세력과 운세를 다시 읽을 수 있소.",
     blended.relationStrengthAction,
     `용신 ${elementLabel(blended.yongShin)}을 살리려면 ${ELEMENT_SUPPORT_ACTION_MAP[blended.yongShin]}`,
     ...recommendedActionsByGrade(blended.grade, blended.todayRelation),
@@ -1095,10 +1088,7 @@ function buildSolarLunarBlendedReferenceFortune(params: {
     branchPenalty: 0,
     relationAvoid: blended.relationStrengthAvoid,
   });
-  const trimmedAvoidToday = uniqueOrderedStrings([
-    "양력·음력 기준이 확정되기 전까지는 참고용 풀이를 exact 만세력처럼 밀어붙이지 마시오.",
-    ...avoidToday,
-  ]).slice(0, 3);
+  const trimmedAvoidToday = uniqueOrderedStrings(avoidToday).slice(0, 3);
 
   return {
     score: blended.score,

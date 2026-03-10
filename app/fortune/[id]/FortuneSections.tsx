@@ -156,6 +156,15 @@ export function FortuneSections({ fortune }: Props) {
   const uncertaintyMessage =
     fortune.analysis.uncertaintyMessage ??
     "달력 기준이 확정되지 않아 참고용 풀이로만 보아야 하오.";
+  const uncertaintySectionText = isBlendedReference
+    ? "양력·음력 두 가능성을 함께 살핀 참고 운세이오."
+    : uncertaintyMessage;
+  const todayReasonText = isCalendarUncertain
+    ? fortune.analysis.relationStrengthSummary
+    : `오늘 일진 ${fortune.analysis.todayGanji}은 ${fortune.analysis.todayRelation} 흐름으로 들어오며, ${fortune.analysis.relationStrengthSummary}`;
+  const fortuneLeadParagraphs = isBlendedReference
+    ? [fortune.headline, fortune.summary]
+    : [fortune.headline, fortune.detail, fortune.summary, fortune.caution];
 
   return (
     <section className={styles.section}>
@@ -185,10 +194,9 @@ export function FortuneSections({ fortune }: Props) {
           <section className={`${styles.innerSection} ${styles.fortuneCard}`}>
             <div className={styles.fortuneCardContent}>
               <h2>도령의 한마디</h2>
-              <p>{renderHighlightedText(fortune.headline)}</p>
-              <p>{renderHighlightedText(fortune.detail)}</p>
-              <p>{renderHighlightedText(fortune.summary)}</p>
-              <p>{renderHighlightedText(fortune.caution)}</p>
+              {fortuneLeadParagraphs.map((paragraph) => (
+                <p key={paragraph}>{renderHighlightedText(paragraph)}</p>
+              ))}
             </div>
             <div className={`${styles.fortuneCharacterOverlay} ${styles.fortuneCharacterPointer}`}>
               <Image
@@ -203,12 +211,20 @@ export function FortuneSections({ fortune }: Props) {
           </section>
 
           {isCalendarUncertain ? (
-            <section className={`${styles.innerSection} ${styles.uncertaintyCard}`}>
-              <p className={styles.uncertaintyEyebrow}>달력 기준 미확정</p>
-              <p className={styles.uncertaintyText}>{uncertaintyMessage}</p>
-              <p className={styles.uncertaintyText}>
-                양력이나 음력을 다시 선택하면 만세력과 운세를 더 정확히 읽을 수 있소.
-              </p>
+            <section className={styles.innerSection}>
+              <h2>달력 기준 미확정</h2>
+              <div className={styles.reasonCard}>
+                <div className={styles.reasonRow}>
+                  <span className={styles.reasonLabel}>현재 안내</span>
+                  <p className={styles.reasonText}>{uncertaintySectionText}</p>
+                </div>
+                <div className={styles.reasonRow}>
+                  <span className={styles.reasonLabel}>정확히 보려면</span>
+                  <p className={styles.reasonText}>
+                    양력이나 음력을 다시 선택하면 만세력과 운세를 더 정확히 읽을 수 있소.
+                  </p>
+                </div>
+              </div>
             </section>
           ) : null}
 
@@ -217,18 +233,12 @@ export function FortuneSections({ fortune }: Props) {
               <div className={styles.reasonCard}>
                 <div className={styles.reasonRow}>
                   <span className={styles.reasonLabel}>오늘 일진 작용</span>
-                <p className={styles.reasonText}>
-                  {renderHighlightedText(
-                    isCalendarUncertain
-                      ? uncertaintyMessage
-                      : `오늘 일진 ${fortune.analysis.todayGanji}은 ${fortune.analysis.todayRelation} 흐름으로 들어오며, ${fortune.analysis.relationStrengthSummary}`,
-                  )}
-                </p>
-              </div>
-              <div className={styles.reasonRow}>
-                <span className={styles.reasonLabel}>용신·기신 흐름</span>
-                <p className={styles.reasonText}>{renderHighlightedText(fortune.analysis.directiveSummary)}</p>
-              </div>
+                  <p className={styles.reasonText}>{renderHighlightedText(todayReasonText)}</p>
+                </div>
+                <div className={styles.reasonRow}>
+                  <span className={styles.reasonLabel}>용신·기신 흐름</span>
+                  <p className={styles.reasonText}>{renderHighlightedText(fortune.analysis.directiveSummary)}</p>
+                </div>
               {fortune.analysis.todayBranchInteractions.length > 0 ? (
                 <div className={styles.reasonRow}>
                   <span className={styles.reasonLabel}>지지 상호작용</span>
@@ -519,16 +529,15 @@ export function FortuneSections({ fortune }: Props) {
               <ReadingGuide
                 intro={
                   isBlendedReference
-                    ? "이 영역은 양력과 음력 두 가능성에서 공통으로 겹치는 흐름만 모아 보는 참고 해석입니다."
+                    ? "이 영역은 양력과 음력 두 가능성에서 함께 남는 오행 흐름과 보완 방향을 읽는 참고 해석입니다."
                     : "명식은 내 사주의 균형과 작동 방식을 읽는 영역입니다. 강약, 격국 후보, 용신을 먼저 보면 흐름이 잡힙니다."
                 }
                 summary={isBlendedReference ? "공통 경향 읽는 법" : "명식 읽는 법"}
                 tips={
                   isBlendedReference
                     ? [
-                        "달력 기준이 미정이라 exact 격국이나 만세력 대신, 양력과 음력에서 함께 겹치는 오행 흐름만 추려 보여줍니다.",
-                        "용신·기신은 두 가능성의 공통분모를 기준으로 정리한 참고 방향이므로, 큰 결정은 달력 기준을 정한 뒤 다시 보는 편이 안전합니다.",
-                        "오늘 일진은 서울 기준 실제 날짜를 따르되, 원국과의 정밀 합충형은 확정하지 않고 공통 조언만 남깁니다.",
+                        "양력과 음력에서 함께 겹치는 흐름만 추려 보여줍니다.",
+                        "큰 결정은 달력 기준을 정한 뒤 다시 보는 편이 안전합니다.",
                       ]
                     : [
                         "강약은 내가 기운을 감당하는 힘이 어느 정도인지 보는 기준입니다.",
@@ -550,9 +559,9 @@ export function FortuneSections({ fortune }: Props) {
                   </div>
                   <p className={styles.analysisLead}>{fortune.analysis.balanceSummary}</p>
                   <div className={styles.analysisInsightList}>
-                    {isBlendedReference ? (
+                    {isCalendarUncertain && !isBlendedReference ? (
                       <div className={styles.analysisInsightItem}>
-                        <span className={styles.analysisInsightLabel}>참고 기준</span>
+                        <span className={styles.analysisInsightLabel}>달력 기준 상태</span>
                         <p className={styles.analysisInsightText}>{uncertaintyMessage}</p>
                       </div>
                     ) : null}
@@ -564,12 +573,6 @@ export function FortuneSections({ fortune }: Props) {
                       <span className={styles.analysisInsightLabel}>용신·기신 적중</span>
                       <p className={styles.analysisInsightText}>{fortune.analysis.directiveSummary}</p>
                     </div>
-                    {isCalendarUncertain ? (
-                      <div className={styles.analysisInsightItem}>
-                        <span className={styles.analysisInsightLabel}>달력 기준 상태</span>
-                        <p className={styles.analysisInsightText}>{uncertaintyMessage}</p>
-                      </div>
-                    ) : null}
                   </div>
                 </article>
 
@@ -721,7 +724,7 @@ export function FortuneSections({ fortune }: Props) {
                     ) : (
                       <p className={styles.analysisEmpty}>
                         {isBlendedReference
-                          ? "양력·음력 공통 경향만 남긴 참고 해석이라 exact 천간 십신 표는 열지 않았소."
+                          ? "공통 참고 해석이라 천간 십신 표는 생략했소."
                           : "표시할 천간 십신 정보가 없습니다."}
                       </p>
                     )}
@@ -740,7 +743,7 @@ export function FortuneSections({ fortune }: Props) {
                     ) : (
                       <p className={styles.analysisEmpty}>
                         {isBlendedReference
-                          ? "달력 기준이 미정이라 원국 지지의 exact 합충형은 확정하지 않았소."
+                          ? "공통 참고 해석이라 지지 합충형은 생략했소."
                           : "눈에 띄는 합충형 충돌은 없는 편입니다."}
                       </p>
                     )}

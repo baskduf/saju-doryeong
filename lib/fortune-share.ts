@@ -10,6 +10,7 @@ export type FortuneShareSnapshotPayload = {
   headline: string;
   summary: string;
   caution: string;
+  avoidToday?: string[];
   recommendedActions: string[];
   targetDateKey: string;
 };
@@ -41,6 +42,7 @@ function buildSharePayload(params: {
     headline: params.fortune.headline,
     summary: params.fortune.summary,
     caution: params.fortune.caution,
+    avoidToday: params.fortune.avoidToday.slice(0, 3),
     recommendedActions: params.fortune.recommendedActions.slice(0, 3),
     targetDateKey,
   };

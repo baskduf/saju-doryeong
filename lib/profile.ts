@@ -333,6 +333,34 @@ export function buildInitialSajuData(params: {
   };
 }
 
+function mergeSajuDataMeta(
+  previousSajuData: unknown,
+  nextSajuData: Prisma.InputJsonValue,
+): Prisma.InputJsonValue {
+  const previousRoot = asJsonRecord(previousSajuData) ?? {};
+  const nextRoot = asJsonRecord(nextSajuData);
+  const previousMeta = asJsonRecord(previousRoot.meta);
+  const nextMeta = asJsonRecord(nextRoot?.meta);
+
+  if (!nextRoot) {
+    return nextSajuData;
+  }
+
+  if (!previousMeta && !nextMeta) {
+    return nextSajuData;
+  }
+
+  const mergedRoot: Prisma.InputJsonObject = {
+    ...(nextRoot as Prisma.InputJsonObject),
+    meta: {
+      ...(previousMeta ?? {}),
+      ...(nextMeta ?? {}),
+    } as Prisma.InputJsonObject,
+  };
+
+  return mergedRoot;
+}
+
 export function parseRegistrationFields(input: {
   name?: unknown;
   birthDate?: unknown;
@@ -378,6 +406,9 @@ export async function findProfileByUserId(userId: string): Promise<SajuProfileRe
 }
 
 export async function upsertProfile(input: UpsertProfileInput): Promise<SajuProfileRecord> {
+  const existingProfile = await findProfileByUserId(input.userId);
+  const mergedSajuData = mergeSajuDataMeta(existingProfile?.sajuData, input.sajuData);
+
   return prisma.sajuProfile.upsert({
     where: { userId: input.userId },
     update: {
@@ -385,7 +416,7 @@ export async function upsertProfile(input: UpsertProfileInput): Promise<SajuProf
       birthDate: input.birthDate,
       birthTime: input.birthTime,
       calendarType: input.calendarType,
-      sajuData: input.sajuData,
+      sajuData: mergedSajuData,
     },
     create: {
       userId: input.userId,
@@ -393,7 +424,7 @@ export async function upsertProfile(input: UpsertProfileInput): Promise<SajuProf
       birthDate: input.birthDate,
       birthTime: input.birthTime,
       calendarType: input.calendarType,
-      sajuData: input.sajuData,
+      sajuData: mergedSajuData,
     },
     select: PROFILE_SELECT,
   });

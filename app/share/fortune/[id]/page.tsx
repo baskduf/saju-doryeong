@@ -125,7 +125,7 @@ export default async function SharedFortunePage({ params, searchParams }: PagePr
           >
             <h2 style={{ margin: 0, color: "#2e1c11", fontSize: "1.1rem" }}>오늘의 추천 행동</h2>
             <ol style={{ margin: "12px 0 0", paddingLeft: 18, color: "#6d5236", lineHeight: 1.8 }}>
-              {fortune.recommendedActions.map((action) => (
+              {fortune.recommendedActions.map((action: string) => (
                 <li key={action}>{action}</li>
               ))}
             </ol>

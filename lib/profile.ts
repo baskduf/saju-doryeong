@@ -1,6 +1,10 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import { calculateTraditionalSajuChart, type CalendarType } from "./saju";
+import { buildUnknownReferenceProfileData } from "./fortune";
+import { formatStoredDateKey, getSeoulDateKey } from "./seoul-time";
+
+export { getSeoulDateKey } from "./seoul-time";
 
 export const PROFILE_SELECT = {
   userId: true,
@@ -63,20 +67,8 @@ export function hasDatabaseUrl(): boolean {
   return Boolean(process.env.DATABASE_URL || process.env.POSTGRES_PRISMA_URL);
 }
 
-export function getSeoulDateKey(date: Date = new Date()): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Seoul",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(date);
-}
-
 function toIsoDateString(date: Date): string {
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(date.getUTCDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return formatStoredDateKey(date);
 }
 
 function parseBirthDate(value: unknown): { ok: true; date: Date } | { ok: false; message: string } {
@@ -195,6 +187,46 @@ export function buildInitialSajuData(params: {
   birthTime?: string;
   calendarType: CalendarType;
 }): Prisma.InputJsonValue {
+  if (params.calendarType === "unknown") {
+    const reference = buildUnknownReferenceProfileData({
+      birthDate: params.birthDate,
+      birthTime: params.birthTime,
+    });
+
+    return {
+      source: reference?.source ?? "solar-lunar-reference-v1",
+      userId: params.userId,
+      birthDate: toIsoDateString(params.birthDate),
+      birthTime: params.birthTime ?? null,
+      calendarType: params.calendarType,
+      certainty: "calendar-unknown",
+      uncertaintyMessage:
+        reference?.uncertaintyMessage ??
+        "달력 기준이 확정되지 않아 양력·음력 두 가능성을 함께 살핀 참고 운세이오.",
+      resolvedCalendarType: "unknown",
+      solarDateTime: null,
+      lunarDate: null,
+      lunarDateKorean: null,
+      usedNoonFallback: reference?.usedNoonFallback ?? !params.birthTime,
+      pillars: null,
+      dayMaster: null,
+      auxiliary: null,
+      fiveElements: reference?.fiveElements ?? null,
+      referenceMode: reference?.referenceMode ?? "solar-lunar-blend",
+      referenceFiveElements: reference?.fiveElements ?? null,
+      referenceSummary: reference
+        ? {
+            strengthLevel: reference.strengthLevel,
+            yongShin: reference.yongShin,
+            heeShin: reference.heeShin,
+            giShin: reference.giShin,
+            guShin: reference.guShin,
+          }
+        : null,
+      analysis: null,
+    };
+  }
+
   const chart = calculateTraditionalSajuChart({
     birthDate: params.birthDate,
     birthTime: params.birthTime,
@@ -207,6 +239,8 @@ export function buildInitialSajuData(params: {
     birthDate: toIsoDateString(params.birthDate),
     birthTime: params.birthTime ?? null,
     calendarType: params.calendarType,
+    certainty: chart.certainty,
+    uncertaintyMessage: chart.uncertaintyMessage,
     resolvedCalendarType: chart.calendarTypeResolved,
     solarDateTime: chart.solarDateTime,
     lunarDate: chart.lunarDate,

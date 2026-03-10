@@ -113,28 +113,32 @@ export type TodayBranchInteraction = {
   description: string;
 };
 
+export type ChartCertainty = "exact" | "calendar-unknown";
+
 export type TraditionalSajuChart = {
   source: "traditional-lunar-javascript-v1";
+  certainty: ChartCertainty;
+  uncertaintyMessage: string | null;
   calendarTypeInput: CalendarType;
-  calendarTypeResolved: "solar" | "lunar";
+  calendarTypeResolved: CalendarType;
   birthDateInput: string;
   birthTimeInput: string | null;
-  solarDateTime: string;
-  lunarDate: string;
-  lunarDateKorean: string;
+  solarDateTime: string | null;
+  lunarDate: string | null;
+  lunarDateKorean: string | null;
   usedNoonFallback: boolean;
   pillars: {
     year: PillarInfo;
     month: PillarInfo;
     day: PillarInfo;
     hour: PillarInfo;
-  };
+  } | null;
   dayMaster: {
     stem: string;
     stemKorean: string;
     element: ElementKey;
     elementLabel: string;
-  };
+  } | null;
   auxiliary: {
     taiYuan: string;
     mingGong: string;
@@ -144,12 +148,12 @@ export type TraditionalSajuChart = {
     naYin: {
       year: string;
       month: string;
-      day: string;
-      hour: string;
+        day: string;
+        hour: string;
     };
-  };
-  fiveElements: FiveElements;
-  analysis: TraditionalSajuAnalysis;
+  } | null;
+  fiveElements: FiveElements | null;
+  analysis: TraditionalSajuAnalysis | null;
 };
 
 const STEM_KOREAN: Record<string, string> = {
@@ -1101,7 +1105,28 @@ export function calculateTraditionalSajuChart(params: {
   const month = params.birthDate.getUTCMonth() + 1;
   const day = params.birthDate.getUTCDate();
 
-  const resolvedCalendarType: "solar" | "lunar" = params.calendarType === "lunar" ? "lunar" : "solar";
+  if (params.calendarType === "unknown") {
+    return {
+      source: "traditional-lunar-javascript-v1",
+      certainty: "calendar-unknown",
+      uncertaintyMessage: "달력 기준이 확정되지 않아 참고용 풀이로만 보시오. 양력이나 음력을 다시 선택하면 만세력과 운세를 더 정확히 읽을 수 있소.",
+      calendarTypeInput: params.calendarType,
+      calendarTypeResolved: "unknown",
+      birthDateInput,
+      birthTimeInput: params.birthTime ?? null,
+      solarDateTime: null,
+      lunarDate: null,
+      lunarDateKorean: null,
+      usedNoonFallback,
+      pillars: null,
+      dayMaster: null,
+      auxiliary: null,
+      fiveElements: null,
+      analysis: null,
+    };
+  }
+
+  const resolvedCalendarType: "solar" | "lunar" = params.calendarType;
 
   const solar =
     resolvedCalendarType === "lunar"
@@ -1115,9 +1140,37 @@ export function calculateTraditionalSajuChart(params: {
   const monthGanji = String(eightChar.getMonth());
   const dayGanji = String(eightChar.getDay());
   const timeGanji = String(eightChar.getTime());
+  const pillars = {
+    year: buildPillar(yearGanji, ((eightChar.getYearHideGan() as string[]) ?? []).map(String)),
+    month: buildPillar(monthGanji, ((eightChar.getMonthHideGan() as string[]) ?? []).map(String)),
+    day: buildPillar(dayGanji, ((eightChar.getDayHideGan() as string[]) ?? []).map(String)),
+    hour: buildPillar(timeGanji, ((eightChar.getTimeHideGan() as string[]) ?? []).map(String)),
+  };
+  const dayMaster = {
+    stem: String(eightChar.getDayGan()),
+    stemKorean: STEM_KOREAN[String(eightChar.getDayGan())] ?? String(eightChar.getDayGan()),
+    element: elementFromStem(String(eightChar.getDayGan())),
+    elementLabel: elementLabel(elementFromStem(String(eightChar.getDayGan()))),
+  };
+  const auxiliary = {
+    taiYuan: String(eightChar.getTaiYuan()),
+    mingGong: String(eightChar.getMingGong()),
+    shenGong: String(eightChar.getShenGong()),
+    yearXunKong: String(eightChar.getYearXunKong()),
+    dayXunKong: String(eightChar.getDayXunKong()),
+    naYin: {
+      year: String(eightChar.getYearNaYin()),
+      month: String(eightChar.getMonthNaYin()),
+      day: String(eightChar.getDayNaYin()),
+      hour: String(eightChar.getTimeNaYin()),
+    },
+  };
+  const fiveElements = computeFiveElementsFromEightChar(eightChar);
 
   const chart: TraditionalSajuChart = {
     source: "traditional-lunar-javascript-v1",
+    certainty: "exact",
+    uncertaintyMessage: null,
     calendarTypeInput: params.calendarType,
     calendarTypeResolved: resolvedCalendarType,
     birthDateInput,
@@ -1126,39 +1179,17 @@ export function calculateTraditionalSajuChart(params: {
     lunarDate: String(lunar.toString()),
     lunarDateKorean: toLunarDateKorean(String(lunar.toString())),
     usedNoonFallback,
-    pillars: {
-      year: buildPillar(yearGanji, ((eightChar.getYearHideGan() as string[]) ?? []).map(String)),
-      month: buildPillar(monthGanji, ((eightChar.getMonthHideGan() as string[]) ?? []).map(String)),
-      day: buildPillar(dayGanji, ((eightChar.getDayHideGan() as string[]) ?? []).map(String)),
-      hour: buildPillar(timeGanji, ((eightChar.getTimeHideGan() as string[]) ?? []).map(String)),
-    },
-    dayMaster: {
-      stem: String(eightChar.getDayGan()),
-      stemKorean: STEM_KOREAN[String(eightChar.getDayGan())] ?? String(eightChar.getDayGan()),
-      element: elementFromStem(String(eightChar.getDayGan())),
-      elementLabel: elementLabel(elementFromStem(String(eightChar.getDayGan()))),
-    },
-    auxiliary: {
-      taiYuan: String(eightChar.getTaiYuan()),
-      mingGong: String(eightChar.getMingGong()),
-      shenGong: String(eightChar.getShenGong()),
-      yearXunKong: String(eightChar.getYearXunKong()),
-      dayXunKong: String(eightChar.getDayXunKong()),
-      naYin: {
-        year: String(eightChar.getYearNaYin()),
-        month: String(eightChar.getMonthNaYin()),
-        day: String(eightChar.getDayNaYin()),
-        hour: String(eightChar.getTimeNaYin()),
-      },
-    },
-    fiveElements: computeFiveElementsFromEightChar(eightChar),
+    pillars,
+    dayMaster,
+    auxiliary,
+    fiveElements,
     analysis: {} as TraditionalSajuAnalysis,
   };
 
   chart.analysis = analyzeTraditionalSajuChart({
-    pillars: chart.pillars,
-    dayStem: chart.dayMaster.stem,
-    fiveElements: chart.fiveElements,
+    pillars,
+    dayStem: dayMaster.stem,
+    fiveElements,
   });
 
   return chart;

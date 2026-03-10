@@ -31,6 +31,8 @@ const DEMO_SHARE_PAYLOAD: FortuneShareSnapshotPayload = {
     "약속과 일정이 겹칠 때는 먼저 우선순위를 정하시오.",
     "기세만 믿고 사람을 몰아붙이는 말투는 피하시오.",
   ],
+  certainty: "exact",
+  uncertaintyMessage: null,
   recommendedActions: [
     "중요한 일은 오전에 우선순위를 먼저 적어 두시오.",
     "만남과 협의는 차분히 조율하며 속도를 고르게 맞추시오.",
@@ -52,6 +54,10 @@ function isSharePayload(value: unknown): value is FortuneShareSnapshotPayload {
     typeof payload.headline === "string" &&
     typeof payload.summary === "string" &&
     typeof payload.caution === "string" &&
+    (payload.certainty === "exact" || payload.certainty === "calendar-unknown") &&
+    (payload.uncertaintyMessage === null ||
+      payload.uncertaintyMessage === undefined ||
+      typeof payload.uncertaintyMessage === "string") &&
     (payload.avoidToday === undefined || Array.isArray(payload.avoidToday)) &&
     Array.isArray(payload.recommendedActions) &&
     typeof payload.targetDateKey === "string"
@@ -89,6 +95,16 @@ export default async function SharedFortunePage({ params, searchParams }: PagePr
             </p>
           </div>
         </section>
+
+        {fortune.certainty === "calendar-unknown" ? (
+          <section className={`${detailStyles.section} ${detailStyles.uncertaintyCard}`}>
+            <p className={detailStyles.uncertaintyEyebrow}>달력 기준 미확정</p>
+            <p className={detailStyles.uncertaintyText}>
+              {fortune.uncertaintyMessage ??
+                "달력 기준이 확정되지 않아 양력·음력 두 가능성을 함께 본 참고용 운세이오."}
+            </p>
+          </section>
+        ) : null}
 
         <section className={detailStyles.scoreBox}>
           <p className={detailStyles.scoreLabel}>오늘의 운세 점수</p>

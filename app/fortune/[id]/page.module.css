@@ -384,6 +384,30 @@
   line-height: 1.78;
 }
 
+.uncertaintyCard {
+  border: 1px solid rgba(163, 95, 37, 0.22);
+  background: linear-gradient(180deg, rgba(255, 247, 228, 0.95), rgba(251, 235, 201, 0.88));
+}
+
+.uncertaintyEyebrow {
+  margin: 0 0 8px;
+  color: #8b5422;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.uncertaintyText {
+  margin: 0;
+  color: #4a2a11;
+  line-height: 1.72;
+}
+
+.uncertaintyText + .uncertaintyText {
+  margin-top: 8px;
+}
+
 .keywordChip {
   display: inline-flex;
   align-items: center;

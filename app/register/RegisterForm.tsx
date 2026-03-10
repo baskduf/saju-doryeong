@@ -209,6 +209,9 @@ export default function RegisterForm({ initialUserId, fromKakao, accessToken }: 
             <span>모름</span>
           </label>
         </div>
+        {calendarType === "unknown" ? (
+          <p className={styles.help}>정확한 만세력과 운세를 원하면 양력이나 음력을 선택하시오.</p>
+        ) : null}
       </fieldset>
 
       {error ? <p className={styles.error}>{error}</p> : null}

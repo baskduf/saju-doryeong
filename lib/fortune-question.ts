@@ -1,4 +1,5 @@
-import type { DailyFortune } from "./fortune";
+﻿import type { DailyFortune } from "./fortune";
+import { getSeoulDateKey } from "./seoul-time";
 
 type QuestionTopic = "work" | "money" | "relationship" | "health" | "general";
 
@@ -15,8 +16,8 @@ const questionCache = new Map<string, { expiresAt: number; value: FortuneQuestio
 const TOPIC_KEYWORDS: Record<QuestionTopic, string[]> = {
   work: ["일", "직장", "회사", "업무", "과제", "공부", "학업", "시험", "면접", "승진", "발표"],
   money: ["돈", "재물", "금전", "지출", "소비", "투자", "계약", "매매", "매출", "수입"],
-  relationship: ["연애", "사랑", "썸", "소개팅", "애인", "커플", "인간관계", "사람", "친구", "대인관계"],
-  health: ["건강", "몸", "컨디션", "체력", "피곤", "휴식", "병원", "잠", "회복"],
+  relationship: ["연애", "사랑", "썸", "소개팅", "애인", "커플", "인간관계", "모임", "친구", "대인관계"],
+  health: ["건강", "몸", "컨디션", "체력", "운동", "휴식", "병원", "잠", "회복"],
   general: [],
 };
 
@@ -83,7 +84,7 @@ export function isLikelyFortuneQuestion(question: string): boolean {
   const normalized = normalizeQuestion(question).toLowerCase();
   if (!normalized) return false;
 
-  const directSignals = ["?", "어때", "될까", "괜찮", "좋을까", "운세", "운", "알려", "봐줘", "궁금"];
+  const directSignals = ["?", "어때", "될까", "괜찮", "좋을까", "운세", "봐줘", "알려", "궁금", "조언"];
   if (directSignals.some((signal) => normalized.includes(signal))) {
     return true;
   }
@@ -115,7 +116,7 @@ function buildCacheKey(params: {
   return JSON.stringify({
     question: normalizeQuestion(params.question),
     profileName: params.profileName ?? null,
-    date: params.date.toISOString().slice(0, 10),
+    date: getSeoulDateKey(params.date),
     score: params.fortune.score,
     grade: params.fortune.grade,
     todayGanji: params.fortune.analysis.todayGanji,
@@ -123,8 +124,11 @@ function buildCacheKey(params: {
     directiveDelta: params.fortune.analysis.directiveDelta,
     yongShin: params.fortune.analysis.yongShin,
     giShin: params.fortune.analysis.giShin,
+    referenceMode: params.fortune.analysis.referenceMode,
     relationStrengthSummary: params.fortune.analysis.relationStrengthSummary,
     relationStrengthAction: params.fortune.analysis.relationStrengthAction,
+    certainty: params.fortune.analysis.certainty,
+    uncertaintyMessage: params.fortune.analysis.uncertaintyMessage,
     todayBranchImpact: params.fortune.analysis.todayBranchImpact,
     todayBranchSummary: params.fortune.analysis.todayBranchSummary,
     todayBranchInteractions: params.fortune.analysis.todayBranchInteractions.map((interaction) => ({
@@ -146,14 +150,16 @@ function buildPromptContext(params: {
   const category =
     params.topic === "general"
       ? null
-      : params.fortune.categoryScores.find((item) => item.key === params.topic || (params.topic === "relationship" && item.key === "relationship"));
+      : params.fortune.categoryScores.find(
+          (item) => item.key === params.topic || (params.topic === "relationship" && item.key === "relationship"),
+        );
 
   return JSON.stringify(
     {
       profileName: params.profileName ?? null,
       question: normalizeQuestion(params.question),
       topic: params.topic,
-      todayDate: params.date.toISOString().slice(0, 10),
+      todayDate: getSeoulDateKey(params.date),
       fortune: {
         score: params.fortune.score,
         grade: params.fortune.grade,
@@ -168,6 +174,9 @@ function buildPromptContext(params: {
         analysis: {
           todayGanji: params.fortune.analysis.todayGanji,
           todayRelation: params.fortune.analysis.todayRelation,
+          certainty: params.fortune.analysis.certainty,
+          uncertaintyMessage: params.fortune.analysis.uncertaintyMessage,
+          referenceMode: params.fortune.analysis.referenceMode,
           directiveDelta: params.fortune.analysis.directiveDelta,
           directiveSummary: params.fortune.analysis.directiveSummary,
           relationStrengthSummary: params.fortune.analysis.relationStrengthSummary,
@@ -240,7 +249,7 @@ function buildFallbackAnswer(params: {
       ? params.fortune.categoryScores[0]
       : params.fortune.categoryScores.find((item) => item.key === params.topic) ?? params.fortune.categoryScores[0];
 
-  const focusAction = params.fortune.recommendedActions[0] ?? "지금 할 일을 차분히 정리해 보시오.";
+  const focusAction = params.fortune.recommendedActions[0] ?? "지금 할 수 있는 일을 차분히 정리해 보시오.";
   const caution = params.fortune.avoidToday[0] ?? params.fortune.caution;
   const branchSummary =
     params.fortune.analysis.todayBranchInteractions.length > 0 &&
@@ -249,18 +258,23 @@ function buildFallbackAnswer(params: {
       : null;
   const directiveLine =
     params.fortune.analysis.directiveDelta >= 3
-      ? "오늘은 용신 쪽이 받쳐 주니 밀어도 되는 일과 접어 둘 일을 또렷이 가르는 편이 좋소."
+      ? "오늘은 용신 쪽이 받쳐 주니, 가볍게 움직여도 흐름을 세우기 좋소."
       : params.fortune.analysis.directiveDelta <= -3
-        ? "오늘은 기신이 올라오니 무리하게 밀기보다 보수적으로 흐름을 살피는 편이 낫소."
+        ? "오늘은 기신이 올라오니, 무리하게 밀기보다 보수적으로 흐름을 다루는 편이 낫소."
         : null;
   const relationLine = params.fortune.analysis.relationStrengthSummary;
   const relationAction = params.fortune.analysis.relationStrengthAction;
   const relationCaution = params.fortune.analysis.relationStrengthCaution;
+  const uncertaintyLead =
+    params.fortune.analysis.certainty === "calendar-unknown"
+      ? params.fortune.analysis.uncertaintyMessage ?? "달력 기준이 확정되지 않아 참고용 풀이로만 보아야 하오."
+      : null;
 
   const description =
     params.topic === "general"
       ? [
-          `오늘 전체 흐름은 ${params.fortune.score}점이라 ${params.fortune.grade} 쪽에 가깝소.`,
+          uncertaintyLead,
+          `오늘 전체 흐름은 ${params.fortune.score}점인 ${params.fortune.grade} 쪽에 가깝소.`,
           params.fortune.summary,
           relationLine,
           branchSummary,
@@ -270,6 +284,7 @@ function buildFallbackAnswer(params: {
           .filter((line): line is string => Boolean(line))
           .join(" ")
       : [
+          uncertaintyLead,
           `${category.label} 흐름은 ${category.score}점 정도로 읽히오.`,
           category.summary,
           relationLine,
@@ -326,11 +341,11 @@ export async function answerFortuneQuestion(params: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
       },
-      body: JSON.stringify({
-        model: resolveModel(),
-        store: false,
-        instructions:
-          "You answer Korean daily fortune questions for a Kakao chatbot. Facts are deterministic and must not be changed or invented. Return strict JSON only with keys title and description. title must be under 18 Korean characters. description must be 2 to 4 concise Korean sentences, under 260 characters if possible. Answer only from the provided fortune facts. Use a concise respectful fortune-teller tone in Korean, a light 도령체. Prefer endings like 하오, 좋겠소, 이로구나 naturally and sparingly. Never use plain modern customer-service tone. Do not give medical, legal, or investment advice. Do not exaggerate. Mention one helpful action and one caution naturally when relevant. No markdown, no code fences, no emojis.",
+        body: JSON.stringify({
+          model: resolveModel(),
+          store: false,
+          instructions:
+          "You answer Korean daily fortune questions for a Kakao chatbot. Facts are deterministic and must not be changed or invented. Return strict JSON only with keys title and description. title must be under 18 Korean characters. description must be 2 to 4 concise Korean sentences, under 260 characters if possible. Answer only from the provided fortune facts. Use a concise respectful fortune-teller tone in Korean, a light 도령체. Prefer endings like 하오, 좋겠소, 이로구나 naturally and sparingly. Never use plain modern customer-service tone. Do not give medical, legal, or investment advice. Do not exaggerate. Mention one helpful action and one caution naturally when relevant. If certainty is calendar-unknown, clearly say the answer is reference-only and never imply an exact manse or confirmed lunar/solar basis. If referenceMode is solar-lunar-blend, explain it as a common trend across both solar and lunar possibilities. No markdown, no code fences, no emojis.",
         input: buildPromptContext({
           question: params.question,
           fortune: params.fortune,

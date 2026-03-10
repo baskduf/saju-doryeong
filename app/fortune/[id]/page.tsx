@@ -1,7 +1,8 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { generateDailyFortuneWithNarrative } from "../../../lib/fortune";
 import { verifyFortuneAccessToken } from "../../../lib/access-token";
+import { generateDailyFortuneWithNarrative } from "../../../lib/fortune";
+import { formatSeoulDateLabel, formatStoredDate } from "../../../lib/seoul-time";
 import { FortuneSections } from "./FortuneSections";
 import styles from "./page.module.css";
 
@@ -29,23 +30,6 @@ const SAMPLE_PROFILE = {
     },
   },
 };
-
-function formatKoreanDate(date: Date): string {
-  return new Intl.DateTimeFormat("ko-KR", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    weekday: "long",
-  }).format(date);
-}
-
-function formatBirthDate(date: Date): string {
-  return new Intl.DateTimeFormat("ko-KR", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(date);
-}
 
 function calendarTypeLabel(value: string): string {
   if (value === "solar") return "양력";
@@ -109,10 +93,9 @@ export default async function FortuneDetailPage({ params, searchParams }: PagePr
           <div className={styles.heroText}>
             <p className={styles.label}>{isSampleProfile ? "운세도령 샘플 결과" : "운세도령 상세 결과"}</p>
             <h1 className={styles.title}>{profile.name ? `${profile.name} 님의 금일 운세` : "금일 운세"}</h1>
-            <p className={styles.date}>{formatKoreanDate(today)}</p>
+            <p className={styles.date}>{formatSeoulDateLabel(today)}</p>
             <p className={styles.birthMeta}>
-              출생 {formatBirthDate(profile.birthDate)} · {profile.birthTime ?? "미상"} ·{" "}
-              {calendarTypeLabel(profile.calendarType)}
+              출생 {formatStoredDate(profile.birthDate)} · {profile.birthTime ?? "미상"} · {calendarTypeLabel(profile.calendarType)}
             </p>
             {isSampleProfile ? (
               <p className={styles.birthMeta}>DB 없이 확인할 수 있는 데모 프로필입니다.</p>

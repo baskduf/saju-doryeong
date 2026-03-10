@@ -1,4 +1,6 @@
-import type { CalendarType, ElementKey } from "./saju";
+import type { CalendarType, ChartCertainty, ElementKey } from "./saju";
+import type { ReferenceMode } from "./fortune";
+import { formatStoredDateKey, getSeoulDateKey } from "./seoul-time";
 
 type FortuneNarrativeBase = {
   score: number;
@@ -10,6 +12,9 @@ type FortuneNarrativeBase = {
   recommendedActions: string[];
   avoidToday: string[];
   analysis: {
+    certainty: ChartCertainty;
+    uncertaintyMessage: string | null;
+    referenceMode: ReferenceMode;
     strengthLevel: "strong" | "balanced" | "weak";
     dominantTenGod: string;
     patternName: string;
@@ -26,7 +31,7 @@ type FortuneNarrativeBase = {
     todayRelation: string;
     usedNoonFallback: boolean;
     calendarTypeInput: CalendarType;
-    calendarTypeResolved: "solar" | "lunar";
+    calendarTypeResolved: CalendarType;
   };
 };
 
@@ -130,8 +135,8 @@ function buildPromptContext(params: {
   return JSON.stringify(
     {
       profileName: params.profileName ?? null,
-      todayDate: params.date.toISOString().slice(0, 10),
-      birthDate: params.birthDate.toISOString().slice(0, 10),
+      todayDate: getSeoulDateKey(params.date),
+      birthDate: formatStoredDateKey(params.birthDate),
       birthTime: params.birthTime ?? null,
       score: fortune.score,
       grade: fortune.grade,
@@ -152,6 +157,9 @@ function buildPromptContext(params: {
         patternSummary: fortune.analysis.patternSummary,
         patternTentative: fortune.analysis.patternTentative,
         patternRevealLabel: fortune.analysis.patternRevealLabel,
+        certainty: fortune.analysis.certainty,
+        uncertaintyMessage: fortune.analysis.uncertaintyMessage,
+        referenceMode: fortune.analysis.referenceMode,
         yongShin: fortune.analysis.yongShin,
         heeShin: fortune.analysis.heeShin,
         giShin: fortune.analysis.giShin,
@@ -177,9 +185,9 @@ function buildCacheKey(params: {
 }): string {
   return JSON.stringify({
     profileName: params.profileName ?? null,
-    birthDate: params.birthDate.toISOString().slice(0, 10),
+    birthDate: formatStoredDateKey(params.birthDate),
     birthTime: params.birthTime ?? null,
-    todayDate: params.date.toISOString().slice(0, 10),
+    todayDate: getSeoulDateKey(params.date),
     score: params.fortune.score,
     grade: params.fortune.grade,
     recommendedActions: params.fortune.recommendedActions,
@@ -188,11 +196,14 @@ function buildCacheKey(params: {
     todayRelation: params.fortune.analysis.todayRelation,
     patternName: params.fortune.analysis.patternName,
     patternTentative: params.fortune.analysis.patternTentative,
+    referenceMode: params.fortune.analysis.referenceMode,
     yongShin: params.fortune.analysis.yongShin,
     giShin: params.fortune.analysis.giShin,
     usedNoonFallback: params.fortune.analysis.usedNoonFallback,
     calendarTypeInput: params.fortune.analysis.calendarTypeInput,
     calendarTypeResolved: params.fortune.analysis.calendarTypeResolved,
+    certainty: params.fortune.analysis.certainty,
+    uncertaintyMessage: params.fortune.analysis.uncertaintyMessage,
     model: resolveModel(),
   });
 }
@@ -249,7 +260,7 @@ export async function generateFortuneNarrativeOverride(params: {
           model: resolveModel(),
           store: false,
           instructions:
-            "You write Korean daily fortune copy for a saju chatbot. Facts are deterministic and must not be changed or invented. Return strict JSON only with keys headline, summary, detail, recommendedActions. headline must be one concise sentence. summary/detail must each be natural Korean prose, concise and concrete. recommendedActions must be an array of exactly 3 short imperative Korean sentences. Keep the intent of the base recommendedActions, do not contradict avoidToday or caution, and do not add risky or exaggerated advice. Mention uncertainty when birth time is unknown or calendarTypeInput is unknown. No markdown, no code fences, no emojis.",
+            "You write Korean daily fortune copy for a saju chatbot. Facts are deterministic and must not be changed or invented. Return strict JSON only with keys headline, summary, detail, recommendedActions. headline must be one concise sentence. summary/detail must each be natural Korean prose, concise and concrete. recommendedActions must be an array of exactly 3 short imperative Korean sentences. Keep the intent of the base recommendedActions, do not contradict avoidToday or caution, and do not add risky or exaggerated advice. Mention uncertainty when birth time is unknown, calendarTypeInput is unknown, or certainty is calendar-unknown. Never imply an exact manse or confirmed lunar/solar basis when certainty is calendar-unknown. If referenceMode is solar-lunar-blend, describe it as a shared trend across both calendar possibilities. No markdown, no code fences, no emojis.",
           input: buildPromptContext(params),
         }),
         cache: "no-store",

@@ -11,6 +11,7 @@ export type FortuneQuestionAnswer = {
 };
 
 const QUESTION_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
+const MAX_CACHE_ENTRIES = 200;
 const questionCache = new Map<string, { expiresAt: number; value: FortuneQuestionAnswer }>();
 
 const TOPIC_KEYWORDS: Record<QuestionTopic, string[]> = {
@@ -74,6 +75,14 @@ function pruneCache(): void {
       questionCache.delete(key);
     }
   }
+
+  if (questionCache.size <= MAX_CACHE_ENTRIES) {
+    return;
+  }
+
+  const overflow = questionCache.size - MAX_CACHE_ENTRIES;
+  const keys = [...questionCache.keys()].slice(0, overflow);
+  keys.forEach((key) => questionCache.delete(key));
 }
 
 function normalizeQuestion(question: string): string {

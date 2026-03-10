@@ -538,6 +538,7 @@ function createQuestionGuideCard(params: {
           "궁금한 일을 한 문장으로 적어 보시오.",
           "예: 오늘 고백해도 될까 / 오늘 돈 써도 괜찮아?",
           "자네에게는 오늘의 운세를 바탕으로 풀이해 드리겠소.",
+          "",
           ...buildQuestionUsageLines(
             params.usage ?? getQuestionUsageSummary(null),
             { includeShareHint: true },

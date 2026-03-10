@@ -394,6 +394,7 @@ async function createFortuneCard(profile: KakaoProfileLike, notice?: string): Pr
   return createBasicCard({
     title: "운세도령의 오늘 운세",
     description: descriptionLines.join("\n\n"),
+    thumbnailUrl: `${baseUrl}/character_result.png`,
     buttons: createFortuneButtons(detailUrl),
   });
 }
@@ -458,6 +459,7 @@ function createQuestionLimitCard(): KakaoBasicCardResponse {
 }
 
 function createFallbackGuideCard(hasProfile: boolean): KakaoBasicCardResponse {
+  const baseUrl = resolveAppBaseUrl();
   return createBasicCard({
     title: "운세도령",
     description: hasProfile
@@ -470,6 +472,7 @@ function createFallbackGuideCard(hasProfile: boolean): KakaoBasicCardResponse {
           "먼저 사주 정보를 기록해야 하오.",
           '"정보 재등록"을 눌러 등록 화면으로 들어가 주시오.',
         ].join("\n"),
+    thumbnailUrl: `${baseUrl}/character_not_question.png`,
   });
 }
 

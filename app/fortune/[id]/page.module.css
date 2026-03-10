@@ -355,6 +355,35 @@
   gap: 10px;
 }
 
+.reasonCard {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(145, 93, 40, 0.18);
+  background: linear-gradient(180deg, rgba(255, 248, 232, 0.92), rgba(250, 236, 206, 0.84));
+}
+
+.reasonRow + .reasonRow {
+  padding-top: 14px;
+  border-top: 1px solid rgba(145, 93, 40, 0.12);
+}
+
+.reasonLabel {
+  display: block;
+  margin-bottom: 8px;
+  color: #8a5a2a;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.reasonText {
+  margin: 0;
+  color: #412711;
+  line-height: 1.78;
+}
+
 .keywordChip {
   display: inline-flex;
   align-items: center;
@@ -571,6 +600,35 @@
   margin-top: 16px;
   font-size: 15px;
   line-height: 1.8;
+}
+
+.analysisInsightList {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.analysisInsightItem {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(145, 93, 40, 0.14);
+  background: rgba(255, 247, 231, 0.68);
+}
+
+.analysisInsightLabel {
+  display: block;
+  margin-bottom: 6px;
+  color: #8a5a2a;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.analysisInsightText {
+  margin: 0;
+  color: #412711;
+  font-size: 14px;
+  line-height: 1.74;
 }
 
 .analysisMetricGrid {

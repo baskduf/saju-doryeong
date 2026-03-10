@@ -196,6 +196,30 @@ export function FortuneSections({ fortune }: Props) {
           </section>
 
           <section className={styles.innerSection}>
+            <h2>오늘 풀이의 근거</h2>
+            <div className={styles.reasonCard}>
+              <div className={styles.reasonRow}>
+                <span className={styles.reasonLabel}>오늘 일진 작용</span>
+                <p className={styles.reasonText}>
+                  {renderHighlightedText(
+                    `오늘 일진 ${fortune.analysis.todayGanji}은 ${fortune.analysis.todayRelation} 흐름으로 들어오며, ${fortune.analysis.relationStrengthSummary}`,
+                  )}
+                </p>
+              </div>
+              <div className={styles.reasonRow}>
+                <span className={styles.reasonLabel}>용신·기신 흐름</span>
+                <p className={styles.reasonText}>{renderHighlightedText(fortune.analysis.directiveSummary)}</p>
+              </div>
+              {fortune.analysis.todayBranchInteractions.length > 0 ? (
+                <div className={styles.reasonRow}>
+                  <span className={styles.reasonLabel}>지지 상호작용</span>
+                  <p className={styles.reasonText}>{renderHighlightedText(fortune.analysis.todayBranchSummary)}</p>
+                </div>
+              ) : null}
+            </div>
+          </section>
+
+          <section className={styles.innerSection}>
             <h2>오늘의 키워드</h2>
             <div className={styles.keywordChips}>
               {fortune.keywords.map((keyword) => (
@@ -490,6 +514,16 @@ export function FortuneSections({ fortune }: Props) {
                     <span className={styles.analysisMetaPill}>일진 {fortune.analysis.todayGanji}</span>
                   </div>
                   <p className={styles.analysisLead}>{fortune.analysis.balanceSummary}</p>
+                  <div className={styles.analysisInsightList}>
+                    <div className={styles.analysisInsightItem}>
+                      <span className={styles.analysisInsightLabel}>오늘 일진 해석</span>
+                      <p className={styles.analysisInsightText}>{fortune.analysis.relationStrengthSummary}</p>
+                    </div>
+                    <div className={styles.analysisInsightItem}>
+                      <span className={styles.analysisInsightLabel}>용신·기신 적중</span>
+                      <p className={styles.analysisInsightText}>{fortune.analysis.directiveSummary}</p>
+                    </div>
+                  </div>
                 </article>
 
                 <div className={styles.analysisMetricGrid}>

@@ -74,12 +74,18 @@ export default function RegisterForm({ initialUserId, fromKakao, accessToken }: 
         }),
       });
 
-      const data = (await response.json()) as { error?: string };
+      const data = (await response.json()) as { error?: string; fortuneAccessToken?: string };
       if (!response.ok) {
         throw new Error(data.error || "등록 중 오류가 발생했습니다.");
       }
 
-      router.push(`/fortune/${encodeURIComponent(userId.trim())}?token=${encodeURIComponent(accessToken)}`);
+      if (!data.fortuneAccessToken) {
+        throw new Error("상세 운세 토큰을 받지 못했습니다.");
+      }
+
+      router.push(
+        `/fortune/${encodeURIComponent(userId.trim())}?token=${encodeURIComponent(data.fortuneAccessToken)}`,
+      );
       router.refresh();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "등록 중 오류가 발생했습니다.");

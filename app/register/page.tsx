@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import RegisterForm from "./RegisterForm";
 import styles from "./register.module.css";
 
@@ -14,6 +15,7 @@ export default function RegisterPage({ searchParams }: RegisterPageProps) {
   const initialUserId = searchParams?.userId?.trim() || "";
   const fromKakao = searchParams?.source?.trim() === "kakao";
   const accessToken = searchParams?.token?.trim() || "";
+  const canRegister = Boolean(initialUserId && accessToken);
 
   return (
     <main className={styles.page}>
@@ -33,7 +35,20 @@ export default function RegisterPage({ searchParams }: RegisterPageProps) {
         </div>
 
         <div className={styles.formPanel}>
-          <RegisterForm initialUserId={initialUserId} fromKakao={fromKakao} accessToken={accessToken} />
+          {canRegister ? (
+            <RegisterForm initialUserId={initialUserId} fromKakao={fromKakao} accessToken={accessToken} />
+          ) : (
+            <div className={styles.noticeCard}>
+              <p className={styles.noticeEyebrow}>Private Registration Link</p>
+              <h2 className={styles.noticeTitle}>카카오에서 받은 등록 링크로만 기록할 수 있습니다.</h2>
+              <p className={styles.noticeText}>
+                이 화면은 공개 등록창이 아닙니다. 카카오 채널에서 안내 카드의 등록 버튼을 눌러 다시 들어오십시오.
+              </p>
+              <Link href="/" className={styles.noticeLink}>
+                홈으로 돌아가기
+              </Link>
+            </div>
+          )}
         </div>
       </section>
     </main>

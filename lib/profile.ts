@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import { calculateTraditionalSajuChart, type CalendarType } from "./saju";
 
@@ -9,6 +9,10 @@ export const PROFILE_SELECT = {
   birthTime: true,
   calendarType: true,
   sajuData: true,
+  questionUsageDateKey: true,
+  questionUsageCount: true,
+  pendingQuestionInput: true,
+  pendingQuestionExpiresAt: true,
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.SajuProfileSelect;
@@ -23,6 +27,9 @@ export type UpsertProfileInput = {
   calendarType: CalendarType;
   sajuData: Prisma.InputJsonValue;
 };
+
+export const DAILY_QUESTION_LIMIT = 10;
+const QUESTION_MODE_TTL_MS = 90 * 1000;
 
 export function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -42,8 +49,7 @@ function coerceToText(value: unknown): string | undefined {
   }
 
   const record = value as Record<string, unknown>;
-  const keys = ["value", "origin", "date", "time", "expression"];
-  for (const key of keys) {
+  for (const key of ["value", "origin", "date", "time", "expression"]) {
     const picked = coerceToText(record[key]);
     if (picked) {
       return picked;
@@ -57,124 +63,13 @@ export function hasDatabaseUrl(): boolean {
   return Boolean(process.env.DATABASE_URL || process.env.POSTGRES_PRISMA_URL);
 }
 
-const QUESTION_MODE_TTL_MS = 90 * 1000;
-export const DAILY_QUESTION_LIMIT = 10;
-
-function asJsonRecord(value: unknown): Record<string, unknown> | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return undefined;
-  }
-  return value as Record<string, unknown>;
-}
-
-function getSeoulDateKey(date: Date = new Date()): string {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
+export function getSeoulDateKey(date: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Seoul",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  });
-
-  return formatter.format(date);
-}
-
-function getQuestionUsageMeta(profile: SajuProfileRecord | null): {
-  dateKey: string;
-  count: number;
-} {
-  const dateKey = getSeoulDateKey();
-  const root = asJsonRecord(profile?.sajuData);
-  const meta = asJsonRecord(root?.meta);
-  const storedDateKey = typeof meta?.questionUsageDate === "string" ? meta.questionUsageDate : undefined;
-  const storedCount = typeof meta?.questionUsageCount === "number" ? meta.questionUsageCount : 0;
-
-  if (storedDateKey !== dateKey || !Number.isFinite(storedCount) || storedCount < 0) {
-    return { dateKey, count: 0 };
-  }
-
-  return { dateKey, count: storedCount };
-}
-
-function buildSajuDataWithQuestionMode(
-  sajuData: unknown,
-  enabled: boolean,
-): Prisma.InputJsonValue {
-  const root = asJsonRecord(sajuData) ?? {};
-  const meta = asJsonRecord(root.meta) ?? {};
-
-  return {
-    ...root,
-    meta: {
-      ...meta,
-      pendingQuestionInput: enabled,
-      pendingQuestionExpiresAt: enabled ? new Date(Date.now() + QUESTION_MODE_TTL_MS).toISOString() : null,
-    },
-  };
-}
-
-export function hasPendingQuestionInput(profile: SajuProfileRecord | null): boolean {
-  const root = asJsonRecord(profile?.sajuData);
-  const meta = asJsonRecord(root?.meta);
-  if (!meta || meta.pendingQuestionInput !== true) {
-    return false;
-  }
-
-  const expiresAtText = typeof meta.pendingQuestionExpiresAt === "string" ? meta.pendingQuestionExpiresAt : undefined;
-  if (!expiresAtText) {
-    return false;
-  }
-
-  const expiresAt = Date.parse(expiresAtText);
-  return Number.isFinite(expiresAt) && expiresAt > Date.now();
-}
-
-export function getQuestionUsageSummary(profile: SajuProfileRecord | null): {
-  count: number;
-  remaining: number;
-  isLimited: boolean;
-} {
-  const { count } = getQuestionUsageMeta(profile);
-  const remaining = Math.max(0, DAILY_QUESTION_LIMIT - count);
-
-  return {
-    count,
-    remaining,
-    isLimited: remaining <= 0,
-  };
-}
-
-export async function setPendingQuestionInput(
-  profile: SajuProfileRecord,
-  enabled: boolean,
-): Promise<SajuProfileRecord> {
-  return prisma.sajuProfile.update({
-    where: { userId: profile.userId },
-    data: {
-      sajuData: buildSajuDataWithQuestionMode(profile.sajuData, enabled),
-    },
-    select: PROFILE_SELECT,
-  });
-}
-
-export async function incrementQuestionUsage(profile: SajuProfileRecord): Promise<SajuProfileRecord> {
-  const { dateKey, count } = getQuestionUsageMeta(profile);
-  const root = asJsonRecord(profile.sajuData) ?? {};
-  const meta = asJsonRecord(root.meta) ?? {};
-
-  return prisma.sajuProfile.update({
-    where: { userId: profile.userId },
-    data: {
-      sajuData: {
-        ...root,
-        meta: {
-          ...meta,
-          questionUsageDate: dateKey,
-          questionUsageCount: Math.min(DAILY_QUESTION_LIMIT, count + 1),
-        },
-      },
-    },
-    select: PROFILE_SELECT,
-  });
+  }).format(date);
 }
 
 function toIsoDateString(date: Date): string {
@@ -191,57 +86,53 @@ function parseBirthDate(value: unknown): { ok: true; date: Date } | { ok: false;
   }
 
   const raw = text.normalize("NFKC");
-  const isValidYmd = (year: number, month: number, day: number): Date | undefined => {
+  const asValidDate = (year: number, month: number, day: number): Date | undefined => {
     const date = new Date(Date.UTC(year, month - 1, day));
     const valid =
-      date.getUTCFullYear() === year && date.getUTCMonth() + 1 === month && date.getUTCDate() === day;
+      date.getUTCFullYear() === year &&
+      date.getUTCMonth() + 1 === month &&
+      date.getUTCDate() === day;
     return valid ? date : undefined;
   };
 
   const parts = raw.match(/\d+/g) ?? [];
-  for (let i = 0; i + 2 < parts.length; i += 1) {
-    const y = parts[i];
-    const m = parts[i + 1];
-    const d = parts[i + 2];
-    if (y.length === 4 && m.length <= 2 && d.length <= 2) {
-      const found = isValidYmd(Number(y), Number(m), Number(d));
-      if (found) {
-        return { ok: true, date: found };
+  for (let index = 0; index + 2 < parts.length; index += 1) {
+    const year = parts[index];
+    const month = parts[index + 1];
+    const day = parts[index + 2];
+    if (year.length === 4 && month.length <= 2 && day.length <= 2) {
+      const parsed = asValidDate(Number(year), Number(month), Number(day));
+      if (parsed) {
+        return { ok: true, date: parsed };
       }
     }
   }
 
   const digits = raw.replace(/[^\d]/g, "");
   if (digits.length === 8) {
-    const found = isValidYmd(Number(digits.slice(0, 4)), Number(digits.slice(4, 6)), Number(digits.slice(6, 8)));
-    if (found) {
-      return { ok: true, date: found };
-    }
-  } else if (digits.length > 8) {
-    for (let i = 0; i + 8 <= digits.length; i += 1) {
-      const chunk = digits.slice(i, i + 8);
-      const year = Number(chunk.slice(0, 4));
-      const month = Number(chunk.slice(4, 6));
-      const day = Number(chunk.slice(6, 8));
-      if (year < 1000 || year > 2999) continue;
-      const found = isValidYmd(year, month, day);
-      if (found) {
-        return { ok: true, date: found };
-      }
+    const parsed = asValidDate(
+      Number(digits.slice(0, 4)),
+      Number(digits.slice(4, 6)),
+      Number(digits.slice(6, 8)),
+    );
+    if (parsed) {
+      return { ok: true, date: parsed };
     }
   }
 
   return { ok: false, message: "birthDate 형식이 올바르지 않습니다. 예: 1995-10-21" };
 }
 
-function parseBirthTime(value: unknown): { ok: true; birthTime?: string } | { ok: false; message: string } {
+function parseBirthTime(
+  value: unknown,
+): { ok: true; birthTime?: string } | { ok: false; message: string } {
   if (value === undefined || value === null || value === "") {
     return { ok: true, birthTime: undefined };
   }
 
   const text = coerceToText(value);
   if (!text) {
-    return { ok: false, message: "birthTime은 문자열이어야 합니다. 예: 14:30" };
+    return { ok: false, message: "birthTime은 14:30 같은 형식이어야 합니다." };
   }
 
   const normalized = text.normalize("NFKC").toLowerCase();
@@ -254,52 +145,48 @@ function parseBirthTime(value: unknown): { ok: true; birthTime?: string } | { ok
     const hour = Number(timeMatch[1]);
     const minute = Number(timeMatch[2]);
     if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
-      return { ok: true, birthTime: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}` };
+      return {
+        ok: true,
+        birthTime: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
+      };
     }
+
     return { ok: false, message: "birthTime 시간 값이 유효하지 않습니다. 예: 00:00~23:59" };
   }
 
   const digits = normalized.replace(/[^\d]/g, "");
-  if (digits.length === 6) {
-    const hour = Number(digits.slice(0, 2));
-    const minute = Number(digits.slice(2, 4));
+  if (digits.length >= 3 && digits.length <= 4) {
+    const padded = digits.padStart(4, "0");
+    const hour = Number(padded.slice(0, 2));
+    const minute = Number(padded.slice(2, 4));
     if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
-      return { ok: true, birthTime: `${digits.slice(0, 2)}:${digits.slice(2, 4)}` };
+      return { ok: true, birthTime: `${padded.slice(0, 2)}:${padded.slice(2, 4)}` };
     }
-    return { ok: false, message: "birthTime 시간 값이 유효하지 않습니다. 예: 00:00~23:59" };
   }
 
-  if (digits.length < 3 || digits.length > 4) {
-    return { ok: false, message: "birthTime 형식이 올바르지 않습니다. 예: 14:30 또는 1430" };
-  }
-
-  const padded = digits.padStart(4, "0");
-  const hour = Number(padded.slice(0, 2));
-  const minute = Number(padded.slice(2, 4));
-  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
-    return { ok: false, message: "birthTime 시간 값이 유효하지 않습니다. 예: 00:00~23:59" };
-  }
-
-  return { ok: true, birthTime: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}` };
+  return { ok: false, message: "birthTime 형식이 올바르지 않습니다. 예: 14:30 또는 1430" };
 }
 
-function parseCalendarType(value: unknown): { ok: true; calendarType: CalendarType } | { ok: false; message: string } {
+function parseCalendarType(
+  value: unknown,
+): { ok: true; calendarType: CalendarType } | { ok: false; message: string } {
   const text = coerceToText(value);
   if (!text) {
-    return { ok: false, message: "calendarType(양력/음력/모른다)는 필수입니다." };
+    return { ok: false, message: "calendarType(양력/음력/모름)는 필수입니다." };
   }
 
   const normalized = text.normalize("NFKC").toLowerCase();
-  if (["solar", "양력", "양"].includes(normalized)) {
+  if (["solar", "양력"].includes(normalized)) {
     return { ok: true, calendarType: "solar" };
   }
-  if (["lunar", "음력", "음"].includes(normalized)) {
+  if (["lunar", "음력"].includes(normalized)) {
     return { ok: true, calendarType: "lunar" };
   }
-  if (["unknown", "모른다", "모름", "잘모름", "모르겠음"].includes(normalized)) {
+  if (["unknown", "모른다", "모름", "잘모름"].includes(normalized)) {
     return { ok: true, calendarType: "unknown" };
   }
-  return { ok: false, message: "calendarType은 양력/음력/모른다(또는 solar/lunar/unknown)만 허용됩니다." };
+
+  return { ok: false, message: "calendarType는 양력/음력/모름 또는 solar/lunar/unknown만 허용합니다." };
 }
 
 export function buildInitialSajuData(params: {
@@ -331,34 +218,6 @@ export function buildInitialSajuData(params: {
     fiveElements: chart.fiveElements,
     analysis: chart.analysis,
   };
-}
-
-function mergeSajuDataMeta(
-  previousSajuData: unknown,
-  nextSajuData: Prisma.InputJsonValue,
-): Prisma.InputJsonValue {
-  const previousRoot = asJsonRecord(previousSajuData) ?? {};
-  const nextRoot = asJsonRecord(nextSajuData);
-  const previousMeta = asJsonRecord(previousRoot.meta);
-  const nextMeta = asJsonRecord(nextRoot?.meta);
-
-  if (!nextRoot) {
-    return nextSajuData;
-  }
-
-  if (!previousMeta && !nextMeta) {
-    return nextSajuData;
-  }
-
-  const mergedRoot: Prisma.InputJsonObject = {
-    ...(nextRoot as Prisma.InputJsonObject),
-    meta: {
-      ...(previousMeta ?? {}),
-      ...(nextMeta ?? {}),
-    } as Prisma.InputJsonObject,
-  };
-
-  return mergedRoot;
 }
 
 export function parseRegistrationFields(input: {
@@ -405,10 +264,71 @@ export async function findProfileByUserId(userId: string): Promise<SajuProfileRe
   });
 }
 
-export async function upsertProfile(input: UpsertProfileInput): Promise<SajuProfileRecord> {
-  const existingProfile = await findProfileByUserId(input.userId);
-  const mergedSajuData = mergeSajuDataMeta(existingProfile?.sajuData, input.sajuData);
+export function hasPendingQuestionInput(profile: SajuProfileRecord | null): boolean {
+  if (!profile?.pendingQuestionInput || !profile.pendingQuestionExpiresAt) {
+    return false;
+  }
 
+  return profile.pendingQuestionExpiresAt.getTime() > Date.now();
+}
+
+export function getQuestionUsageSummary(profile: SajuProfileRecord | null): {
+  count: number;
+  remaining: number;
+  isLimited: boolean;
+} {
+  const today = getSeoulDateKey();
+  const count =
+    profile?.questionUsageDateKey === today && Number.isFinite(profile.questionUsageCount)
+      ? Math.max(0, profile.questionUsageCount)
+      : 0;
+
+  return {
+    count,
+    remaining: Math.max(0, DAILY_QUESTION_LIMIT - count),
+    isLimited: count >= DAILY_QUESTION_LIMIT,
+  };
+}
+
+export async function setPendingQuestionInput(
+  profile: SajuProfileRecord,
+  enabled: boolean,
+): Promise<SajuProfileRecord> {
+  return prisma.sajuProfile.update({
+    where: { userId: profile.userId },
+    data: {
+      pendingQuestionInput: enabled,
+      pendingQuestionExpiresAt: enabled ? new Date(Date.now() + QUESTION_MODE_TTL_MS) : null,
+    },
+    select: PROFILE_SELECT,
+  });
+}
+
+export async function incrementQuestionUsage(profile: SajuProfileRecord): Promise<SajuProfileRecord> {
+  const dateKey = getSeoulDateKey();
+
+  await prisma.$queryRaw<{ userId: string }[]>(Prisma.sql`
+    UPDATE "SajuProfile"
+    SET
+      "questionUsageDateKey" = ${dateKey},
+      "questionUsageCount" = CASE
+        WHEN "questionUsageDateKey" = ${dateKey}
+          THEN LEAST(${DAILY_QUESTION_LIMIT}, COALESCE("questionUsageCount", 0) + 1)
+        ELSE 1
+      END
+    WHERE "userId" = ${profile.userId}
+    RETURNING "userId"
+  `);
+
+  const updatedProfile = await findProfileByUserId(profile.userId);
+  if (!updatedProfile) {
+    throw new Error(`Profile not found after question usage update: ${profile.userId}`);
+  }
+
+  return updatedProfile;
+}
+
+export async function upsertProfile(input: UpsertProfileInput): Promise<SajuProfileRecord> {
   return prisma.sajuProfile.upsert({
     where: { userId: input.userId },
     update: {
@@ -416,7 +336,7 @@ export async function upsertProfile(input: UpsertProfileInput): Promise<SajuProf
       birthDate: input.birthDate,
       birthTime: input.birthTime,
       calendarType: input.calendarType,
-      sajuData: mergedSajuData,
+      sajuData: input.sajuData,
     },
     create: {
       userId: input.userId,
@@ -424,7 +344,7 @@ export async function upsertProfile(input: UpsertProfileInput): Promise<SajuProf
       birthDate: input.birthDate,
       birthTime: input.birthTime,
       calendarType: input.calendarType,
-      sajuData: mergedSajuData,
+      sajuData: input.sajuData,
     },
     select: PROFILE_SELECT,
   });

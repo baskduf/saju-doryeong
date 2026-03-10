@@ -54,6 +54,49 @@
   backdrop-filter: blur(10px);
 }
 
+.noticeCard {
+  display: grid;
+  gap: 14px;
+  padding: 24px 18px 22px;
+}
+
+.noticeEyebrow {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #9e6a24;
+}
+
+.noticeTitle {
+  margin: 0;
+  font-size: 1.32rem;
+  line-height: 1.45;
+  color: #2e1c11;
+}
+
+.noticeText {
+  margin: 0;
+  color: #6d5236;
+  line-height: 1.7;
+}
+
+.noticeLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  width: fit-content;
+  padding: 0 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(117, 80, 34, 0.2);
+  color: #6c4618;
+  text-decoration: none;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.78);
+}
+
 .form {
   display: grid;
   gap: 18px;

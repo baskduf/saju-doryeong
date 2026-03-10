@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { generateDailyFortuneWithNarrative } from "../../../lib/fortune";
-import { verifyProfileAccessToken } from "../../../lib/access-token";
+import { verifyFortuneAccessToken } from "../../../lib/access-token";
 import { FortuneSections } from "./FortuneSections";
 import styles from "./page.module.css";
 
@@ -77,14 +77,13 @@ export default async function FortuneDetailPage({ params, searchParams }: PagePr
   const accessToken = searchParams?.token?.trim();
 
   if (id !== SAMPLE_PROFILE.userId) {
-    const tokenCheck = verifyProfileAccessToken(accessToken, id);
+    const tokenCheck = verifyFortuneAccessToken(accessToken, id);
     if (!tokenCheck.ok) {
       notFound();
     }
   }
 
   const storedProfile = id === SAMPLE_PROFILE.userId ? null : await findStoredProfile(id);
-
   const isSampleProfile = !storedProfile && id === SAMPLE_PROFILE.userId;
   const profile = storedProfile ?? (isSampleProfile ? SAMPLE_PROFILE : null);
 
@@ -103,21 +102,21 @@ export default async function FortuneDetailPage({ params, searchParams }: PagePr
     profileName: profile.name ?? undefined,
   });
 
-  const birthTimeLabel = profile.birthTime ?? "미상";
-  const calendarLabel = calendarTypeLabel(profile.calendarType);
-
   return (
     <main className={styles.container}>
       <section className={styles.paper}>
         <header className={styles.hero}>
           <div className={styles.heroText}>
-            <p className={styles.label}>{isSampleProfile ? "운세도령 샘플 풀이" : "운세도령 상세 풀이"}</p>
-            <h1 className={styles.title}>{profile.name ? `${profile.name} 님의 금일 점괘` : "금일 점괘"}</h1>
+            <p className={styles.label}>{isSampleProfile ? "운세도령 샘플 결과" : "운세도령 상세 결과"}</p>
+            <h1 className={styles.title}>{profile.name ? `${profile.name} 님의 금일 운세` : "금일 운세"}</h1>
             <p className={styles.date}>{formatKoreanDate(today)}</p>
             <p className={styles.birthMeta}>
-              출생 {formatBirthDate(profile.birthDate)} · {birthTimeLabel} · {calendarLabel}
+              출생 {formatBirthDate(profile.birthDate)} · {profile.birthTime ?? "미상"} ·{" "}
+              {calendarTypeLabel(profile.calendarType)}
             </p>
-            {isSampleProfile ? <p className={styles.birthMeta}>DB 없이 확인할 수 있는 데모 프로필입니다.</p> : null}
+            {isSampleProfile ? (
+              <p className={styles.birthMeta}>DB 없이 확인할 수 있는 데모 프로필입니다.</p>
+            ) : null}
           </div>
           <div className={styles.heroVisual}>
             <Image src="/card.png" alt="운세 카드 일러스트" width={360} height={360} className={styles.heroCard} priority />

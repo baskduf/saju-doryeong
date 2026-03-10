@@ -16,6 +16,7 @@ import {
   setPendingQuestionInput,
   upsertProfile,
 } from "../../../lib/profile";
+import { createProfileAccessToken } from "../../../lib/access-token";
 
 type KakaoBasicCardResponse = {
   version: "2.0";
@@ -180,6 +181,7 @@ function createRegistrationUrl(userId?: string): string {
   const url = new URL(`${resolveAppBaseUrl()}/register`);
   if (userId) {
     url.searchParams.set("userId", userId);
+    url.searchParams.set("token", createProfileAccessToken(userId));
   }
   url.searchParams.set("source", "kakao");
   return url.toString();
@@ -380,7 +382,9 @@ async function createFortuneCard(profile: KakaoProfileLike, notice?: string): Pr
   });
 
   const baseUrl = resolveAppBaseUrl();
-  const detailUrl = `${baseUrl}/fortune/${encodeURIComponent(profile.userId)}`;
+  const detailUrl = `${baseUrl}/fortune/${encodeURIComponent(profile.userId)}?token=${encodeURIComponent(
+    createProfileAccessToken(profile.userId),
+  )}`;
   const titleName = profile.name ? `${profile.name}님` : "그대";
 
   const descriptionLines = [
@@ -415,7 +419,9 @@ async function createQuestionAnswerCard(profile: SajuProfileRecord, question: st
   });
 
   const baseUrl = resolveAppBaseUrl();
-  const detailUrl = `${baseUrl}/fortune/${encodeURIComponent(profile.userId)}`;
+  const detailUrl = `${baseUrl}/fortune/${encodeURIComponent(profile.userId)}?token=${encodeURIComponent(
+    createProfileAccessToken(profile.userId),
+  )}`;
   const usage = getQuestionUsageSummary(profile);
 
   return createBasicCard({

@@ -7,11 +7,12 @@ import styles from "./register.module.css";
 type RegisterFormProps = {
   initialUserId: string;
   fromKakao: boolean;
+  accessToken: string;
 };
 
 type CalendarType = "solar" | "lunar" | "unknown";
 
-export default function RegisterForm({ initialUserId, fromKakao }: RegisterFormProps) {
+export default function RegisterForm({ initialUserId, fromKakao, accessToken }: RegisterFormProps) {
   const router = useRouter();
   const [userId] = useState(initialUserId);
   const [name, setName] = useState("");
@@ -33,6 +34,11 @@ export default function RegisterForm({ initialUserId, fromKakao }: RegisterFormP
 
     if (!userId.trim()) {
       setError("카카오 사용자 ID가 필요합니다.");
+      return;
+    }
+
+    if (!accessToken.trim()) {
+      setError("유효한 등록 링크로 다시 들어와 주세요.");
       return;
     }
 
@@ -59,6 +65,7 @@ export default function RegisterForm({ initialUserId, fromKakao }: RegisterFormP
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          accessToken,
           userId: userId.trim(),
           name,
           birthDate,
@@ -72,7 +79,7 @@ export default function RegisterForm({ initialUserId, fromKakao }: RegisterFormP
         throw new Error(data.error || "등록 중 오류가 발생했습니다.");
       }
 
-      router.push(`/fortune/${encodeURIComponent(userId.trim())}`);
+      router.push(`/fortune/${encodeURIComponent(userId.trim())}?token=${encodeURIComponent(accessToken)}`);
       router.refresh();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "등록 중 오류가 발생했습니다.");

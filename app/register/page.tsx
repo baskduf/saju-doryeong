@@ -6,12 +6,14 @@ type RegisterPageProps = {
   searchParams?: {
     userId?: string;
     source?: string;
+    token?: string;
   };
 };
 
 export default function RegisterPage({ searchParams }: RegisterPageProps) {
   const initialUserId = searchParams?.userId?.trim() || "";
   const fromKakao = searchParams?.source?.trim() === "kakao";
+  const accessToken = searchParams?.token?.trim() || "";
 
   return (
     <main className={styles.page}>
@@ -31,7 +33,7 @@ export default function RegisterPage({ searchParams }: RegisterPageProps) {
         </div>
 
         <div className={styles.formPanel}>
-          <RegisterForm initialUserId={initialUserId} fromKakao={fromKakao} />
+          <RegisterForm initialUserId={initialUserId} fromKakao={fromKakao} accessToken={accessToken} />
         </div>
       </section>
     </main>

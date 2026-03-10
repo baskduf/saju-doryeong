@@ -1,11 +1,15 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { generateDailyFortuneWithNarrative } from "../../../lib/fortune";
+import { verifyProfileAccessToken } from "../../../lib/access-token";
 import { FortuneSections } from "./FortuneSections";
 import styles from "./page.module.css";
 
 type PageProps = {
   params: { id: string };
+  searchParams?: {
+    token?: string;
+  };
 };
 
 const SAMPLE_PROFILE = {
@@ -68,8 +72,17 @@ async function findStoredProfile(userId: string) {
   });
 }
 
-export default async function FortuneDetailPage({ params }: PageProps) {
+export default async function FortuneDetailPage({ params, searchParams }: PageProps) {
   const { id } = params;
+  const accessToken = searchParams?.token?.trim();
+
+  if (id !== SAMPLE_PROFILE.userId) {
+    const tokenCheck = verifyProfileAccessToken(accessToken, id);
+    if (!tokenCheck.ok) {
+      notFound();
+    }
+  }
+
   const storedProfile = id === SAMPLE_PROFILE.userId ? null : await findStoredProfile(id);
 
   const isSampleProfile = !storedProfile && id === SAMPLE_PROFILE.userId;

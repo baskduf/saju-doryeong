@@ -22,11 +22,21 @@ import {
 } from "../../../lib/access-token";
 import { upsertFortuneShareSnapshot } from "../../../lib/fortune-share";
 
-type KakaoCardButton = {
-  action: "webLink";
-  label: string;
-  webLinkUrl: string;
-};
+type KakaoCardButton =
+  | {
+      action: "webLink";
+      label: string;
+      webLinkUrl: string;
+    }
+  | {
+      action: "message";
+      label: string;
+      messageText: string;
+    }
+  | {
+      action: "share";
+      label: string;
+    };
 
 type KakaoQuickReply = {
   label: string;
@@ -63,6 +73,7 @@ type KakaoProfileLike = {
 const REREGISTER_COMMAND = "정보 재등록";
 const FORTUNE_COMMAND = "오늘의 운세";
 const QUESTION_COMMAND = "운세 질문";
+const SHARE_COMMAND = "친구에게 공유하기";
 
 const DEFAULT_QUICK_REPLIES: KakaoQuickReply[] = [
   { label: REREGISTER_COMMAND, action: "message", messageText: REREGISTER_COMMAND },
@@ -154,7 +165,7 @@ function createShareUrl(snapshotId: string, token: string): string {
   return url.toString();
 }
 
-function createFortuneButtons(detailUrl: string, shareUrl: string): KakaoCardButton[] {
+function createFortuneButtons(detailUrl: string): KakaoCardButton[] {
   return [
     {
       action: "webLink",
@@ -162,8 +173,22 @@ function createFortuneButtons(detailUrl: string, shareUrl: string): KakaoCardBut
       webLinkUrl: detailUrl,
     },
     {
+      action: "message",
+      label: SHARE_COMMAND,
+      messageText: SHARE_COMMAND,
+    },
+  ];
+}
+
+function createSharePromptButtons(shareUrl: string): KakaoCardButton[] {
+  return [
+    {
+      action: "share",
+      label: SHARE_COMMAND,
+    },
+    {
       action: "webLink",
-      label: "친구에게 보여줄 링크",
+      label: "공유 링크 보기",
       webLinkUrl: shareUrl,
     },
   ];
@@ -348,7 +373,12 @@ function extractKakaoActionParams(payload: unknown): {
 }
 
 function isReservedUtterance(utterance?: string): boolean {
-  return utterance === REREGISTER_COMMAND || utterance === FORTUNE_COMMAND || utterance === QUESTION_COMMAND;
+  return (
+    utterance === REREGISTER_COMMAND ||
+    utterance === FORTUNE_COMMAND ||
+    utterance === QUESTION_COMMAND ||
+    utterance === SHARE_COMMAND
+  );
 }
 
 function createUnauthorizedSkillResponse(): KakaoBasicCardResponse {
@@ -393,13 +423,6 @@ async function createFortuneCard(profile: KakaoProfileLike, notice?: string): Pr
     sajuData: profile.sajuData,
     date: now,
   });
-  const shared = await upsertFortuneShareSnapshot({
-    userId: profile.userId,
-    profileName: profile.name,
-    fortune,
-    date: now,
-  });
-
   const descriptionLines = [
     profile.name ? `${profile.name} 님, ${fortune.headline}` : fortune.headline,
     notice,
@@ -412,10 +435,7 @@ async function createFortuneCard(profile: KakaoProfileLike, notice?: string): Pr
     title: "운세도령의 오늘 운세",
     description: descriptionLines.join("\n\n"),
     thumbnailUrl: `${resolveAppBaseUrl()}/character_result.png`,
-    buttons: createFortuneButtons(
-      createFortuneUrl(profile.userId),
-      createShareUrl(shared.snapshotId, shared.token),
-    ),
+    buttons: createFortuneButtons(createFortuneUrl(profile.userId)),
   });
 }
 
@@ -435,12 +455,6 @@ async function createQuestionAnswerCard(profile: SajuProfileRecord, question: st
     profileName: profile.name ?? undefined,
     date: now,
   });
-  const shared = await upsertFortuneShareSnapshot({
-    userId: profile.userId,
-    profileName: profile.name,
-    fortune,
-    date: now,
-  });
   const usage = getQuestionUsageSummary(profile);
 
   return createBasicCard({
@@ -450,11 +464,38 @@ async function createQuestionAnswerCard(profile: SajuProfileRecord, question: st
       "",
       `오늘의 운세 질문은 하루 ${DAILY_QUESTION_LIMIT}회까지 가능하오. 남은 횟수: ${usage.remaining}회`,
     ].join("\n"),
-    buttons: createFortuneButtons(
-      createFortuneUrl(profile.userId),
-      createShareUrl(shared.snapshotId, shared.token),
-    ),
+    buttons: createFortuneButtons(createFortuneUrl(profile.userId)),
     quickReplies: createQuestionQuickReplies(),
+  });
+}
+
+async function createSharePromptCard(profile: KakaoProfileLike): Promise<KakaoBasicCardResponse> {
+  const now = new Date();
+  const fortune = generateDailyFortune({
+    userId: profile.userId,
+    birthDate: profile.birthDate,
+    birthTime: profile.birthTime ?? undefined,
+    calendarType: profile.calendarType as "solar" | "lunar" | "unknown",
+    sajuData: profile.sajuData,
+    date: now,
+  });
+  const shared = await upsertFortuneShareSnapshot({
+    userId: profile.userId,
+    profileName: profile.name,
+    fortune,
+    date: now,
+  });
+
+  return createBasicCard({
+    title: "운세도령의 공유 카드",
+    description: [
+      profile.name ? `${profile.name} 님의 오늘 운세를 나눌 수 있소.` : "오늘의 운세를 나눌 수 있소.",
+      `운세 점수: ${fortune.score}점(${fortune.grade})`,
+      fortune.headline,
+      fortune.summary,
+    ].join("\n\n"),
+    thumbnailUrl: `${resolveAppBaseUrl()}/character_result.png`,
+    buttons: createSharePromptButtons(createShareUrl(shared.snapshotId, shared.token)),
   });
 }
 
@@ -578,6 +619,18 @@ export async function POST(request: NextRequest) {
           remaining: profile ? questionUsage.remaining : undefined,
         }),
       );
+    }
+
+    if (!registrationParams.hasAny && utterance === SHARE_COMMAND) {
+      if (!profile) {
+        return NextResponse.json(createRegistrationGuideCard(undefined, undefined, userId));
+      }
+
+      if (pendingQuestionInput) {
+        await setPendingQuestionInput(profile, false);
+      }
+
+      return NextResponse.json(await createSharePromptCard(profile));
     }
 
     const shouldHandleRegistration = !profile ? registrationParams.hasAny : Boolean(registrationParams.birthDate);

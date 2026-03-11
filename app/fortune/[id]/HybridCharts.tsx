@@ -16,7 +16,7 @@ type Props = {
   referenceDate: string;
 };
 
-type PalaceCode = "乾" | "坎" | "艮" | "兑" | "中" | "震" | "坤" | "离" | "巽";
+type PalaceCode = "乾" | "坎" | "艮" | "兌" | "中" | "震" | "坤" | "離" | "巽";
 
 type PalaceToken = {
   key: string;
@@ -32,13 +32,13 @@ const KUSEONG_PALACES: Array<Array<{ code: PalaceCode; label: string; hanja: str
     { code: "艮", label: "동북", hanja: "간궁" },
   ],
   [
-    { code: "兑", label: "정서", hanja: "태궁" },
+    { code: "兌", label: "정서", hanja: "태궁" },
     { code: "中", label: "중앙", hanja: "중궁" },
     { code: "震", label: "정동", hanja: "진궁" },
   ],
   [
     { code: "坤", label: "서남", hanja: "곤궁" },
-    { code: "离", label: "정남", hanja: "리궁" },
+    { code: "離", label: "정남", hanja: "리궁" },
     { code: "巽", label: "동남", hanja: "손궁" },
   ],
 ];
@@ -47,7 +47,7 @@ const CATEGORY_REACTION_ORDER = [
   { key: "work", label: "일과" },
   { key: "money", label: "재물" },
   { key: "relationship", label: "관계" },
-  { key: "health", label: "회복" },
+  { key: "health", label: "건강" },
 ] as const;
 
 const ELEMENT_LABELS = {
@@ -60,8 +60,8 @@ const ELEMENT_LABELS = {
 
 const YUKHYO_QUESTIONS = [
   "오늘 연락 보내도 될까?",
-  "오늘 계약해도 될까?",
-  "오늘 쉬어야 할까?",
+  "오늘 계약을 진행해도 될까?",
+  "오늘은 쉬어 가는 편이 나을까?",
 ];
 
 const NETWORK_NODE_POSITIONS: Record<YukhyoTrigramNode["id"], { x: number; y: number }> = {
@@ -117,6 +117,7 @@ function buildPalaceTokens(fortune: DailyFortune): Map<PalaceCode, PalaceToken[]
     if (!star.position) {
       continue;
     }
+
     const code = star.position as PalaceCode;
     tokenMap.set(code, [
       ...(tokenMap.get(code) ?? []),
@@ -209,7 +210,7 @@ function YukhyoNetwork(props: {
       <svg
         viewBox={props.hasChanged ? "0 0 400 260" : "0 0 220 260"}
         className={styles.networkSvg}
-        aria-label="육효 오행 관계망"
+        aria-label="육효 관계망"
       >
         <defs>
           <marker
@@ -268,10 +269,9 @@ function YukhyoNetwork(props: {
 
       {visibleNodes.map((node) => {
         const position = NETWORK_NODE_POSITIONS[node.id];
-        const leftPercent = props.hasChanged
-          ? `${(position.x / 400) * 100}%`
-          : "50%";
+        const leftPercent = props.hasChanged ? `${(position.x / 400) * 100}%` : "50%";
         const topPercent = `${(position.y / 260) * 100}%`;
+
         return (
           <div
             key={node.id}
@@ -291,7 +291,101 @@ function YukhyoNetwork(props: {
   );
 }
 
-export function HybridCharts({ fortune, userId, referenceDate }: Props) {
+export function KuseongChartSection({ fortune }: Pick<Props, "fortune">) {
+  const kuseong = fortune.analysis.hybrid.kuseong;
+  const palaceTokens = buildPalaceTokens(fortune);
+
+  if (!kuseong) {
+    return null;
+  }
+
+  return (
+    <article className={styles.graphCard}>
+      <div className={styles.graphHeader}>
+        <div>
+          <p className={styles.graphEyebrow}>Kuseong</p>
+          <h3>구성 구궁도</h3>
+        </div>
+        <div className={styles.graphBadgeRow}>
+          <span className={styles.graphBadge}>중점: {kuseongFocusLabel(kuseong.focusCategories)}</span>
+          <span className={styles.graphBadge}>톤: {kuseongToneLabel(kuseong.narrativeTone)}</span>
+          <span className={styles.graphBadge}>길문: {kuseong.stars.currentDay.gate}</span>
+        </div>
+      </div>
+      <p className={styles.graphCopy}>
+        구성은 방위의 흐름을 보는 지도이니, 본명성은 바탕을 깔고 월성과 일성은 오늘의 결을 덧입힙니다.
+      </p>
+      <div className={styles.graphSubsection}>
+        <p className={styles.graphSectionTitle}>3x3 구궁도</p>
+        <div className={styles.kuseongBoardViewport}>
+          <div className={styles.kuseongBoard}>
+            {KUSEONG_PALACES.flat().map((palace) => (
+              <div key={palace.code} className={styles.kuseongCell}>
+                <div className={styles.kuseongCellHeader}>
+                  <span>{palace.label}</span>
+                  <span>{palace.hanja}</span>
+                </div>
+                <div className={styles.kuseongCellBody}>
+                  {(palaceTokens.get(palace.code) ?? []).map((token) => (
+                    <div
+                      key={token.key}
+                      className={`${styles.kuseongToken} ${styles[`kuseongToken${token.tone[0].toUpperCase()}${token.tone.slice(1)}`]}`.trim()}
+                    >
+                      <span>{token.label}</span>
+                      <small>{token.meta}</small>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className={styles.graphSubsection}>
+        <p className={styles.graphSectionTitle}>구성 보정 지표</p>
+        <div className={styles.graphMetricGrid}>
+          <div className={styles.graphMetricCard}>
+            <span>본명성 관계</span>
+            <strong>{signedValue(kuseong.breakdown.natalRelationScore)}</strong>
+          </div>
+          <div className={styles.graphMetricCard}>
+            <span>월성 관계</span>
+            <strong>{signedValue(kuseong.breakdown.monthRelationScore)}</strong>
+          </div>
+          <div className={styles.graphMetricCard}>
+            <span>기문운</span>
+            <strong>
+              {kuseong.qiMenLuckLabel} / {signedValue(kuseong.breakdown.qiMenLuckScore)}
+            </strong>
+          </div>
+          <div className={styles.graphMetricCard}>
+            <span>비성 흐름</span>
+            <strong>
+              {kuseong.stars.currentMonth.number} {kuseong.stars.currentMonth.positionLabel} -&gt;{" "}
+              {kuseong.stars.currentDay.number} {kuseong.stars.currentDay.positionLabel}
+            </strong>
+          </div>
+        </div>
+        <div className={styles.reactionRow}>
+          {CATEGORY_REACTION_ORDER.map((item) => {
+            const value = kuseong.categoryAdjustments[item.key];
+            return (
+              <div
+                key={item.key}
+                className={`${styles.reactionChip} ${value >= 0 ? styles.reactionChipPositive : styles.reactionChipNegative}`.trim()}
+              >
+                <span>{item.label}</span>
+                <strong>{signedValue(value)}</strong>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+export function YukhyoChartSection({ userId, referenceDate }: Pick<Props, "userId" | "referenceDate">) {
   const [question, setQuestion] = useState(YUKHYO_QUESTIONS[0]);
   const deferredQuestion = useDeferredValue(question);
   const normalizedQuestion = deferredQuestion.trim() || YUKHYO_QUESTIONS[0];
@@ -301,170 +395,97 @@ export function HybridCharts({ fortune, userId, referenceDate }: Props) {
     date: new Date(referenceDate),
   });
 
-  const kuseong = fortune.analysis.hybrid.kuseong;
-  const palaceTokens = buildPalaceTokens(fortune);
+  return (
+    <article className={styles.graphCard}>
+      <div className={styles.graphHeader}>
+        <div>
+          <p className={styles.graphEyebrow}>Yukhyo</p>
+          <h3>육효 구조도와 관계망</h3>
+        </div>
+        <span className={`${styles.graphTrendBadge} ${trendClassName(oracle.answerTrend)}`}>
+          {trendLabel(oracle.answerTrend)}
+        </span>
+      </div>
+      <p className={styles.graphCopy}>
+        육효는 질문에 따라 괘상이 달라지므로, 질문 문장과 변효를 함께 읽는 편이 정확합니다.
+      </p>
+      <div className={styles.graphQuestionRow}>
+        {YUKHYO_QUESTIONS.map((item) => (
+          <button
+            key={item}
+            type="button"
+            className={`${styles.graphQuestionChip} ${question === item ? styles.graphQuestionChipActive : ""}`.trim()}
+            onClick={() => setQuestion(item)}
+          >
+            {item}
+          </button>
+        ))}
+      </div>
+      <label className={styles.graphInputLabel} htmlFor="yukhyo-question-input">
+        질문 직접 입력
+      </label>
+      <input
+        id="yukhyo-question-input"
+        className={styles.graphInput}
+        value={question}
+        maxLength={60}
+        onChange={(event) => setQuestion(event.target.value)}
+        placeholder="예: 오늘 연락 보내도 될까?"
+      />
+      <div className={styles.graphSubsection}>
+        <p className={styles.graphSectionTitle}>괘상 구조도</p>
+        <div className={styles.towerRow}>
+          <HexagramTower title={oracle.primaryHexagram} bits={oracle.primaryBits} movingLines={oracle.movingLines} />
+          {oracle.changedBits ? (
+            <HexagramTower
+              title={oracle.changedHexagram ?? "변괘"}
+              bits={oracle.changedBits}
+              movingLines={oracle.movingLines}
+            />
+          ) : (
+            <div className={styles.hexagramStableCard}>
+              <p className={styles.graphSectionTitle}>변화 없음</p>
+              <p>동효가 적어 본괘의 흐름이 그대로 이어지는 편입니다.</p>
+            </div>
+          )}
+        </div>
+      </div>
+      <div className={styles.graphSubsection}>
+        <p className={styles.graphSectionTitle}>내외괘 오행 관계망</p>
+        <YukhyoNetwork
+          nodes={oracle.network.nodes}
+          edges={oracle.network.edges}
+          hasChanged={Boolean(oracle.changedBits)}
+        />
+      </div>
+      <div className={styles.graphMetricGrid}>
+        <div className={styles.graphMetricCard}>
+          <span>괘 관계</span>
+          <strong>{signedValue(oracle.breakdown.relationScore)}</strong>
+        </div>
+        <div className={styles.graphMetricCard}>
+          <span>동효 보정</span>
+          <strong>{signedValue(oracle.breakdown.movingModifier)}</strong>
+        </div>
+        <div className={styles.graphMetricCard}>
+          <span>적용 점수</span>
+          <strong>{signedValue(oracle.breakdown.appliedScore)}</strong>
+        </div>
+        <div className={styles.graphMetricCard}>
+          <span>움직이는 효</span>
+          <strong>{oracle.movingLines.length > 0 ? oracle.movingLines.join(", ") : "없음"}</strong>
+        </div>
+      </div>
+      <p className={styles.graphFootnote}>{oracle.sourceLine}</p>
+    </article>
+  );
+}
 
+export function HybridCharts({ fortune, userId, referenceDate }: Props) {
   return (
     <div className={styles.graphStack}>
-      {kuseong ? (
-        <article className={styles.graphCard}>
-          <div className={styles.graphHeader}>
-            <div>
-              <p className={styles.graphEyebrow}>Kuseong</p>
-              <h3>구성 구궁도</h3>
-            </div>
-            <div className={styles.graphBadgeRow}>
-              <span className={styles.graphBadge}>중점: {kuseongFocusLabel(kuseong.focusCategories)}</span>
-              <span className={styles.graphBadge}>톤: {kuseongToneLabel(kuseong.narrativeTone)}</span>
-              <span className={styles.graphBadge}>길문: {kuseong.stars.currentDay.gate}</span>
-            </div>
-          </div>
-          <p className={styles.graphCopy}>
-            구성은 방위의 흐름을 보는 지도이니, 본명성은 바탕을 깔고 당월성과 일성은 오늘의 길을 점합니다.
-          </p>
-          <div className={styles.graphSubsection}>
-            <p className={styles.graphSectionTitle}>3x3 구궁도</p>
-            <div className={styles.kuseongBoard}>
-              {KUSEONG_PALACES.flat().map((palace) => (
-                <div key={palace.code} className={styles.kuseongCell}>
-                  <div className={styles.kuseongCellHeader}>
-                    <span>{palace.label}</span>
-                    <span>{palace.hanja}</span>
-                  </div>
-                  <div className={styles.kuseongCellBody}>
-                    {(palaceTokens.get(palace.code) ?? []).map((token) => (
-                      <div
-                        key={token.key}
-                        className={`${styles.kuseongToken} ${styles[`kuseongToken${token.tone[0].toUpperCase()}${token.tone.slice(1)}`]}`.trim()}
-                      >
-                        <span>{token.label}</span>
-                        <small>{token.meta}</small>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className={styles.graphSubsection}>
-            <p className={styles.graphSectionTitle}>흐름 해석</p>
-            <div className={styles.graphMetricGrid}>
-              <div className={styles.graphMetricCard}>
-                <span>본명성 관계</span>
-                <strong>{signedValue(kuseong.breakdown.natalRelationScore)}</strong>
-              </div>
-              <div className={styles.graphMetricCard}>
-                <span>당월성 관계</span>
-                <strong>{signedValue(kuseong.breakdown.monthRelationScore)}</strong>
-              </div>
-              <div className={styles.graphMetricCard}>
-                <span>기문운</span>
-                <strong>
-                  {kuseong.qiMenLuckLabel} / {signedValue(kuseong.breakdown.qiMenLuckScore)}
-                </strong>
-              </div>
-              <div className={styles.graphMetricCard}>
-                <span>비성 흐름</span>
-                <strong>
-                  {kuseong.stars.currentMonth.number} {kuseong.stars.currentMonth.positionLabel} -&gt;{" "}
-                  {kuseong.stars.currentDay.number} {kuseong.stars.currentDay.positionLabel}
-                </strong>
-              </div>
-            </div>
-            <div className={styles.reactionRow}>
-              {CATEGORY_REACTION_ORDER.map((item) => {
-                const value = kuseong.categoryAdjustments[item.key];
-                return (
-                  <div
-                    key={item.key}
-                    className={`${styles.reactionChip} ${value >= 0 ? styles.reactionChipPositive : styles.reactionChipNegative}`.trim()}
-                  >
-                    <span>{item.label}</span>
-                    <strong>{signedValue(value)}</strong>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </article>
-      ) : null}
-
-      <article className={styles.graphCard}>
-        <div className={styles.graphHeader}>
-          <div>
-            <p className={styles.graphEyebrow}>Yukhyo</p>
-            <h3>육효 구조도와 관계망</h3>
-          </div>
-          <span className={`${styles.graphTrendBadge} ${trendClassName(oracle.answerTrend)}`}>{trendLabel(oracle.answerTrend)}</span>
-        </div>
-        <p className={styles.graphCopy}>
-          육효는 아래에서 위로 쌓인 효의 흐름과, 내괘와 외괘가 서로 돕는지 막는지를 함께 봐야 하오.
-        </p>
-        <div className={styles.graphQuestionRow}>
-          {YUKHYO_QUESTIONS.map((item) => (
-            <button
-              key={item}
-              type="button"
-              className={`${styles.graphQuestionChip} ${question === item ? styles.graphQuestionChipActive : ""}`.trim()}
-              onClick={() => setQuestion(item)}
-            >
-              {item}
-            </button>
-          ))}
-        </div>
-        <label className={styles.graphInputLabel} htmlFor="yukhyo-question-input">
-          질문 직접 입력
-        </label>
-        <input
-          id="yukhyo-question-input"
-          className={styles.graphInput}
-          value={question}
-          maxLength={60}
-          onChange={(event) => setQuestion(event.target.value)}
-          placeholder="예: 오늘 연락 보내도 될까?"
-        />
-        <div className={styles.graphSubsection}>
-          <p className={styles.graphSectionTitle}>괘상 구조도</p>
-          <div className={styles.towerRow}>
-            <HexagramTower title={oracle.primaryHexagram} bits={oracle.primaryBits} movingLines={oracle.movingLines} />
-            {oracle.changedBits ? (
-              <HexagramTower title={oracle.changedHexagram ?? "변괘"} bits={oracle.changedBits} movingLines={oracle.movingLines} />
-            ) : (
-              <div className={styles.hexagramStableCard}>
-                <p className={styles.graphSectionTitle}>변화 없음</p>
-                <p>동효가 적어 본괘의 흐름이 그대로 이어지는 편이오.</p>
-              </div>
-            )}
-          </div>
-        </div>
-        <div className={styles.graphSubsection}>
-          <p className={styles.graphSectionTitle}>내·외괘 오행 관계망</p>
-          <YukhyoNetwork
-            nodes={oracle.network.nodes}
-            edges={oracle.network.edges}
-            hasChanged={Boolean(oracle.changedBits)}
-          />
-        </div>
-        <div className={styles.graphMetricGrid}>
-          <div className={styles.graphMetricCard}>
-            <span>괘 관계</span>
-            <strong>{signedValue(oracle.breakdown.relationScore)}</strong>
-          </div>
-          <div className={styles.graphMetricCard}>
-            <span>동효 보정</span>
-            <strong>{signedValue(oracle.breakdown.movingModifier)}</strong>
-          </div>
-          <div className={styles.graphMetricCard}>
-            <span>적용 점수</span>
-            <strong>{signedValue(oracle.breakdown.appliedScore)}</strong>
-          </div>
-          <div className={styles.graphMetricCard}>
-            <span>움직이는 효</span>
-            <strong>{oracle.movingLines.length > 0 ? oracle.movingLines.join(", ") : "없음"}</strong>
-          </div>
-        </div>
-        <p className={styles.graphFootnote}>{oracle.sourceLine}</p>
-      </article>
+      <KuseongChartSection fortune={fortune} />
+      <YukhyoChartSection userId={userId} referenceDate={referenceDate} />
     </div>
   );
 }

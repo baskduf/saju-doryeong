@@ -521,6 +521,10 @@
   gap: 10px;
 }
 
+.kuseongBoardViewport {
+  overflow-x: auto;
+}
+
 .kuseongCell {
   min-height: 132px;
   padding: 10px;
@@ -894,11 +898,47 @@
 }
 
 @media (max-width: 720px) {
-  .kuseongBoard,
   .reactionRow,
   .graphMetricGrid,
   .towerRow {
     grid-template-columns: 1fr;
+  }
+
+  .kuseongBoardViewport {
+    overflow-x: visible;
+  }
+
+  .kuseongBoard {
+    gap: 6px;
+  }
+
+  .kuseongCell {
+    min-height: 92px;
+    padding: 7px;
+    border-radius: 12px;
+  }
+
+  .kuseongCellHeader {
+    gap: 4px;
+    margin-bottom: 6px;
+    font-size: 10px;
+    letter-spacing: 0;
+  }
+
+  .kuseongCellBody {
+    gap: 5px;
+  }
+
+  .kuseongToken {
+    gap: 1px;
+    padding: 5px 6px;
+    border-radius: 9px;
+    font-size: 10px;
+    line-height: 1.2;
+  }
+
+  .kuseongToken small {
+    font-size: 9px;
   }
 
   .networkWrap {

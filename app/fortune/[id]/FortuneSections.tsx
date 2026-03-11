@@ -5,7 +5,7 @@ import { Fragment, useState, type ReactNode } from "react";
 import type { DailyFortune } from "../../../lib/fortune";
 import { kuseongFocusLabel, kuseongToneLabel } from "../../../lib/kuseong-labels";
 import { FiveElementsChart } from "./FiveElementsChart";
-import { HybridCharts } from "./HybridCharts";
+import { KuseongChartSection, YukhyoChartSection } from "./HybridCharts";
 import styles from "./page.module.css";
 
 type Props = {
@@ -15,7 +15,7 @@ type Props = {
 };
 
 type TabKey = "fortune" | "analysis";
-type AnalysisTabKey = "manse" | "interpretation" | "graph";
+type AnalysisTabKey = "manse" | "interpretation" | "elements" | "kuseong" | "yukhyo";
 
 type ReadingGuideProps = {
   summary: string;
@@ -439,11 +439,29 @@ export function FortuneSections({ fortune, userId, referenceDate }: Props) {
             <button
               type="button"
               role="tab"
-              aria-selected={activeAnalysisTab === "graph"}
-              className={`${styles.analysisTabButton} ${activeAnalysisTab === "graph" ? styles.analysisTabButtonActive : ""}`.trim()}
-              onClick={() => setActiveAnalysisTab("graph")}
+              aria-selected={activeAnalysisTab === "elements"}
+              className={`${styles.analysisTabButton} ${activeAnalysisTab === "elements" ? styles.analysisTabButtonActive : ""}`.trim()}
+              onClick={() => setActiveAnalysisTab("elements")}
             >
-              그래프
+              오행
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeAnalysisTab === "kuseong"}
+              className={`${styles.analysisTabButton} ${activeAnalysisTab === "kuseong" ? styles.analysisTabButtonActive : ""}`.trim()}
+              onClick={() => setActiveAnalysisTab("kuseong")}
+            >
+              구성
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeAnalysisTab === "yukhyo"}
+              className={`${styles.analysisTabButton} ${activeAnalysisTab === "yukhyo" ? styles.analysisTabButtonActive : ""}`.trim()}
+              onClick={() => setActiveAnalysisTab("yukhyo")}
+            >
+              육효
             </button>
           </div>
 
@@ -812,16 +830,16 @@ export function FortuneSections({ fortune, userId, referenceDate }: Props) {
             </section>
           ) : null}
 
-          {activeAnalysisTab === "graph" ? (
+          {activeAnalysisTab === "elements" ? (
             <section className={styles.innerSection}>
-              <h2>분석 그래프</h2>
+              <h2>오행 분석</h2>
               <ReadingGuide
-                intro="기본 오행 분포에 더해, 오늘 점수가 어떻게 보정됐는지와 질문형 육효가 어떤 구조로 반응하는지 함께 보는 탭입니다."
-                summary="그래프 읽는 법"
+                intro="오행 분포를 먼저 보고, 강한 기운과 비어 있는 기운을 함께 읽는 섹션입니다."
+                summary="오행 읽는 법"
                 tips={[
-                  "특정 오행이 높으면 그 성향이 강하게 드러날 수 있지만, 항상 좋거나 나쁜 뜻은 아닙니다.",
-                  "구성 보정은 사주 기본 점수에 더해지는 오늘의 오버레이로 보고, 과한 해석보다 방향과 타이밍 참고에 쓰는 편이 맞습니다.",
-                  "육효 그래프는 질문형이니, 질문 문장을 바꾸면 괘상과 경향도 같이 바뀝니다.",
+                  "많고 적음보다 전체 균형을 먼저 봅니다.",
+                  "용신과 오늘의 일진 해석을 함께 연결해서 읽는 편이 좋습니다.",
+                  "구성 보정은 다음 탭에서 별도로 확인합니다.",
                 ]}
               />
               <div className={`${styles.graphCard} ${styles.graphCardPadded}`}>
@@ -832,11 +850,42 @@ export function FortuneSections({ fortune, userId, referenceDate }: Props) {
                   </div>
                 </div>
                 <p className={styles.graphCopy}>
-                  오행이 어디에 몰리고 비는지 한눈에 보는 요약이오. 많고 적음보다 전체 균형을 먼저 보는 편이 맞습니다.
+                  오행이 어디에 몰리고 비는지 한눈에 보는 요약입니다. 많고 적음보다 전체 균형을 먼저 보는 편이 맞습니다.
                 </p>
                 <FiveElementsChart elements={fortune.elements} />
               </div>
-              <HybridCharts fortune={fortune} userId={userId} referenceDate={referenceDate} />
+            </section>
+          ) : null}
+
+          {activeAnalysisTab === "kuseong" ? (
+            <section className={styles.innerSection}>
+              <h2>구성 분석</h2>
+              <ReadingGuide
+                intro="구성은 오늘의 보정 흐름과 방위 배치를 보는 보조 해석입니다."
+                summary="구성 읽는 법"
+                tips={[
+                  "모바일에서는 3x3 전체 배치를 한 번에 보고, 그다음 각 궁의 토큰을 읽는 편이 좋습니다.",
+                  "본명성, 월성, 일성을 함께 봐야 오늘의 보정이 선명해집니다.",
+                  "과한 단정 대신 방향성과 타이밍 참고에 쓰는 편이 맞습니다.",
+                ]}
+              />
+              <KuseongChartSection fortune={fortune} />
+            </section>
+          ) : null}
+
+          {activeAnalysisTab === "yukhyo" ? (
+            <section className={styles.innerSection}>
+              <h2>육효 분석</h2>
+              <ReadingGuide
+                intro="질문형 육효를 따로 떼어, 괘상과 관계망을 집중해서 볼 수 있게 한 섹션입니다."
+                summary="육효 읽는 법"
+                tips={[
+                  "질문 문장이 바뀌면 결과도 함께 달라집니다.",
+                  "본괘, 변괘, 동효를 분리하지 말고 같이 읽어야 합니다.",
+                  "이 탭은 결정문보다 방향 참고에 가깝습니다.",
+                ]}
+              />
+              <YukhyoChartSection userId={userId} referenceDate={referenceDate} />
             </section>
           ) : null}
         </div>

@@ -130,19 +130,17 @@ describe("kakao presenters", () => {
     profileMocks.getQuestionUsageSummary.mockReturnValue(buildUsage());
   });
 
-  it("renders question answer metadata lines in the kakao card", async () => {
+  it("renders concise question answer metadata lines in the kakao card", async () => {
     const card = await createQuestionAnswerCard(buildProfile(), "오늘 일은 어떻게 풀릴까?");
     const basicCard = card.template.outputs[0].basicCard;
 
     expect(basicCard.title).toBe("도령의 답변");
     expect(basicCard.description).toContain("오늘은 순서를 세워 움직이는 편이 좋소.");
-    expect(basicCard.description).toContain("답변 근거: 오늘의 일운 + 주의 신호");
-    expect(basicCard.description).toContain("육효 보강: 육효는 방향과 주의 채널에서 답변을 보강하오.");
-    expect(basicCard.description).toContain(
-      "판단 조정: 육효와 기본 인사이트가 크게 충돌하지 않아 같은 결로 답변을 정리하오.",
-    );
-    expect(basicCard.description).toContain("판단 근거: 오늘 운세 + 육효 관상");
-    expect(basicCard.description).toContain("남은 횟수는 4회");
+    expect(basicCard.description).toContain("짚은 흐름: 오늘의 일운, 주의 신호");
+    expect(basicCard.description).toContain("남은 질문 4회");
+    expect(basicCard.description).not.toContain("육효 보강:");
+    expect(basicCard.description).not.toContain("판단 조정:");
+    expect(basicCard.description).not.toContain("판단 근거: 오늘 운세 + 육효 관상");
   });
 
   it("renders conflict summaries when the oracle opposes the base flow", async () => {
@@ -157,9 +155,7 @@ describe("kakao presenters", () => {
     );
 
     const card = await createQuestionAnswerCard(buildProfile(), "오늘 일은 어떻게 풀릴까?");
-    expect(card.template.outputs[0].basicCard.description).toContain(
-      "판단 조정: 육효는 제동을 거나 기본 인사이트는 전진 쪽이라 속도를 조절하오.",
-    );
+    expect(card.template.outputs[0].basicCard.description).toContain("참고: 기회는 있으나 무리 금지");
   });
 
   it("renders reference summaries when calendar certainty is low", async () => {
@@ -174,9 +170,7 @@ describe("kakao presenters", () => {
     );
 
     const card = await createQuestionAnswerCard(buildProfile(), "오늘 연락 보내도 될까?");
-    expect(card.template.outputs[0].basicCard.description).toContain(
-      "판단 조정: 달력 기준이 미확정이라 참고용 성격을 먼저 드러내오.",
-    );
+    expect(card.template.outputs[0].basicCard.description).toContain("참고: 불확실성 우선");
   });
 
   it("maps insight keys to readable Korean labels", async () => {
@@ -193,6 +187,6 @@ describe("kakao presenters", () => {
     );
 
     const card = await createQuestionAnswerCard(buildProfile(), "오늘 고백해도 될까?");
-    expect(card.template.outputs[0].basicCard.description).toContain("답변 근거: 관계 흐름 + 타이밍 신호");
+    expect(card.template.outputs[0].basicCard.description).toContain("짚은 흐름: 관계 흐름, 타이밍 신호");
   });
 });

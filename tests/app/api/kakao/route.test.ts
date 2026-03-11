@@ -336,12 +336,10 @@ describe("POST /api/kakao", () => {
     expect(profileMocks.incrementQuestionUsage).toHaveBeenCalledWith(expect.any(Object));
     expect(questionMocks.answerFortuneQuestion).toHaveBeenCalled();
     expect(card.title).toBe("도령의 일풀이");
-    expect(card.description).toContain("답변 근거: 오늘의 일운 + 주의 신호");
-    expect(card.description).toContain("육효 보강: 육효는 방향과 주의 채널에서 답변을 보강하오.");
-    expect(card.description).toContain(
-      "판단 조정: 육효와 기본 인사이트가 크게 충돌하지 않아 같은 결로 답변을 정리하오.",
-    );
-    expect(card.description).toContain("판단 근거: 오늘 운세 + 육효 관상");
+    expect(card.description).toContain("짚은 흐름: 오늘의 일운, 주의 신호");
+    expect(card.description).toContain("남은 질문 3회");
+    expect(card.description).not.toContain("육효 보강:");
+    expect(card.description).not.toContain("판단 조정:");
     expect(card.quickReplies).toContain("재물운 질문");
   });
 

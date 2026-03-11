@@ -10,7 +10,6 @@ import {
   type SajuProfileRecord,
 } from "../../../../lib/profile";
 import {
-  buildQuestionUsageLines,
   createBasicCard,
   createFortuneButtons,
   createFortuneUrl,
@@ -41,15 +40,15 @@ function buildQuestionDecisionBasisLine(answer: FortuneQuestionAnswer): string {
   const primary = INSIGHT_LABELS[answer.decisionBasis.primaryInsightKey] ?? answer.decisionBasis.primaryInsightKey;
   const secondary =
     INSIGHT_LABELS[answer.decisionBasis.secondaryInsightKey] ?? answer.decisionBasis.secondaryInsightKey;
-  return `답변 근거: ${primary} + ${secondary}`;
+  return `짚은 흐름: ${primary}, ${secondary}`;
 }
 
-function buildQuestionOracleInfluenceLine(answer: FortuneQuestionAnswer): string {
-  return `육효 보강: ${answer.oracleInfluence.summary}`;
-}
+function buildQuestionReferenceLine(answer: FortuneQuestionAnswer): string | null {
+  if (answer.conflictResolution.status === "aligned") {
+    return null;
+  }
 
-function buildQuestionConflictResolutionLine(answer: FortuneQuestionAnswer): string {
-  return `판단 조정: ${answer.conflictResolution.summary}`;
+  return `참고: ${answer.conflictResolution.appliedPolicy}`;
 }
 
 export async function createFortuneCard(
@@ -103,20 +102,15 @@ export async function createQuestionAnswerCard(
     date: now,
   });
   const usage = getQuestionUsageSummary(profile);
+  const metaLines = [
+    buildQuestionDecisionBasisLine(answer),
+    buildQuestionReferenceLine(answer),
+    `남은 질문 ${usage.remaining}회`,
+  ].filter((line): line is string => Boolean(line));
 
   return createBasicCard({
     title: answer.title,
-    description: [
-      answer.description,
-      "",
-      buildQuestionDecisionBasisLine(answer),
-      buildQuestionOracleInfluenceLine(answer),
-      buildQuestionConflictResolutionLine(answer),
-      "",
-      "판단 근거: 오늘 운세 + 육효 관상",
-      "",
-      ...buildQuestionUsageLines(usage, { includeShareHint: true }),
-    ].join("\n"),
+    description: [answer.description, "", ...metaLines].join("\n"),
     buttons: createFortuneButtons(createFortuneUrl(profile.userId)),
     quickReplies: createQuestionQuickReplies(),
   });

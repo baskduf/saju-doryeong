@@ -16,7 +16,6 @@ type ProfilePayload = {
   birthDate: Date;
   birthTime?: string;
   calendarType: "solar" | "lunar" | "unknown";
-  sajuData?: unknown;
 };
 
 function parsePayload(
@@ -51,14 +50,6 @@ function parsePayload(
       birthDate: parsedRegistration.data.birthDate,
       birthTime: parsedRegistration.data.birthTime,
       calendarType: parsedRegistration.data.calendarType,
-      sajuData:
-        raw.sajuData ??
-        buildInitialSajuData({
-          userId: userId.trim(),
-          birthDate: parsedRegistration.data.birthDate,
-          birthTime: parsedRegistration.data.birthTime,
-          calendarType: parsedRegistration.data.calendarType,
-        }),
     },
   };
 }
@@ -100,10 +91,19 @@ export async function POST(request: NextRequest) {
 
     let sajuData: Prisma.InputJsonValue;
     try {
-      sajuData = JSON.parse(JSON.stringify(parsed.data.sajuData)) as Prisma.InputJsonValue;
+      sajuData = JSON.parse(
+        JSON.stringify(
+          buildInitialSajuData({
+            userId: parsed.data.userId,
+            birthDate: parsed.data.birthDate,
+            birthTime: parsed.data.birthTime,
+            calendarType: parsed.data.calendarType,
+          }),
+        ),
+      ) as Prisma.InputJsonValue;
     } catch {
       return NextResponse.json(
-        { error: "sajuData는 JSON 직렬화가 가능한 값이어야 합니다." },
+        { error: "사주 계산 데이터를 생성하는 중 오류가 발생했습니다." },
         { status: 400 },
       );
     }

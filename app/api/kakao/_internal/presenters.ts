@@ -1,5 +1,7 @@
 import { generateDailyFortune } from "../../../../lib/fortune";
+import type { DailyFortuneInsightKey } from "../../../../lib/fortune";
 import { answerFortuneQuestion } from "../../../../lib/fortune-question";
+import type { FortuneQuestionAnswer } from "../../../../lib/fortune-question";
 import { upsertFortuneShareSnapshot } from "../../../../lib/fortune-share";
 import {
   DAILY_SHARE_REWARD_LIMIT,
@@ -19,10 +21,35 @@ import {
 } from "./cards";
 import type { KakaoBasicCardResponse, KakaoProfileLike } from "./types";
 
+const INSIGHT_LABELS: Record<DailyFortuneInsightKey, string> = {
+  work: "오늘의 일운",
+  money: "재물 흐름",
+  relationship: "관계 흐름",
+  health: "건강 흐름",
+  timing: "타이밍 신호",
+  approach: "대응 방향",
+  risk: "주의 신호",
+};
+
 function buildDailySourceLine(fortune: ReturnType<typeof generateDailyFortune>): string {
   const delta = fortune.analysis?.hybrid?.scoreBreakdown?.kuseongDelta ?? 0;
   const deltaLabel = `${delta > 0 ? "+" : ""}${delta}`;
-  return `풀이 근거: 사주 기본 + 구성 보정(${deltaLabel})`;
+  return `판단 근거: 사주 기본 + 구성 보정(${deltaLabel})`;
+}
+
+function buildQuestionDecisionBasisLine(answer: FortuneQuestionAnswer): string {
+  const primary = INSIGHT_LABELS[answer.decisionBasis.primaryInsightKey] ?? answer.decisionBasis.primaryInsightKey;
+  const secondary =
+    INSIGHT_LABELS[answer.decisionBasis.secondaryInsightKey] ?? answer.decisionBasis.secondaryInsightKey;
+  return `답변 근거: ${primary} + ${secondary}`;
+}
+
+function buildQuestionOracleInfluenceLine(answer: FortuneQuestionAnswer): string {
+  return `육효 보강: ${answer.oracleInfluence.summary}`;
+}
+
+function buildQuestionConflictResolutionLine(answer: FortuneQuestionAnswer): string {
+  return `판단 조정: ${answer.conflictResolution.summary}`;
 }
 
 export async function createFortuneCard(
@@ -41,7 +68,7 @@ export async function createFortuneCard(
   const descriptionLines = [
     profile.name ? `${profile.name} 님, ${fortune.headline}` : fortune.headline,
     notice,
-    `운세 점수: ${fortune.score}점 (${fortune.grade})`,
+    `운세 점수: ${fortune.score}점(${fortune.grade})`,
     fortune.summary,
     fortune.caution,
     buildDailySourceLine(fortune),
@@ -82,7 +109,11 @@ export async function createQuestionAnswerCard(
     description: [
       answer.description,
       "",
-      "풀이 근거: 오늘 운세 + 육효 괘상",
+      buildQuestionDecisionBasisLine(answer),
+      buildQuestionOracleInfluenceLine(answer),
+      buildQuestionConflictResolutionLine(answer),
+      "",
+      "판단 근거: 오늘 운세 + 육효 관상",
       "",
       ...buildQuestionUsageLines(usage, { includeShareHint: true }),
     ].join("\n"),
@@ -115,11 +146,13 @@ export async function createSharePromptCard(params: {
   return createBasicCard({
     title: "운세도령의 공유 카드",
     description: [
-      params.profile.name ? `${params.profile.name} 님의 오늘 운세를 나눌 수 있소.` : "오늘의 운세를 나눌 수 있소.",
+      params.profile.name
+        ? `${params.profile.name} 님의 오늘 운세를 나눌 수 있소.`
+        : "오늘의 운세를 나눌 수 있소.",
       params.rewarded
-        ? `질문 1개를 적립했소. 오늘 공유 적립 ${params.usage.rewardCountToday}/${DAILY_SHARE_REWARD_LIMIT}회`
-        : `오늘 공유 적립은 이미 ${DAILY_SHARE_REWARD_LIMIT}회를 채웠소.`,
-      `오늘 질문은 총 ${params.usage.totalLimitToday}회까지 가능하고, 남은 횟수는 ${params.usage.remaining}회요.`,
+        ? `질문 1개를 추가로 받았소. 오늘 공유 보상 ${params.usage.rewardCountToday}/${DAILY_SHARE_REWARD_LIMIT}회`
+        : `오늘 공유 보상은 이미 ${DAILY_SHARE_REWARD_LIMIT}회를 채웠소.`,
+      `오늘 질문은 총 ${params.usage.totalLimitToday}회까지 가능하고 남은 횟수는 ${params.usage.remaining}회요.`,
       `운세 점수: ${fortune.score}점(${fortune.grade})`,
       fortune.headline,
     ].join("\n\n"),

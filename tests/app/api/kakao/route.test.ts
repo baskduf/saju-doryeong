@@ -183,6 +183,22 @@ describe("POST /api/kakao", () => {
         movingLines: [1, 5, 6],
         answerTrend: "neutral",
       },
+      decisionBasis: {
+        topic: "work",
+        intent: "outcome",
+        relationshipKind: "generic",
+        primaryInsightKey: "work",
+        secondaryInsightKey: "risk",
+      },
+      oracleInfluence: {
+        channels: ["direction", "caution"],
+        summary: "육효는 방향과 주의 채널에서 답변을 보강하오.",
+      },
+      conflictResolution: {
+        status: "aligned",
+        summary: "육효와 기본 인사이트가 크게 충돌하지 않아 같은 결로 답변을 정리하오.",
+        appliedPolicy: "기본 흐름 유지",
+      },
     });
     shareMocks.upsertFortuneShareSnapshot.mockResolvedValue({
       snapshotId: "snapshot-1",
@@ -262,8 +278,8 @@ describe("POST /api/kakao", () => {
     const card = await readCard(response);
 
     expect(card.title).toBe("운세도령의 오늘 운세");
-    expect(card.description).toContain("운세 점수: 74점 (길)");
-    expect(card.description).toContain("풀이 근거: 사주 기본 + 구성 보정(+3)");
+    expect(card.description).toContain("운세 점수: 74점(길)");
+    expect(card.description).toContain("판단 근거: 사주 기본 + 구성 보정(+3)");
     expect(card.buttons).toContain("친구에게 공유하기");
   });
 
@@ -320,7 +336,12 @@ describe("POST /api/kakao", () => {
     expect(profileMocks.incrementQuestionUsage).toHaveBeenCalledWith(expect.any(Object));
     expect(questionMocks.answerFortuneQuestion).toHaveBeenCalled();
     expect(card.title).toBe("도령의 일풀이");
-    expect(card.description).toContain("풀이 근거: 오늘 운세 + 육효 괘상");
+    expect(card.description).toContain("답변 근거: 오늘의 일운 + 주의 신호");
+    expect(card.description).toContain("육효 보강: 육효는 방향과 주의 채널에서 답변을 보강하오.");
+    expect(card.description).toContain(
+      "판단 조정: 육효와 기본 인사이트가 크게 충돌하지 않아 같은 결로 답변을 정리하오.",
+    );
+    expect(card.description).toContain("판단 근거: 오늘 운세 + 육효 관상");
     expect(card.quickReplies).toContain("재물운 질문");
   });
 
@@ -333,7 +354,7 @@ describe("POST /api/kakao", () => {
     expect(profileMocks.incrementShareReward).toHaveBeenCalledWith(expect.any(Object));
     expect(shareMocks.upsertFortuneShareSnapshot).toHaveBeenCalled();
     expect(card.title).toBe("운세도령의 공유 카드");
-    expect(card.description).toContain("질문 1개를 적립했소.");
+    expect(card.description).toContain("질문 1개를 추가로 받았소. 오늘 공유 보상 1/10회");
     expect(card.buttons).toContain("공유 링크 보기");
   });
 

@@ -18,6 +18,7 @@ pnpm-debug.log*
 .npm-cache/
 .dev-server*.log
 .tmp-dev*.log
+.next-dev*.log
 
 # env
 .env

@@ -22,6 +22,29 @@ type QuestionAnalysis = {
   secondaryInsight: DailyFortuneInsight;
 };
 
+type QuestionSignalStrength = "aggressive" | "balanced" | "conservative";
+type OracleInfluenceChannel = "direction" | "timing" | "caution";
+type ConflictResolutionStatus = "aligned" | "question-signal-conflict" | "reference-priority";
+
+export type FortuneQuestionDecisionBasis = {
+  topic: QuestionTopic;
+  intent: QuestionIntent;
+  relationshipKind: QuestionRelationshipKind;
+  primaryInsightKey: DailyFortuneInsightKey;
+  secondaryInsightKey: DailyFortuneInsightKey;
+};
+
+export type FortuneQuestionOracleInfluence = {
+  channels: OracleInfluenceChannel[];
+  summary: string;
+};
+
+export type FortuneQuestionConflictResolution = {
+  status: ConflictResolutionStatus;
+  summary: string;
+  appliedPolicy: string;
+};
+
 export type FortuneQuestionAnswer = {
   title: string;
   description: string;
@@ -29,6 +52,9 @@ export type FortuneQuestionAnswer = {
   usedLlm: boolean;
   sources: Array<"daily" | "yukhyo">;
   oracleMeta?: YukhyoOracleMeta;
+  decisionBasis: FortuneQuestionDecisionBasis;
+  oracleInfluence: FortuneQuestionOracleInfluence;
+  conflictResolution: FortuneQuestionConflictResolution;
 };
 
 const QUESTION_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
@@ -251,11 +277,119 @@ function buildQuestionAnalysis(question: string, fortune: DailyFortune): Questio
   };
 }
 
+function buildDecisionBasis(analysis: QuestionAnalysis): FortuneQuestionDecisionBasis {
+  return {
+    topic: analysis.topic,
+    intent: analysis.intent,
+    relationshipKind: analysis.relationshipKind,
+    primaryInsightKey: analysis.primaryInsight.key,
+    secondaryInsightKey: analysis.secondaryInsight.key,
+  };
+}
+
+function inferBaseSignalStrength(params: {
+  analysis: QuestionAnalysis;
+  fortune: DailyFortune;
+}): QuestionSignalStrength {
+  if (
+    params.fortune.analysis.certainty === "calendar-unknown" ||
+    params.fortune.grade === "주의" ||
+    params.analysis.primaryInsight.key === "risk" ||
+    params.analysis.topic === "health"
+  ) {
+    return "conservative";
+  }
+
+  if (
+    params.fortune.grade === "대길" ||
+    params.analysis.primaryInsight.key === "work" ||
+    params.analysis.primaryInsight.key === "money" ||
+    params.analysis.intent === "action" ||
+    params.analysis.intent === "approach" ||
+    params.analysis.intent === "outcome" ||
+    params.analysis.intent === "timing"
+  ) {
+    return "aggressive";
+  }
+
+  return "balanced";
+}
+
+function buildOracleInfluence(params: {
+  analysis: QuestionAnalysis;
+  oracle: YukhyoReading;
+}): FortuneQuestionOracleInfluence {
+  const channels = new Set<OracleInfluenceChannel>(["caution"]);
+
+  if (
+    params.analysis.intent === "action" ||
+    params.analysis.intent === "approach" ||
+    params.analysis.intent === "outcome"
+  ) {
+    channels.add("direction");
+  }
+
+  if (params.analysis.intent === "timing" || params.analysis.primaryInsight.key === "timing") {
+    channels.add("timing");
+  }
+
+  const orderedChannels = ["direction", "timing", "caution"].filter((channel) =>
+    channels.has(channel as OracleInfluenceChannel),
+  ) as OracleInfluenceChannel[];
+
+  return {
+    channels: orderedChannels,
+    summary: `육효는 ${orderedChannels.join(", ")} 채널에서 답변을 보강하며 ${params.oracle.answerTrend} 방향의 신호를 보태오.`,
+  };
+}
+
+function buildConflictResolution(params: {
+  analysis: QuestionAnalysis;
+  fortune: DailyFortune;
+  oracle: YukhyoReading;
+}): FortuneQuestionConflictResolution {
+  if (params.fortune.analysis.certainty === "calendar-unknown") {
+    return {
+      status: "reference-priority",
+      summary: "달력 기준이 미확정이라 육효와 기본 인사이트의 차이보다 참고용 성격을 먼저 드러내오.",
+      appliedPolicy: "불확실성 우선",
+    };
+  }
+
+  const baseSignal = inferBaseSignalStrength({
+    analysis: params.analysis,
+    fortune: params.fortune,
+  });
+
+  if (params.oracle.answerTrend === "positive" && baseSignal === "conservative") {
+    return {
+      status: "question-signal-conflict",
+      summary: "육효는 가능성을 밀어 주지만 기본 인사이트는 보수적이니 속도를 조절하는 쪽으로 중재하오.",
+      appliedPolicy: "가능성은 있으나 속도를 조절",
+    };
+  }
+
+  if (params.oracle.answerTrend === "negative" && baseSignal === "aggressive") {
+    return {
+      status: "question-signal-conflict",
+      summary: "육효는 제동을 거나 기본 인사이트는 전진 쪽이라 무리를 금지하는 쪽으로 중재하오.",
+      appliedPolicy: "기회는 있으나 무리 금지",
+    };
+  }
+
+  return {
+    status: "aligned",
+    summary: "육효와 기본 인사이트가 크게 충돌하지 않아 같은 결로 답변을 정리하오.",
+    appliedPolicy: "기본 흐름 유지",
+  };
+}
+
 function buildCacheKey(params: {
   question: string;
   fortune: DailyFortune;
   analysis: QuestionAnalysis;
   oracle: YukhyoReading;
+  conflictResolution: FortuneQuestionConflictResolution;
   profileName?: string;
   date: Date;
 }): string {
@@ -277,6 +411,8 @@ function buildCacheKey(params: {
     changedHexagram: params.oracle.changedHexagram,
     movingLines: params.oracle.movingLines,
     answerTrend: params.oracle.answerTrend,
+    conflictResolution: params.conflictResolution.status,
+    conflictPolicy: params.conflictResolution.appliedPolicy,
     model: resolveModel(),
   });
 }
@@ -286,6 +422,8 @@ function buildPromptContext(params: {
   fortune: DailyFortune;
   analysis: QuestionAnalysis;
   oracle: YukhyoReading;
+  oracleInfluence: FortuneQuestionOracleInfluence;
+  conflictResolution: FortuneQuestionConflictResolution;
   profileName?: string;
   date: Date;
 }): string {
@@ -317,6 +455,7 @@ function buildPromptContext(params: {
         referenceMode: params.fortune.analysis.referenceMode,
         uncertaintyMessage: params.fortune.analysis.uncertaintyMessage,
       },
+      hybridExplanation: params.fortune.analysis.hybridExplanation,
       selectedInsights: [
         serializeInsight("primary", params.analysis.primaryInsight),
         serializeInsight("secondary", params.analysis.secondaryInsight),
@@ -331,6 +470,11 @@ function buildPromptContext(params: {
         caution: params.oracle.caution,
         timingHint: params.oracle.timingHint,
       },
+      answerMeta: {
+        decisionBasis: buildDecisionBasis(params.analysis),
+        oracleInfluence: params.oracleInfluence,
+        conflictResolution: params.conflictResolution,
+      },
       allowedAnswerFrame: {
         mustMentionAction: true,
         mustMentionCaution: true,
@@ -342,7 +486,11 @@ function buildPromptContext(params: {
   );
 }
 
-function parseQuestionAnswer(payload: unknown, topic: QuestionTopic): FortuneQuestionAnswer | null {
+function parseQuestionAnswer(
+  payload: unknown,
+  topic: QuestionTopic,
+  meta: Pick<FortuneQuestionAnswer, "decisionBasis" | "oracleInfluence" | "conflictResolution">,
+): FortuneQuestionAnswer | null {
   if (!payload || typeof payload !== "object") return null;
   const source = payload as Record<string, unknown>;
   const title = typeof source.title === "string" ? source.title.trim() : "";
@@ -358,6 +506,9 @@ function parseQuestionAnswer(payload: unknown, topic: QuestionTopic): FortuneQue
     topic,
     usedLlm: true,
     sources: ["daily", "yukhyo"],
+    decisionBasis: meta.decisionBasis,
+    oracleInfluence: meta.oracleInfluence,
+    conflictResolution: meta.conflictResolution,
   };
 }
 
@@ -458,6 +609,8 @@ function buildFallbackAnswer(params: {
   fortune: DailyFortune;
   analysis: QuestionAnalysis;
   oracle: YukhyoReading;
+  oracleInfluence: FortuneQuestionOracleInfluence;
+  conflictResolution: FortuneQuestionConflictResolution;
 }): FortuneQuestionAnswer {
   return {
     title: fallbackTitle(params.analysis.topic, params.analysis.relationshipKind),
@@ -475,6 +628,9 @@ function buildFallbackAnswer(params: {
       movingLines: params.oracle.movingLines,
       answerTrend: params.oracle.answerTrend,
     },
+    decisionBasis: buildDecisionBasis(params.analysis),
+    oracleInfluence: params.oracleInfluence,
+    conflictResolution: params.conflictResolution,
   };
 }
 
@@ -492,11 +648,22 @@ export async function answerFortuneQuestion(params: {
     question: params.question,
     date,
   });
+  const oracleInfluence = buildOracleInfluence({
+    analysis,
+    oracle,
+  });
+  const conflictResolution = buildConflictResolution({
+    analysis,
+    fortune: params.fortune,
+    oracle,
+  });
   const fallback = buildFallbackAnswer({
     question: params.question,
     fortune: params.fortune,
     analysis,
     oracle,
+    oracleInfluence,
+    conflictResolution,
   });
 
   if (!hasOpenAiApiKey()) {
@@ -509,6 +676,7 @@ export async function answerFortuneQuestion(params: {
     fortune: params.fortune,
     analysis,
     oracle,
+    conflictResolution,
     profileName: params.profileName,
     date,
   });
@@ -535,6 +703,8 @@ export async function answerFortuneQuestion(params: {
           fortune: params.fortune,
           analysis,
           oracle,
+          oracleInfluence,
+          conflictResolution,
           profileName: params.profileName,
           date,
         }),
@@ -553,7 +723,11 @@ export async function answerFortuneQuestion(params: {
       return fallback;
     }
 
-    const parsed = parseQuestionAnswer(JSON.parse(cleanModelJson(outputText)), analysis.topic);
+    const parsed = parseQuestionAnswer(JSON.parse(cleanModelJson(outputText)), analysis.topic, {
+      decisionBasis: buildDecisionBasis(analysis),
+      oracleInfluence,
+      conflictResolution,
+    });
     if (!parsed) {
       return fallback;
     }

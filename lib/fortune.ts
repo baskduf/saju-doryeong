@@ -50,6 +50,32 @@ export type DailyFortuneInsight = PublicFortuneInsight & {
   publicCaution: string;
 };
 
+export type HybridExplanationConflict = {
+  type: "tone-conflict";
+  systems: ["saju", "kuseong"];
+  summary: string;
+  resolution: string;
+};
+
+export type HybridExplanation = {
+  baseSystem: "saju";
+  supportSystems: ["kuseong"];
+  questionSystem: "yukhyo" | null;
+  contributions: {
+    saju: string;
+    kuseong: string;
+    yukhyo: string;
+  };
+  decisionPolicy: {
+    base: string;
+    support: string;
+    question: string;
+    reference: string;
+  };
+  confidenceMode: "exact" | "reference";
+  conflicts: HybridExplanationConflict[];
+};
+
 export type DailyFortune = {
   score: number;
   grade: "대길" | "길" | "평" | "주의";
@@ -170,6 +196,7 @@ export type DailyFortune = {
       };
       kuseong?: KuseongDetail;
     };
+    hybridExplanation: HybridExplanation;
   };
 };
 
@@ -242,6 +269,7 @@ const UNKNOWN_REFERENCE_PATTERN_REVEAL_LABEL = "양·음력 공통 참고";
 type TodayRelation = DailyFortune["analysis"]["todayRelation"];
 type StrengthLevel = DailyFortune["analysis"]["strengthLevel"];
 type CategoryKey = DailyFortune["categoryScores"][number]["key"];
+type ExplanationTone = "push" | "steady" | "cautious" | "recover";
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -731,8 +759,98 @@ function buildTodayBranchSummary(interactions: TodayBranchInteraction[]): string
 
 type FortuneWithoutInsights = Omit<DailyFortune, "insights" | "featuredInsight">;
 
+function explanationConfidenceMode(certainty: ChartCertainty): HybridExplanation["confidenceMode"] {
+  return certainty === "calendar-unknown" ? "reference" : "exact";
+}
+
+function inferSajuExplanationTone(params: {
+  grade: DailyFortune["grade"];
+  relation: TodayRelation;
+  categoryScores: FortuneWithoutInsights["categoryScores"];
+}): ExplanationTone {
+  if (params.grade === "대길") {
+    return "push";
+  }
+
+  const healthScore = params.categoryScores.find((category) => category.key === "health")?.score ?? 0;
+  if (params.grade === "길") {
+    return healthScore >= 78 || params.relation === "인성" ? "recover" : "steady";
+  }
+
+  if (params.grade === "평") {
+    return healthScore >= 70 ? "recover" : "cautious";
+  }
+
+  return "cautious";
+}
+
+function explanationTonesConflict(baseTone: ExplanationTone, supportTone: ExplanationTone): boolean {
+  if (baseTone === supportTone) {
+    return false;
+  }
+
+  return (
+    (baseTone === "push" && (supportTone === "cautious" || supportTone === "recover")) ||
+    (baseTone === "cautious" && supportTone === "push") ||
+    (baseTone === "recover" && supportTone === "push")
+  );
+}
+
+function buildHybridExplanation(params: {
+  fortune: FortuneWithoutInsights;
+  certainty: ChartCertainty;
+  kuseong?: KuseongDetail;
+}): HybridExplanation {
+  const confidenceMode = explanationConfidenceMode(params.certainty);
+  const baseTone = inferSajuExplanationTone({
+    grade: params.fortune.grade,
+    relation: params.fortune.analysis.todayRelation,
+    categoryScores: params.fortune.categoryScores,
+  });
+  const conflicts: HybridExplanationConflict[] = [];
+
+  if (
+    params.kuseong &&
+    confidenceMode === "exact" &&
+    explanationTonesConflict(baseTone, params.kuseong.narrativeTone)
+  ) {
+    conflicts.push({
+      type: "tone-conflict",
+      systems: ["saju", "kuseong"],
+      summary:
+        "사주 기본 흐름과 구성 보정의 서술 톤이 엇갈리오. 오늘 해석은 기본 흐름을 유지하되 보정 신호가 섞인 상태로 읽어야 하오.",
+      resolution:
+        "구성학은 일일 보정으로만 반영하고, 사주의 기본 해석 축은 유지한 채 속도와 강도를 완화해 풀이하오.",
+    });
+  }
+
+  return {
+    baseSystem: "saju",
+    supportSystems: ["kuseong"],
+    questionSystem: null,
+    contributions: {
+      saju:
+        params.certainty === "calendar-unknown"
+          ? "양력·음력 공통 흐름을 기준으로 오늘 운세의 기본 축을 세웠소."
+          : "원국과 오늘 일진을 기준으로 오늘 운세의 기본 축을 세웠소.",
+      kuseong: params.kuseong
+        ? `${params.kuseong.summary} 사주의 기본 축을 뒤집지 않고 일일 보정으로만 반영하오.`
+        : "구성학은 일일 보정 레이어로만 대기하오.",
+      yukhyo: "육효는 질문이 들어올 때만 방향·타이밍·주의를 보강하며 오늘 운세 본체는 재정의하지 않소.",
+    },
+    decisionPolicy: {
+      base: "사주가 최종 운세의 기준축이오.",
+      support: "구성학은 점수와 서술을 보정하되 명식 해석 자체를 뒤집지 않소.",
+      question: "육효는 질문 답변에서만 쓰며 오늘 운세의 본체를 바꾸지 않소.",
+      reference: "달력 기준이 미확정이면 충돌 판정보다 참고용 성격을 먼저 드러내오.",
+    },
+    confidenceMode,
+    conflicts,
+  };
+}
+
 function buildInitialHybridAnalysis(params: {
-  score: number;
+  fortune: FortuneWithoutInsights;
   certainty: ChartCertainty;
 }): DailyFortune["analysis"]["hybrid"] {
   return {
@@ -748,9 +866,9 @@ function buildInitialHybridAnalysis(params: {
       },
     ],
     scoreBreakdown: {
-      base: params.score,
+      base: params.fortune.score,
       kuseongDelta: 0,
-      final: params.score,
+      final: params.fortune.score,
     },
   };
 }
@@ -893,6 +1011,23 @@ function applyKuseongHybrid(params: {
         },
         kuseong,
       },
+      hybridExplanation: buildHybridExplanation({
+        fortune: {
+          ...params.fortune,
+          score: finalScore,
+          grade: updatedGrade,
+          categoryScores: params.fortune.categoryScores.map((category) => ({
+            ...category,
+            score: clamp(
+              category.score + kuseong.scoreDelta + kuseong.categoryAdjustments[category.key],
+              0,
+              100,
+            ),
+          })),
+        },
+        certainty: params.fortune.analysis.certainty,
+        kuseong,
+      }),
     },
   };
 }
@@ -1605,74 +1740,88 @@ function buildSolarLunarBlendedReferenceFortune(params: {
     relationAvoid: blended.relationStrengthAvoid,
   });
   const trimmedAvoidToday = uniqueOrderedStrings(avoidToday).slice(0, 3);
+  const baseFortune: FortuneWithoutInsights = {
+    score: blended.score,
+    grade: blended.grade,
+    headline,
+    summary,
+    detail,
+    caution,
+    recommendedActions,
+    keywords: buildKeywords({
+      grade: blended.grade,
+      relation: blended.todayRelation,
+      usefulElements: blended.usefulElements,
+    }),
+    categoryScores: blended.categoryScores,
+    avoidToday: trimmedAvoidToday,
+    luckyHints: ELEMENT_LUCK_MAP[blended.yongShin],
+    elements: blended.elements,
+    manse: null,
+    analysis: {
+      certainty: "calendar-unknown",
+      referenceMode: "solar-lunar-blend",
+      uncertaintyMessage: blended.uncertaintyMessage,
+      strengthLevel: blended.strengthLevel,
+      strengthScore: blended.strengthScore,
+      strengthSummary: blended.strengthSummary,
+      seasonalSummary: blended.seasonalSummary,
+      dominantTenGod: blended.dominantTenGod,
+      patternName: blended.patternName,
+      patternSummary: blended.patternSummary,
+      patternTentative: blended.patternTentative,
+      patternRevealLabel: blended.patternRevealLabel,
+      patternCandidates: blended.patternCandidates,
+      yongShin: blended.yongShin,
+      heeShin: blended.heeShin,
+      giShin: blended.giShin,
+      guShin: blended.guShin,
+      balanceSummary: blended.balanceSummary,
+      directiveDelta: blended.directiveDelta,
+      directiveSummary: blended.directiveSummary,
+      yongShinReason: blended.yongShinReason,
+      giShinReason: blended.giShinReason,
+      relationStrengthSummary: blended.relationStrengthSummary,
+      relationStrengthDetail: blended.relationStrengthDetail,
+      relationStrengthCaution: blended.relationStrengthCaution,
+      relationStrengthAction: blended.relationStrengthAction,
+      relationStrengthAvoid: blended.relationStrengthAvoid,
+      usefulElements: blended.usefulElements,
+      unfavorableElements: blended.unfavorableElements,
+      todayGanji: blended.todayGanji,
+      todayRelation: blended.todayRelation,
+      todayBranchImpact: blended.todayBranchImpact,
+      todayBranchSummary: blended.todayBranchSummary,
+      todayBranchInteractions: blended.todayBranchInteractions,
+      usedNoonFallback: blended.usedNoonFallback,
+      calendarTypeInput: "unknown",
+      calendarTypeResolved: "unknown",
+      rootCount: 0,
+      branchRelations: [],
+      visibleTenGods: [],
+      hybrid: {
+        sources: [],
+        scoreBreakdown: {
+          base: blended.score,
+          kuseongDelta: 0,
+          final: blended.score,
+        },
+      },
+      hybridExplanation: {} as HybridExplanation,
+    },
+  };
+  baseFortune.analysis.hybrid = buildInitialHybridAnalysis({
+    fortune: baseFortune,
+    certainty: "calendar-unknown",
+  });
+  baseFortune.analysis.hybridExplanation = buildHybridExplanation({
+    fortune: baseFortune,
+    certainty: "calendar-unknown",
+  });
 
   return attachFortuneInsights({
     fortune: applyKuseongHybrid({
-      fortune: {
-      score: blended.score,
-      grade: blended.grade,
-      headline,
-      summary,
-      detail,
-      caution,
-      recommendedActions,
-      keywords: buildKeywords({
-        grade: blended.grade,
-        relation: blended.todayRelation,
-        usefulElements: blended.usefulElements,
-      }),
-      categoryScores: blended.categoryScores,
-      avoidToday: trimmedAvoidToday,
-      luckyHints: ELEMENT_LUCK_MAP[blended.yongShin],
-      elements: blended.elements,
-      manse: null,
-      analysis: {
-        certainty: "calendar-unknown",
-        referenceMode: "solar-lunar-blend",
-        uncertaintyMessage: blended.uncertaintyMessage,
-        strengthLevel: blended.strengthLevel,
-        strengthScore: blended.strengthScore,
-        strengthSummary: blended.strengthSummary,
-        seasonalSummary: blended.seasonalSummary,
-        dominantTenGod: blended.dominantTenGod,
-        patternName: blended.patternName,
-        patternSummary: blended.patternSummary,
-        patternTentative: blended.patternTentative,
-        patternRevealLabel: blended.patternRevealLabel,
-        patternCandidates: blended.patternCandidates,
-        yongShin: blended.yongShin,
-        heeShin: blended.heeShin,
-        giShin: blended.giShin,
-        guShin: blended.guShin,
-        balanceSummary: blended.balanceSummary,
-        directiveDelta: blended.directiveDelta,
-        directiveSummary: blended.directiveSummary,
-        yongShinReason: blended.yongShinReason,
-        giShinReason: blended.giShinReason,
-        relationStrengthSummary: blended.relationStrengthSummary,
-        relationStrengthDetail: blended.relationStrengthDetail,
-        relationStrengthCaution: blended.relationStrengthCaution,
-        relationStrengthAction: blended.relationStrengthAction,
-        relationStrengthAvoid: blended.relationStrengthAvoid,
-        usefulElements: blended.usefulElements,
-        unfavorableElements: blended.unfavorableElements,
-        todayGanji: blended.todayGanji,
-        todayRelation: blended.todayRelation,
-        todayBranchImpact: blended.todayBranchImpact,
-        todayBranchSummary: blended.todayBranchSummary,
-        todayBranchInteractions: blended.todayBranchInteractions,
-        usedNoonFallback: blended.usedNoonFallback,
-        calendarTypeInput: "unknown",
-        calendarTypeResolved: "unknown",
-        rootCount: 0,
-        branchRelations: [],
-        visibleTenGods: [],
-        hybrid: buildInitialHybridAnalysis({
-          score: blended.score,
-          certainty: "calendar-unknown",
-        }),
-      },
-    },
+      fortune: baseFortune,
       birthDate: params.birthDate,
       birthTime: params.birthTime,
       calendarType: "unknown",
@@ -2075,168 +2224,188 @@ function generateBaseDailyFortune(params: {
   const trimmedAvoidToday = avoidToday.slice(0, 3);
   const luckyHints = ELEMENT_LUCK_MAP[yongShin];
 
+  const baseFortune: FortuneWithoutInsights = {
+    score,
+    grade,
+    headline: headlineByGrade[grade],
+    summary,
+    detail,
+    caution,
+    recommendedActions,
+    keywords,
+    categoryScores,
+    avoidToday: trimmedAvoidToday,
+    luckyHints,
+    elements: chartElements,
+    manse: exactChart
+      ? {
+          solarDateTime: exactChart.solarDateTime,
+          lunarDateKorean: exactChart.lunarDateKorean,
+          calendarTypeResolved: exactChart.calendarTypeResolved,
+          usedNoonFallback,
+          pillars: (["year", "month", "day", "hour"] as PillarKey[]).map((pillarKey) => {
+            const pillar = exactChart.pillars[pillarKey];
+            const naYin =
+              pillarKey === "year"
+                ? exactChart.auxiliary.naYin.year
+                : pillarKey === "month"
+                  ? exactChart.auxiliary.naYin.month
+                  : pillarKey === "day"
+                    ? exactChart.auxiliary.naYin.day
+                    : exactChart.auxiliary.naYin.hour;
+
+            return {
+              key: pillarKey,
+              label:
+                pillarKey === "year"
+                  ? "연주"
+                  : pillarKey === "month"
+                    ? "월주"
+                    : pillarKey === "day"
+                      ? "일주"
+                      : "시주",
+              ganji: pillar.ganji,
+              ganjiKorean: pillar.ganjiKorean,
+              stem: pillar.stem,
+              stemKorean: pillar.stemKorean,
+              branch: pillar.branch,
+              branchKorean: pillar.branchKorean,
+              hiddenStems: pillar.hiddenStems,
+              hiddenStemsKorean: pillar.hiddenStemsKorean,
+              naYin,
+            };
+          }),
+        }
+      : null,
+    analysis: exactChart
+      ? {
+          certainty,
+          referenceMode: "none",
+          uncertaintyMessage,
+          strengthLevel: dayMasterStrengthLevel,
+          strengthScore: exactChart.analysis.dayMasterStrength.score,
+          strengthSummary,
+          seasonalSummary,
+          dominantTenGod,
+          patternName,
+          patternSummary,
+          patternTentative,
+          patternRevealLabel,
+          patternCandidates,
+          yongShin,
+          heeShin,
+          giShin,
+          guShin,
+          balanceSummary,
+          directiveDelta,
+          directiveSummary,
+          yongShinReason,
+          giShinReason,
+          relationStrengthSummary: relationGuide.summary,
+          relationStrengthDetail: relationGuide.detail,
+          relationStrengthCaution: relationGuide.caution,
+          relationStrengthAction: relationGuide.action,
+          relationStrengthAvoid: relationGuide.avoid,
+          usefulElements,
+          unfavorableElements,
+          todayGanji,
+          todayRelation: relation,
+          todayBranchImpact,
+          todayBranchSummary,
+          todayBranchInteractions: prioritizedTodayBranchInteractions,
+          usedNoonFallback,
+          calendarTypeInput,
+          calendarTypeResolved,
+          rootCount: exactChart.analysis.dayMasterStrength.roots.length,
+          branchRelations: exactChart.analysis.branchRelations.pairs.map((pair) => ({
+            pillars: pair.pillars,
+            label: pair.label,
+            type: pair.type,
+            description: pair.description,
+          })),
+          visibleTenGods: (Object.entries(exactChart.analysis.tenGods.stems) as Array<
+            [Exclude<PillarKey, "day">, (typeof exactChart.analysis.tenGods.stems)[keyof typeof exactChart.analysis.tenGods.stems]]
+          >).map(([pillar, info]) => ({
+            pillar,
+            pillarLabel: pillarLabel(pillar),
+            stem: info.stem,
+            stemKorean: info.stemKorean,
+            tenGod: info.tenGod,
+          })),
+          hybrid: {
+            sources: [],
+            scoreBreakdown: {
+              base: score,
+              kuseongDelta: 0,
+              final: score,
+            },
+          },
+          hybridExplanation: {} as HybridExplanation,
+        }
+      : {
+          certainty,
+          referenceMode: "none",
+          uncertaintyMessage,
+          strengthLevel: dayMasterStrengthLevel,
+          strengthScore: fallbackDayMasterStrong ? 8 : -8,
+          strengthSummary,
+          seasonalSummary,
+          dominantTenGod,
+          patternName,
+          patternSummary,
+          patternTentative,
+          patternRevealLabel,
+          patternCandidates,
+          yongShin,
+          heeShin,
+          giShin,
+          guShin,
+          balanceSummary,
+          directiveDelta,
+          directiveSummary,
+          yongShinReason,
+          giShinReason,
+          relationStrengthSummary: relationGuide.summary,
+          relationStrengthDetail: relationGuide.detail,
+          relationStrengthCaution: relationGuide.caution,
+          relationStrengthAction: relationGuide.action,
+          relationStrengthAvoid: relationGuide.avoid,
+          usefulElements,
+          unfavorableElements,
+          todayGanji,
+          todayRelation: relation,
+          todayBranchImpact,
+          todayBranchSummary,
+          todayBranchInteractions: prioritizedTodayBranchInteractions,
+          usedNoonFallback,
+          calendarTypeInput,
+          calendarTypeResolved,
+          rootCount: 0,
+          branchRelations: [],
+          visibleTenGods: [],
+          hybrid: {
+            sources: [],
+            scoreBreakdown: {
+              base: score,
+              kuseongDelta: 0,
+              final: score,
+            },
+          },
+          hybridExplanation: {} as HybridExplanation,
+        },
+  };
+  baseFortune.analysis.hybrid = buildInitialHybridAnalysis({
+    fortune: baseFortune,
+    certainty,
+  });
+  baseFortune.analysis.hybridExplanation = buildHybridExplanation({
+    fortune: baseFortune,
+    certainty,
+  });
+
   return attachFortuneInsights({
     fortune: applyKuseongHybrid({
-      fortune: {
-      score,
-      grade,
-      headline: headlineByGrade[grade],
-      summary,
-      detail,
-      caution,
-      recommendedActions,
-      keywords,
-      categoryScores,
-      avoidToday: trimmedAvoidToday,
-      luckyHints,
-      elements: chartElements,
-      manse: exactChart
-        ? {
-            solarDateTime: exactChart.solarDateTime,
-            lunarDateKorean: exactChart.lunarDateKorean,
-            calendarTypeResolved: exactChart.calendarTypeResolved,
-            usedNoonFallback,
-            pillars: (["year", "month", "day", "hour"] as PillarKey[]).map((pillarKey) => {
-              const pillar = exactChart.pillars[pillarKey];
-              const naYin =
-                pillarKey === "year"
-                  ? exactChart.auxiliary.naYin.year
-                  : pillarKey === "month"
-                    ? exactChart.auxiliary.naYin.month
-                    : pillarKey === "day"
-                      ? exactChart.auxiliary.naYin.day
-                      : exactChart.auxiliary.naYin.hour;
-
-              return {
-                key: pillarKey,
-                label:
-                  pillarKey === "year"
-                    ? "연주"
-                    : pillarKey === "month"
-                      ? "월주"
-                      : pillarKey === "day"
-                        ? "일주"
-                        : "시주",
-                ganji: pillar.ganji,
-                ganjiKorean: pillar.ganjiKorean,
-                stem: pillar.stem,
-                stemKorean: pillar.stemKorean,
-                branch: pillar.branch,
-                branchKorean: pillar.branchKorean,
-                hiddenStems: pillar.hiddenStems,
-                hiddenStemsKorean: pillar.hiddenStemsKorean,
-                naYin,
-              };
-            }),
-          }
-        : null,
-      analysis: exactChart
-        ? {
-            certainty,
-            referenceMode: "none",
-            uncertaintyMessage,
-            strengthLevel: dayMasterStrengthLevel,
-            strengthScore: exactChart.analysis.dayMasterStrength.score,
-            strengthSummary,
-            seasonalSummary,
-            dominantTenGod,
-            patternName,
-            patternSummary,
-            patternTentative,
-            patternRevealLabel,
-            patternCandidates,
-            yongShin,
-            heeShin,
-            giShin,
-            guShin,
-            balanceSummary,
-            directiveDelta,
-            directiveSummary,
-            yongShinReason,
-            giShinReason,
-            relationStrengthSummary: relationGuide.summary,
-            relationStrengthDetail: relationGuide.detail,
-            relationStrengthCaution: relationGuide.caution,
-            relationStrengthAction: relationGuide.action,
-            relationStrengthAvoid: relationGuide.avoid,
-            usefulElements,
-            unfavorableElements,
-            todayGanji,
-            todayRelation: relation,
-            todayBranchImpact,
-            todayBranchSummary,
-            todayBranchInteractions: prioritizedTodayBranchInteractions,
-            usedNoonFallback,
-            calendarTypeInput,
-            calendarTypeResolved,
-            rootCount: exactChart.analysis.dayMasterStrength.roots.length,
-            branchRelations: exactChart.analysis.branchRelations.pairs.map((pair) => ({
-              pillars: pair.pillars,
-              label: pair.label,
-              type: pair.type,
-              description: pair.description,
-            })),
-            visibleTenGods: (Object.entries(exactChart.analysis.tenGods.stems) as Array<
-              [Exclude<PillarKey, "day">, (typeof exactChart.analysis.tenGods.stems)[keyof typeof exactChart.analysis.tenGods.stems]]
-            >).map(([pillar, info]) => ({
-              pillar,
-              pillarLabel: pillarLabel(pillar),
-              stem: info.stem,
-              stemKorean: info.stemKorean,
-              tenGod: info.tenGod,
-            })),
-            hybrid: buildInitialHybridAnalysis({
-              score,
-              certainty,
-            }),
-          }
-        : {
-            certainty,
-            referenceMode: "none",
-            uncertaintyMessage,
-            strengthLevel: dayMasterStrengthLevel,
-            strengthScore: fallbackDayMasterStrong ? 8 : -8,
-            strengthSummary,
-            seasonalSummary,
-            dominantTenGod,
-            patternName,
-            patternSummary,
-            patternTentative,
-            patternRevealLabel,
-            patternCandidates,
-            yongShin,
-            heeShin,
-            giShin,
-            guShin,
-            balanceSummary,
-            directiveDelta,
-            directiveSummary,
-            yongShinReason,
-            giShinReason,
-            relationStrengthSummary: relationGuide.summary,
-            relationStrengthDetail: relationGuide.detail,
-            relationStrengthCaution: relationGuide.caution,
-            relationStrengthAction: relationGuide.action,
-            relationStrengthAvoid: relationGuide.avoid,
-            usefulElements,
-            unfavorableElements,
-            todayGanji,
-            todayRelation: relation,
-            todayBranchImpact,
-            todayBranchSummary,
-            todayBranchInteractions: prioritizedTodayBranchInteractions,
-            usedNoonFallback,
-            calendarTypeInput,
-            calendarTypeResolved,
-            rootCount: 0,
-            branchRelations: [],
-            visibleTenGods: [],
-            hybrid: buildInitialHybridAnalysis({
-              score,
-              certainty,
-            }),
-          },
-    },
+      fortune: baseFortune,
       birthDate: params.birthDate,
       birthTime: params.birthTime,
       calendarType: calendarTypeInput,

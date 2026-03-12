@@ -1,4 +1,5 @@
 import type { CalendarType, ChartCertainty, ElementKey } from "./saju";
+import { logAdminEventSafe } from "./admin-event-log";
 import type { ReferenceMode } from "./fortune";
 import { formatStoredDateKey, getSeoulDateKey } from "./seoul-time";
 
@@ -298,6 +299,15 @@ export async function generateFortuneNarrativeOverride(params: {
   date: Date;
 }): Promise<FortuneNarrativeOverride | null> {
   if (!hasOpenAiApiKey()) {
+    void logAdminEventSafe({
+      eventType: "openai_fortune_fallback",
+      status: "fallback",
+      source: "fortune-llm",
+      message: "OPENAI_API_KEY가 없어 운세 서술 fallback을 사용했습니다.",
+      metadata: {
+        reason: "missing_api_key",
+      },
+    });
     return null;
   }
 
@@ -335,6 +345,17 @@ export async function generateFortuneNarrativeOverride(params: {
       if (!response.ok) {
         const errorText = await response.text();
         console.error("[fortune-llm] OpenAI API request failed", response.status, errorText);
+        void logAdminEventSafe({
+          eventType: "openai_fortune_fallback",
+          status: "fallback",
+          source: "fortune-llm",
+          message: `운세 서술 OpenAI 응답이 실패해 fallback을 사용했습니다. status=${response.status}`,
+          metadata: {
+            reason: "response_not_ok",
+            httpStatus: response.status,
+            model: resolveModel(),
+          },
+        });
         return null;
       }
 
@@ -342,12 +363,32 @@ export async function generateFortuneNarrativeOverride(params: {
       const outputText = extractResponseText(payload);
       if (!outputText) {
         console.error("[fortune-llm] empty output_text from OpenAI");
+        void logAdminEventSafe({
+          eventType: "openai_fortune_fallback",
+          status: "fallback",
+          source: "fortune-llm",
+          message: "운세 서술 OpenAI 응답에 output_text가 없어 fallback을 사용했습니다.",
+          metadata: {
+            reason: "empty_output_text",
+            model: resolveModel(),
+          },
+        });
         return null;
       }
 
       const parsed = parseNarrativeOverride(JSON.parse(cleanModelJson(outputText)));
       if (!parsed) {
         console.error("[fortune-llm] invalid narrative payload", outputText);
+        void logAdminEventSafe({
+          eventType: "openai_fortune_fallback",
+          status: "fallback",
+          source: "fortune-llm",
+          message: "운세 서술 OpenAI 응답 파싱에 실패해 fallback을 사용했습니다.",
+          metadata: {
+            reason: "invalid_payload",
+            model: resolveModel(),
+          },
+        });
         return null;
       }
 
@@ -359,6 +400,16 @@ export async function generateFortuneNarrativeOverride(params: {
       return parsed;
     } catch (error) {
       console.error("[fortune-llm] unexpected error", error);
+      void logAdminEventSafe({
+        eventType: "openai_fortune_fallback",
+        status: "fallback",
+        source: "fortune-llm",
+        message: "운세 서술 OpenAI 호출 중 예외가 발생해 fallback을 사용했습니다.",
+        metadata: {
+          reason: "unexpected_error",
+          model: resolveModel(),
+        },
+      });
       return null;
     } finally {
       pendingNarrativeRequests.delete(cacheKey);

@@ -5,6 +5,7 @@ import {
   getAdminUsersPage,
   type AdminUserListItem,
 } from "../../../../lib/admin-dashboard";
+import { truncateAdminIdentifier } from "../../../../lib/admin-display";
 import { hasDatabaseUrl } from "../../../../lib/profile";
 import { formatSeoulDate, formatStoredDate } from "../../../../lib/seoul-time";
 import styles from "../../admin.module.css";
@@ -123,7 +124,9 @@ export default async function AdminUsersPage({ searchParams }: UsersPageProps) {
                           href={buildUsersPageHref({ q, page, userId: user.userId })}
                           className={styles.tableLink}
                         >
-                          {user.userId}
+                          <span className={styles.codeText} title={user.userId}>
+                            {truncateAdminIdentifier(user.userId)}
+                          </span>
                         </Link>
                       </td>
                       <td>{user.name ?? "미입력"}</td>
@@ -161,7 +164,15 @@ export default async function AdminUsersPage({ searchParams }: UsersPageProps) {
 
           <aside className={styles.detailCard}>
             <p className={styles.eyebrow}>User Detail</p>
-            <h3 className={styles.sectionTitle}>{selectedUser ? selectedUser.userId : "사용자 선택"}</h3>
+            <h3 className={styles.sectionTitle}>
+              {selectedUser ? (
+                <span className={styles.codeText} title={selectedUser.userId}>
+                  {truncateAdminIdentifier(selectedUser.userId, { head: 10, tail: 6 })}
+                </span>
+              ) : (
+                "사용자 선택"
+              )}
+            </h3>
             {!selectedUser ? (
               <p className={styles.sectionMeta}>테이블에서 userId를 선택하면 상세 정보가 표시됩니다.</p>
             ) : (

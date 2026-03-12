@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { createShareAccessToken } from "./access-token";
+import { logAdminEventSafe } from "./admin-event-log";
 import { type DailyFortune, type PublicFortuneInsight, toPublicFortuneInsight } from "./fortune";
 import { getSeoulDateKey } from "./seoul-time";
 
@@ -85,6 +86,18 @@ export async function upsertFortuneShareSnapshot(params: {
     select: {
       id: true,
       targetDateKey: true,
+    },
+  });
+
+  void logAdminEventSafe({
+    eventType: "share_created",
+    status: "success",
+    source: "kakao",
+    userId: params.userId,
+    message: `공유 스냅샷이 생성되었습니다: ${snapshot.id}`,
+    metadata: {
+      snapshotId: snapshot.id,
+      targetDateKey: snapshot.targetDateKey,
     },
   });
 

@@ -5,6 +5,14 @@ import {
   isLikelyFortuneQuestion,
 } from "../../lib/fortune-question";
 
+const mocks = vi.hoisted(() => ({
+  logAdminEventSafe: vi.fn(),
+}));
+
+vi.mock("../../lib/admin-event-log", () => ({
+  logAdminEventSafe: mocks.logAdminEventSafe,
+}));
+
 function buildUnknownFortune() {
   return generateDailyFortune({
     userId: "question-user",
@@ -87,6 +95,7 @@ async function answerWithMockedOracle(params: {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  mocks.logAdminEventSafe.mockReset();
 });
 
 describe("fortune question fallback", () => {
@@ -111,6 +120,12 @@ describe("fortune question fallback", () => {
     expect(answer.decisionBasis.secondaryInsightKey).toBeTruthy();
     expect(answer.oracleInfluence.channels).toContain("caution");
     expect(answer.conflictResolution.status).toBe("reference-priority");
+    expect(mocks.logAdminEventSafe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "openai_question_fallback",
+        questionText: "오늘 일은 어떻게 풀릴까?",
+      }),
+    );
   });
 
   it("keeps explanation metadata deterministic for the same user and date", async () => {
@@ -167,5 +182,12 @@ describe("fortune question fallback", () => {
     expect(answer.decisionBasis.primaryInsightKey).toBeTruthy();
     expect(answer.oracleInfluence.channels).toContain("caution");
     expect(answer.conflictResolution.status).toBe("question-signal-conflict");
+    expect(mocks.logAdminEventSafe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "question_answered",
+        status: "success",
+        source: "fortune-question",
+      }),
+    );
   });
 });

@@ -4,6 +4,7 @@ import {
   getAdminSharesPage,
   type AdminShareStatus,
 } from "../../../../lib/admin-dashboard";
+import { truncateAdminIdentifier } from "../../../../lib/admin-display";
 import { hasDatabaseUrl } from "../../../../lib/profile";
 import { formatSeoulDate } from "../../../../lib/seoul-time";
 import styles from "../../admin.module.css";
@@ -100,7 +101,11 @@ export default async function AdminSharesPage({ searchParams }: SharesPageProps)
                 {shares.items.map((share) => (
                   <tr key={share.snapshotId}>
                     <td>{share.snapshotId}</td>
-                    <td>{share.userId}</td>
+                    <td>
+                      <span className={styles.codeText} title={share.userId}>
+                        {truncateAdminIdentifier(share.userId)}
+                      </span>
+                    </td>
                     <td>{share.displayName}</td>
                     <td>{share.targetDateKey}</td>
                     <td>{formatSeoulDate(share.createdAt)}</td>

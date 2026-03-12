@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { href: "/admin", label: "Overview" },
   { href: "/admin/users", label: "Users" },
   { href: "/admin/shares", label: "Shares" },
+  { href: "/admin/logs", label: "Logs" },
 ];
 
 export default function AdminDashboardLayout({

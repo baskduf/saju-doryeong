@@ -3,6 +3,7 @@ import type {
   DailyFortuneInsight,
   DailyFortuneInsightKey,
 } from "./fortune";
+import { logAdminEventSafe } from "./admin-event-log";
 import { getSeoulDateKey } from "./seoul-time";
 import {
   buildYukhyoReading,
@@ -666,7 +667,25 @@ export async function answerFortuneQuestion(params: {
     conflictResolution,
   });
 
+  const baseLogMetadata = {
+    questionTopic: analysis.topic,
+    questionIntent: analysis.intent,
+    model: resolveModel(),
+  };
+
   if (!hasOpenAiApiKey()) {
+    void logAdminEventSafe({
+      eventType: "openai_question_fallback",
+      status: "fallback",
+      source: "fortune-question",
+      userId: params.userId,
+      questionText: params.question,
+      message: "OPENAI_API_KEY가 없어 질문 fallback 응답을 사용했습니다.",
+      metadata: {
+        ...baseLogMetadata,
+        reason: "missing_api_key",
+      },
+    });
     return fallback;
   }
 
@@ -714,12 +733,37 @@ export async function answerFortuneQuestion(params: {
     });
 
     if (!response.ok) {
+      void logAdminEventSafe({
+        eventType: "openai_question_fallback",
+        status: "fallback",
+        source: "fortune-question",
+        userId: params.userId,
+        questionText: params.question,
+        message: `질문 OpenAI 응답이 실패해 fallback을 사용했습니다. status=${response.status}`,
+        metadata: {
+          ...baseLogMetadata,
+          reason: "response_not_ok",
+          httpStatus: response.status,
+        },
+      });
       return fallback;
     }
 
     const payload = (await response.json()) as Record<string, unknown>;
     const outputText = extractResponseText(payload);
     if (!outputText) {
+      void logAdminEventSafe({
+        eventType: "openai_question_fallback",
+        status: "fallback",
+        source: "fortune-question",
+        userId: params.userId,
+        questionText: params.question,
+        message: "질문 OpenAI 응답에 output_text가 없어 fallback을 사용했습니다.",
+        metadata: {
+          ...baseLogMetadata,
+          reason: "empty_output_text",
+        },
+      });
       return fallback;
     }
 
@@ -729,6 +773,18 @@ export async function answerFortuneQuestion(params: {
       conflictResolution,
     });
     if (!parsed) {
+      void logAdminEventSafe({
+        eventType: "openai_question_fallback",
+        status: "fallback",
+        source: "fortune-question",
+        userId: params.userId,
+        questionText: params.question,
+        message: "질문 OpenAI 응답 파싱에 실패해 fallback을 사용했습니다.",
+        metadata: {
+          ...baseLogMetadata,
+          reason: "invalid_payload",
+        },
+      });
       return fallback;
     }
 
@@ -748,8 +804,33 @@ export async function answerFortuneQuestion(params: {
       value: answer,
     });
 
+    void logAdminEventSafe({
+      eventType: "question_answered",
+      status: "success",
+      source: "fortune-question",
+      userId: params.userId,
+      questionText: params.question,
+      message: "질문 답변이 생성되었습니다.",
+      metadata: {
+        ...baseLogMetadata,
+        usedLlm: true,
+      },
+    });
+
     return answer;
   } catch {
+    void logAdminEventSafe({
+      eventType: "openai_question_fallback",
+      status: "fallback",
+      source: "fortune-question",
+      userId: params.userId,
+      questionText: params.question,
+      message: "질문 OpenAI 호출 중 예외가 발생해 fallback을 사용했습니다.",
+      metadata: {
+        ...baseLogMetadata,
+        reason: "unexpected_error",
+      },
+    });
     return fallback;
   }
 }

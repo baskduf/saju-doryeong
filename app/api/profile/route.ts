@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
+import { logAdminEventSafe } from "../../../lib/admin-event-log";
 import {
   buildInitialSajuData,
   hasDatabaseUrl,
@@ -22,13 +23,13 @@ function parsePayload(
   payload: unknown,
 ): { ok: true; data: ProfilePayload } | { ok: false; message: string } {
   if (!payload || typeof payload !== "object") {
-    return { ok: false, message: "JSON body가 올바르지 않습니다." };
+    return { ok: false, message: "JSON body媛 ?щ컮瑜댁? ?딆뒿?덈떎." };
   }
 
   const raw = payload as Record<string, unknown>;
   const userId = raw.userId;
   if (!isNonEmptyString(userId)) {
-    return { ok: false, message: "userId는 필수 문자열입니다." };
+    return { ok: false, message: "userId???꾩닔 臾몄옄?댁엯?덈떎." };
   }
 
   const parsedRegistration = parseRegistrationFields({
@@ -66,14 +67,24 @@ function isDatabaseConnectionError(error: unknown): boolean {
 }
 
 function createUnauthorizedResponse() {
-  return NextResponse.json({ error: "유효한 등록 토큰이 필요합니다." }, { status: 401 });
+  return NextResponse.json({ error: "?좏슚???깅줉 ?좏겙???꾩슂?⑸땲??" }, { status: 401 });
 }
 
 export async function POST(request: NextRequest) {
   try {
     if (!hasDatabaseUrl()) {
+      void logAdminEventSafe({
+        eventType: "profile_registration_failed",
+        status: "error",
+        source: "profile-api",
+        message: "DATABASE_URL???ㅼ젙?섏? ?딆븘 ?꾨줈????μ뿉 ?ㅽ뙣?덉뒿?덈떎.",
+        metadata: {
+          reason: "missing_database_url",
+          route: "/api/profile",
+        },
+      });
       return NextResponse.json(
-        { error: "DATABASE_URL 또는 POSTGRES_PRISMA_URL이 설정되지 않았습니다." },
+        { error: "DATABASE_URL ?먮뒗 POSTGRES_PRISMA_URL???ㅼ젙?섏? ?딆븯?듬땲??" },
         { status: 503 },
       );
     }
@@ -81,11 +92,37 @@ export async function POST(request: NextRequest) {
     const payload = await request.json();
     const parsed = parsePayload(payload);
     if (!parsed.ok) {
+      const payloadUserId =
+        payload && typeof payload === "object" && isNonEmptyString((payload as Record<string, unknown>).userId)
+          ? String((payload as Record<string, unknown>).userId)
+          : undefined;
+      void logAdminEventSafe({
+        eventType: "profile_registration_failed",
+        status: "error",
+        source: "profile-api",
+        userId: payloadUserId,
+        message: "?꾨줈???깅줉 payload 寃利앹뿉 ?ㅽ뙣?덉뒿?덈떎.",
+        metadata: {
+          reason: "invalid_payload",
+          route: "/api/profile",
+        },
+      });
       return NextResponse.json({ error: parsed.message }, { status: 400 });
     }
 
     const tokenCheck = verifyRegisterAccessToken(parsed.data.accessToken, parsed.data.userId);
     if (!tokenCheck.ok) {
+      void logAdminEventSafe({
+        eventType: "profile_registration_failed",
+        status: "error",
+        source: "profile-api",
+        userId: parsed.data.userId,
+        message: "?깅줉 ?좏겙 寃利앹뿉 ?ㅽ뙣?덉뒿?덈떎.",
+        metadata: {
+          reason: tokenCheck.reason,
+          route: "/api/profile",
+        },
+      });
       return createUnauthorizedResponse();
     }
 
@@ -102,8 +139,19 @@ export async function POST(request: NextRequest) {
         ),
       ) as Prisma.InputJsonValue;
     } catch {
+      void logAdminEventSafe({
+        eventType: "profile_registration_failed",
+        status: "error",
+        source: "profile-api",
+        userId: parsed.data.userId,
+        message: "?ъ＜ 怨꾩궛 ?곗씠???앹꽦???ㅽ뙣?덉뒿?덈떎.",
+        metadata: {
+          reason: "saju_build_failed",
+          route: "/api/profile",
+        },
+      });
       return NextResponse.json(
-        { error: "사주 계산 데이터를 생성하는 중 오류가 발생했습니다." },
+        { error: "?ъ＜ 怨꾩궛 ?곗씠?곕? ?앹꽦?섎뒗 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎." },
         { status: 400 },
       );
     }
@@ -124,12 +172,32 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("[/api/profile POST] unexpected error", error);
     if (isDatabaseConnectionError(error)) {
+      void logAdminEventSafe({
+        eventType: "profile_registration_failed",
+        status: "error",
+        source: "profile-api",
+        message: "?꾨줈?????以??곗씠?곕쿋?댁뒪 ?ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.",
+        metadata: {
+          reason: "database_error",
+          route: "/api/profile",
+        },
+      });
       return NextResponse.json(
-        { error: "데이터베이스 연결이 일시적으로 불안정합니다. 잠시 뒤 다시 시도해 주세요." },
+        { error: "?곗씠?곕쿋?댁뒪 ?곌껐???쇱떆?곸쑝濡?遺덉븞?뺥빀?덈떎. ?좎떆 ???ㅼ떆 ?쒕룄??二쇱꽭??" },
         { status: 503 },
       );
     }
 
-    return NextResponse.json({ error: "프로필 저장 중 오류가 발생했습니다." }, { status: 500 });
+    void logAdminEventSafe({
+      eventType: "profile_registration_failed",
+      status: "error",
+      source: "profile-api",
+      message: "?꾨줈?????以??덉쇅媛 諛쒖깮?덉뒿?덈떎.",
+      metadata: {
+        reason: "unexpected_error",
+        route: "/api/profile",
+      },
+    });
+    return NextResponse.json({ error: "?꾨줈?????以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎." }, { status: 500 });
   }
 }

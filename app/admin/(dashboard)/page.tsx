@@ -1,5 +1,6 @@
 import React from "react";
 import { getAdminOverview } from "../../../lib/admin-dashboard";
+import { truncateAdminIdentifier } from "../../../lib/admin-display";
 import { hasDatabaseUrl } from "../../../lib/profile";
 import { formatSeoulDate } from "../../../lib/seoul-time";
 import styles from "../admin.module.css";
@@ -9,6 +10,25 @@ function renderCalendarTypeLabel(value: string): string {
   if (value === "lunar") return "음력";
   if (value === "unknown") return "모름";
   return "기타";
+}
+
+function renderLogLabel(value: string): string {
+  switch (value) {
+    case "question_answered":
+      return "question_answered";
+    case "share_created":
+      return "share_created";
+    case "profile_registration_failed":
+      return "profile_registration_failed";
+    case "kakao_request_failed":
+      return "kakao_request_failed";
+    case "openai_question_fallback":
+      return "openai_question_fallback";
+    case "openai_fortune_fallback":
+      return "openai_fortune_fallback";
+    default:
+      return value;
+  }
 }
 
 export default async function AdminOverviewPage() {
@@ -94,7 +114,11 @@ export default async function AdminOverviewPage() {
               <tbody>
                 {overview.recentUsers.map((user) => (
                   <tr key={user.userId}>
-                    <td>{user.userId}</td>
+                    <td>
+                      <span className={styles.codeText} title={user.userId}>
+                        {truncateAdminIdentifier(user.userId)}
+                      </span>
+                    </td>
                     <td>{user.name ?? "미입력"}</td>
                     <td>{renderCalendarTypeLabel(user.calendarType)}</td>
                     <td>{user.questionUsageCountToday}</td>
@@ -128,7 +152,11 @@ export default async function AdminOverviewPage() {
                 {overview.recentShares.map((share) => (
                   <tr key={share.snapshotId}>
                     <td>{share.snapshotId}</td>
-                    <td>{share.userId}</td>
+                    <td>
+                      <span className={styles.codeText} title={share.userId}>
+                        {truncateAdminIdentifier(share.userId)}
+                      </span>
+                    </td>
                     <td>{share.displayName}</td>
                     <td>
                       <span className={share.status === "active" ? styles.badgeActive : styles.badgeWarning}>
@@ -142,6 +170,59 @@ export default async function AdminOverviewPage() {
             </table>
           </div>
         </section>
+      </section>
+
+      <section className={styles.section}>
+        <div className={styles.sectionHeader}>
+          <div>
+            <h2 className={styles.sectionTitle}>최근 운영 이벤트</h2>
+            <p className={styles.sectionMeta}>최신 이벤트 10건</p>
+          </div>
+        </div>
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>시각</th>
+                <th>eventType</th>
+                <th>status</th>
+                <th>userId</th>
+                <th>message</th>
+              </tr>
+            </thead>
+            <tbody>
+              {overview.recentLogs.map((log) => (
+                <tr key={log.id}>
+                  <td>{formatSeoulDate(log.createdAt, { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}</td>
+                  <td>{renderLogLabel(log.eventType)}</td>
+                  <td>
+                    <span
+                      className={
+                        log.status === "success"
+                          ? styles.badgeActive
+                          : log.status === "fallback"
+                            ? styles.badgeMuted
+                            : styles.badgeWarning
+                      }
+                    >
+                      {log.status}
+                    </span>
+                  </td>
+                  <td>
+                    {log.userId ? (
+                      <span className={styles.codeText} title={log.userId}>
+                        {truncateAdminIdentifier(log.userId)}
+                      </span>
+                    ) : (
+                      "-"
+                    )}
+                  </td>
+                  <td>{log.message}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
     </>
   );

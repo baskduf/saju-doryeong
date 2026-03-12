@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   upsert: vi.fn(),
   findUnique: vi.fn(),
   createShareAccessToken: vi.fn(),
+  logAdminEventSafe: vi.fn(),
 }));
 
 vi.mock("../../lib/prisma", () => ({
@@ -18,6 +19,10 @@ vi.mock("../../lib/prisma", () => ({
 
 vi.mock("../../lib/access-token", () => ({
   createShareAccessToken: mocks.createShareAccessToken,
+}));
+
+vi.mock("../../lib/admin-event-log", () => ({
+  logAdminEventSafe: mocks.logAdminEventSafe,
 }));
 
 import {
@@ -39,6 +44,7 @@ function buildFortune() {
 describe("fortune share snapshots", () => {
   beforeEach(() => {
     mocks.createShareAccessToken.mockReturnValue("share-token");
+    mocks.logAdminEventSafe.mockReset();
     mocks.upsert.mockResolvedValue({
       id: "snapshot-1",
       targetDateKey: "2026-03-10",
@@ -82,6 +88,13 @@ describe("fortune share snapshots", () => {
     expect(createPayload.uncertaintyMessage).toBeTypeOf("string");
     expect((createPayload.recommendedActions as string[]).length).toBeLessThanOrEqual(3);
     expect((createPayload.avoidToday as string[]).length).toBeLessThanOrEqual(3);
+    expect(mocks.logAdminEventSafe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "share_created",
+        status: "success",
+        userId: "share-user",
+      }),
+    );
   });
 
   it("reads share snapshots with the expected select shape", async () => {

@@ -1,8 +1,11 @@
 import { prisma } from "./prisma";
+import type { AdminEventStatus, AdminEventType } from "./admin-event-log";
 import { formatSeoulDate, getSeoulDateKey } from "./seoul-time";
 
 export type AdminCalendarType = "solar" | "lunar" | "unknown" | "other";
 export type AdminShareStatus = "all" | "active" | "expired";
+export type AdminLogStatusFilter = "all" | AdminEventStatus;
+export type AdminLogEventTypeFilter = "all" | AdminEventType;
 
 export type AdminUserListItem = {
   userId: string;
@@ -45,6 +48,7 @@ export type AdminOverview = {
   calendarTypeCounts: Record<AdminCalendarType, number>;
   recentUsers: AdminUserListItem[];
   recentShares: AdminShareListItem[];
+  recentLogs: AdminEventLogListItem[];
 };
 
 export type AdminUserPage = {
@@ -58,6 +62,64 @@ export type AdminSharePage = {
   page: number;
   hasNext: boolean;
 };
+
+export type AdminEventLogListItem = {
+  id: string;
+  eventType: AdminEventType;
+  status: AdminEventStatus;
+  source: string;
+  userId: string | null;
+  message: string;
+  questionText: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: Date;
+};
+
+export type AdminLogPage = {
+  items: AdminEventLogListItem[];
+  page: number;
+  hasNext: boolean;
+};
+
+type AdminEventLogRow = {
+  id: string;
+  eventType: string;
+  status: string;
+  source: string;
+  userId: string | null;
+  message: string;
+  questionText: string | null;
+  metadata: unknown;
+  createdAt: Date;
+};
+
+type AdminEventLogModel = {
+  findMany(args: {
+    where?: {
+      eventType?: string;
+      status?: string;
+      userId?: { contains: string; mode: "insensitive" };
+    };
+    take: number;
+    skip?: number;
+    orderBy: { createdAt: "desc" };
+    select: {
+      id: true;
+      eventType: true;
+      status: true;
+      source: true;
+      userId: true;
+      message: true;
+      questionText: true;
+      metadata: true;
+      createdAt: true;
+    };
+  }): Promise<AdminEventLogRow[]>;
+};
+
+function getAdminEventLogModel(): AdminEventLogModel | null {
+  return (prisma as unknown as { adminEventLog?: AdminEventLogModel }).adminEventLog ?? null;
+}
 
 function getSeoulDayWindow(date: Date = new Date()): { dateKey: string; start: Date; end: Date } {
   const dateKey = getSeoulDateKey(date);
@@ -175,9 +237,37 @@ function toAdminShareListItem(
   };
 }
 
+function toAdminEventLogListItem(row: {
+  id: string;
+  eventType: string;
+  status: string;
+  source: string;
+  userId: string | null;
+  message: string;
+  questionText: string | null;
+  metadata: unknown;
+  createdAt: Date;
+}): AdminEventLogListItem {
+  return {
+    id: row.id,
+    eventType: row.eventType as AdminEventType,
+    status: row.status as AdminEventStatus,
+    source: row.source,
+    userId: row.userId,
+    message: row.message,
+    questionText: row.questionText,
+    metadata:
+      row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+        ? (row.metadata as Record<string, unknown>)
+        : null,
+    createdAt: row.createdAt,
+  };
+}
+
 export async function getAdminOverview(date: Date = new Date()): Promise<AdminOverview> {
   const now = date;
   const { dateKey, start, end } = getSeoulDayWindow(date);
+  const adminEventLogModel = getAdminEventLogModel();
   const [
     registrationsToday,
     updatesToday,
@@ -188,6 +278,7 @@ export async function getAdminOverview(date: Date = new Date()): Promise<AdminOv
     calendarTypeCounts,
     recentUsers,
     recentShares,
+    recentLogs,
   ] = await Promise.all([
     prisma.sajuProfile.count({
       where: {
@@ -259,6 +350,25 @@ export async function getAdminOverview(date: Date = new Date()): Promise<AdminOv
         payload: true,
       },
     }),
+    adminEventLogModel
+      ? adminEventLogModel.findMany({
+          take: 10,
+          orderBy: {
+            createdAt: "desc",
+          },
+          select: {
+            id: true,
+            eventType: true,
+            status: true,
+            source: true,
+            userId: true,
+            message: true,
+            questionText: true,
+            metadata: true,
+            createdAt: true,
+          },
+        })
+      : Promise.resolve([] as AdminEventLogRow[]),
   ]);
 
   return {
@@ -276,8 +386,9 @@ export async function getAdminOverview(date: Date = new Date()): Promise<AdminOv
     expiredShares,
     pendingQuestionUsers,
     calendarTypeCounts: normalizeCalendarCount(calendarTypeCounts),
-    recentUsers: recentUsers.map((row) => toAdminUserListItem(row, { todayKey: dateKey, now })),
-    recentShares: recentShares.map((row) => toAdminShareListItem(row, now)),
+    recentUsers: recentUsers.map((row: (typeof recentUsers)[number]) => toAdminUserListItem(row, { todayKey: dateKey, now })),
+    recentShares: recentShares.map((row: (typeof recentShares)[number]) => toAdminShareListItem(row, now)),
+    recentLogs: recentLogs.map(toAdminEventLogListItem),
   };
 }
 
@@ -409,6 +520,85 @@ export async function getAdminSharesPage(params?: {
 
   return {
     items: rows.slice(0, pageSize).map((row) => toAdminShareListItem(row, now)),
+    page,
+    hasNext: rows.length > pageSize,
+  };
+}
+
+export async function getRecentAdminEventLogs(limit = 10): Promise<AdminEventLogListItem[]> {
+  const model = getAdminEventLogModel();
+  if (!model) {
+    return [];
+  }
+
+  const rows = await model.findMany({
+    take: Math.max(1, Math.min(limit, 50)),
+    orderBy: {
+      createdAt: "desc",
+    },
+    select: {
+      id: true,
+      eventType: true,
+      status: true,
+      source: true,
+      userId: true,
+      message: true,
+      questionText: true,
+      metadata: true,
+      createdAt: true,
+    },
+  });
+
+  return rows.map(toAdminEventLogListItem);
+}
+
+export async function getAdminLogsPage(params?: {
+  eventType?: AdminLogEventTypeFilter;
+  status?: AdminLogStatusFilter;
+  userId?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<AdminLogPage> {
+  const model = getAdminEventLogModel();
+  if (!model) {
+    return {
+      items: [],
+      page: Math.max(1, params?.page ?? 1),
+      hasNext: false,
+    };
+  }
+
+  const page = Math.max(1, params?.page ?? 1);
+  const pageSize = Math.max(1, Math.min(params?.pageSize ?? 12, 50));
+  const userId = params?.userId?.trim();
+  const where = {
+    ...(params?.eventType && params.eventType !== "all" ? { eventType: params.eventType } : {}),
+    ...(params?.status && params.status !== "all" ? { status: params.status } : {}),
+    ...(userId ? { userId: { contains: userId, mode: "insensitive" as const } } : {}),
+  };
+
+  const rows = await model.findMany({
+    where,
+    take: pageSize + 1,
+    skip: (page - 1) * pageSize,
+    orderBy: {
+      createdAt: "desc",
+    },
+    select: {
+      id: true,
+      eventType: true,
+      status: true,
+      source: true,
+      userId: true,
+      message: true,
+      questionText: true,
+      metadata: true,
+      createdAt: true,
+    },
+  });
+
+  return {
+    items: rows.slice(0, pageSize).map(toAdminEventLogListItem),
     page,
     hasNext: rows.length > pageSize,
   };

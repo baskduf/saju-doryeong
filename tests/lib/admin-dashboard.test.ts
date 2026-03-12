@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   profileFindUnique: vi.fn(),
   shareCount: vi.fn(),
   shareFindMany: vi.fn(),
+  adminEventLogFindMany: vi.fn(),
 }));
 
 vi.mock("../../lib/prisma", () => ({
@@ -21,10 +22,14 @@ vi.mock("../../lib/prisma", () => ({
       count: mocks.shareCount,
       findMany: mocks.shareFindMany,
     },
+    adminEventLog: {
+      findMany: mocks.adminEventLogFindMany,
+    },
   },
 }));
 
 import {
+  getAdminLogsPage,
   getAdminOverview,
   getAdminSharesPage,
   getAdminUserDetail,
@@ -39,17 +44,12 @@ describe("admin dashboard queries", () => {
     mocks.profileFindUnique.mockReset();
     mocks.shareCount.mockReset();
     mocks.shareFindMany.mockReset();
+    mocks.adminEventLogFindMany.mockReset();
   });
 
   it("builds overview stats with KST day windows and safe recent payloads", async () => {
-    mocks.profileCount
-      .mockResolvedValueOnce(3)
-      .mockResolvedValueOnce(7)
-      .mockResolvedValueOnce(2);
-    mocks.shareCount
-      .mockResolvedValueOnce(4)
-      .mockResolvedValueOnce(9)
-      .mockResolvedValueOnce(1);
+    mocks.profileCount.mockResolvedValueOnce(3).mockResolvedValueOnce(7).mockResolvedValueOnce(2);
+    mocks.shareCount.mockResolvedValueOnce(4).mockResolvedValueOnce(9).mockResolvedValueOnce(1);
     mocks.profileGroupBy.mockResolvedValue([
       { calendarType: "solar", _count: { _all: 5 } },
       { calendarType: "unknown", _count: { _all: 2 } },
@@ -79,6 +79,19 @@ describe("admin dashboard queries", () => {
         payload: { displayName: "홍*" },
       },
     ]);
+    mocks.adminEventLogFindMany.mockResolvedValue([
+      {
+        id: "log-1",
+        eventType: "question_answered",
+        status: "success",
+        source: "fortune-question",
+        userId: "user-1",
+        message: "answered",
+        questionText: "question",
+        metadata: { model: "gpt-4.1-mini" },
+        createdAt: new Date("2026-03-12T02:00:00Z"),
+      },
+    ]);
 
     const overview = await getAdminOverview(new Date("2026-03-12T01:30:00Z"));
 
@@ -91,7 +104,7 @@ describe("admin dashboard queries", () => {
     });
     expect(overview.recentUsers[0].questionUsageCountToday).toBe(2);
     expect(overview.recentShares[0].displayName).toBe("홍*");
-
+    expect(overview.recentLogs[0].eventType).toBe("question_answered");
     expect(mocks.profileCount.mock.calls[0][0]).toEqual({
       where: {
         createdAt: {
@@ -204,6 +217,68 @@ describe("admin dashboard queries", () => {
     expect(mocks.shareFindMany.mock.calls[0][0].where).toEqual({
       expiresAt: {
         gt: new Date("2026-03-12T01:30:00Z"),
+      },
+    });
+  });
+
+  it("filters logs by event type, status, and user id", async () => {
+    mocks.adminEventLogFindMany.mockResolvedValue([
+      {
+        id: "log-1",
+        eventType: "openai_question_fallback",
+        status: "fallback",
+        source: "fortune-question",
+        userId: "search-user",
+        message: "fallback",
+        questionText: "question",
+        metadata: { reason: "missing_api_key" },
+        createdAt: new Date("2026-03-12T00:00:00Z"),
+      },
+      {
+        id: "log-2",
+        eventType: "openai_question_fallback",
+        status: "fallback",
+        source: "fortune-question",
+        userId: "search-user-2",
+        message: "fallback 2",
+        questionText: null,
+        metadata: null,
+        createdAt: new Date("2026-03-11T00:00:00Z"),
+      },
+    ]);
+
+    const result = await getAdminLogsPage({
+      eventType: "openai_question_fallback",
+      status: "fallback",
+      userId: "search",
+      page: 1,
+      pageSize: 1,
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].questionText).toBe("question");
+    expect(result.hasNext).toBe(true);
+    expect(mocks.adminEventLogFindMany).toHaveBeenCalledWith({
+      where: {
+        eventType: "openai_question_fallback",
+        status: "fallback",
+        userId: { contains: "search", mode: "insensitive" },
+      },
+      take: 2,
+      skip: 0,
+      orderBy: {
+        createdAt: "desc",
+      },
+      select: {
+        id: true,
+        eventType: true,
+        status: true,
+        source: true,
+        userId: true,
+        message: true,
+        questionText: true,
+        metadata: true,
+        createdAt: true,
       },
     });
   });

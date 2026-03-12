@@ -14,6 +14,10 @@ const accessTokenMocks = vi.hoisted(() => ({
   verifyRegisterAccessToken: vi.fn(),
 }));
 
+const adminLogMocks = vi.hoisted(() => ({
+  logAdminEventSafe: vi.fn(),
+}));
+
 vi.mock("../../../../lib/profile", () => ({
   buildInitialSajuData: profileMocks.buildInitialSajuData,
   hasDatabaseUrl: profileMocks.hasDatabaseUrl,
@@ -25,6 +29,10 @@ vi.mock("../../../../lib/profile", () => ({
 vi.mock("../../../../lib/access-token", () => ({
   createFortuneAccessToken: accessTokenMocks.createFortuneAccessToken,
   verifyRegisterAccessToken: accessTokenMocks.verifyRegisterAccessToken,
+}));
+
+vi.mock("../../../../lib/admin-event-log", () => ({
+  logAdminEventSafe: adminLogMocks.logAdminEventSafe,
 }));
 
 import { POST } from "../../../../app/api/profile/route";
@@ -43,6 +51,7 @@ async function callRoute(payload: unknown) {
 
 describe("POST /api/profile", () => {
   beforeEach(() => {
+    adminLogMocks.logAdminEventSafe.mockReset();
     profileMocks.hasDatabaseUrl.mockReturnValue(true);
     profileMocks.parseRegistrationFields.mockReturnValue({
       ok: true,
@@ -133,8 +142,40 @@ describe("POST /api/profile", () => {
     const body = await response.json();
 
     expect(response.status).toBe(401);
-    expect(body.error).toContain("유효한 등록 토큰");
+    expect(body.error).toContain("?좏슚???깅줉 ?좏겙");
     expect(profileMocks.buildInitialSajuData).not.toHaveBeenCalled();
     expect(profileMocks.upsertProfile).not.toHaveBeenCalled();
+    expect(adminLogMocks.logAdminEventSafe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "profile_registration_failed",
+        userId: "kakao-user-1",
+        metadata: expect.objectContaining({
+          reason: "expired_token",
+        }),
+      }),
+    );
+  });
+
+  it("logs profile registration failures when the database url is missing", async () => {
+    profileMocks.hasDatabaseUrl.mockReturnValue(false);
+
+    const response = await callRoute({
+      accessToken: "register-token",
+      userId: "kakao-user-1",
+      name: "홍길동",
+      birthDate: "1995-10-21",
+      birthTime: "14:30",
+      calendarType: "solar",
+    });
+
+    expect(response.status).toBe(503);
+    expect(adminLogMocks.logAdminEventSafe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "profile_registration_failed",
+        metadata: expect.objectContaining({
+          reason: "missing_database_url",
+        }),
+      }),
+    );
   });
 });

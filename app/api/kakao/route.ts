@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
+import { logAdminEventSafe } from "../../../lib/admin-event-log";
 import { createBasicCard, createUnauthorizedSkillResponse } from "./_internal/cards";
 import { handleKakaoSkillPayload } from "./_internal/dispatch";
 import { isAuthorizedKakaoSkillRequest } from "./_internal/request";
@@ -27,6 +28,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result.body, result.status ? { status: result.status } : undefined);
   } catch (error) {
     console.error("[/api/kakao] unexpected error", error);
+    void logAdminEventSafe({
+      eventType: "kakao_request_failed",
+      status: "error",
+      source: "kakao",
+      message: "카카오 요청 처리 중 예외가 발생했습니다.",
+      metadata: {
+        reason: isDatabaseConnectionError(error) ? "database_error" : "unexpected_error",
+        route: "/api/kakao",
+      },
+    });
     if (isDatabaseConnectionError(error)) {
       return NextResponse.json(
         createBasicCard({

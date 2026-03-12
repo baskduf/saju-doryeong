@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   getAdminUsersPage: vi.fn(),
   getAdminUserDetail: vi.fn(),
   getAdminSharesPage: vi.fn(),
+  getAdminLogsPage: vi.fn(),
 }));
 
 vi.mock("../../../lib/profile", () => ({
@@ -19,9 +20,11 @@ vi.mock("../../../lib/admin-dashboard", () => ({
   getAdminUsersPage: mocks.getAdminUsersPage,
   getAdminUserDetail: mocks.getAdminUserDetail,
   getAdminSharesPage: mocks.getAdminSharesPage,
+  getAdminLogsPage: mocks.getAdminLogsPage,
 }));
 
 import OverviewPage from "../../../app/admin/(dashboard)/page";
+import LogsPage from "../../../app/admin/(dashboard)/logs/page";
 import UsersPage from "../../../app/admin/(dashboard)/users/page";
 import SharesPage from "../../../app/admin/(dashboard)/shares/page";
 
@@ -65,6 +68,19 @@ describe("admin pages", () => {
           createdAt: new Date("2026-03-12T00:00:00Z"),
           expiresAt: new Date("2026-03-13T00:00:00Z"),
           status: "active",
+        },
+      ],
+      recentLogs: [
+        {
+          id: "log-1",
+          eventType: "question_answered",
+          status: "success",
+          source: "fortune-question",
+          userId: "user-1",
+          message: "answered",
+          questionText: "hidden in overview",
+          metadata: { model: "gpt-4.1-mini" },
+          createdAt: new Date("2026-03-12T00:10:00Z"),
         },
       ],
     });
@@ -115,14 +131,31 @@ describe("admin pages", () => {
       page: 1,
       hasNext: false,
     });
+    mocks.getAdminLogsPage.mockResolvedValue({
+      items: [
+        {
+          id: "log-1",
+          eventType: "question_answered",
+          status: "success",
+          source: "fortune-question",
+          userId: "user-1",
+          message: "answered",
+          questionText: "will it work?",
+          metadata: { model: "gpt-4.1-mini" },
+          createdAt: new Date("2026-03-12T00:10:00Z"),
+        },
+      ],
+      page: 1,
+      hasNext: false,
+    });
   });
 
   it("renders the overview dashboard cards and recent tables", async () => {
     const markup = renderToStaticMarkup(await OverviewPage());
 
-    expect(markup).toContain("오늘 핵심 지표");
-    expect(markup).toContain("최근 사용자");
+    expect(markup).toContain("question_answered");
     expect(markup).toContain("홍*");
+    expect(markup).not.toContain("hidden in overview");
   });
 
   it("renders users list and selected detail panel", async () => {
@@ -135,9 +168,8 @@ describe("admin pages", () => {
       }),
     );
 
-    expect(markup).toContain("사용자 조회");
     expect(markup).toContain("홍길동");
-    expect(markup).toContain("공유 스냅샷 수");
+    expect(markup).toContain("user-1");
   });
 
   it("renders share rows with status badges", async () => {
@@ -149,8 +181,24 @@ describe("admin pages", () => {
       }),
     );
 
-    expect(markup).toContain("공유 스냅샷");
     expect(markup).toContain("snapshot-1");
     expect(markup).toContain("active");
+  });
+
+  it("renders logs filters, rows, and detail content", async () => {
+    const markup = renderToStaticMarkup(
+      await LogsPage({
+        searchParams: {
+          eventType: "question_answered",
+          status: "success",
+          userId: "user-1",
+          logId: "log-1",
+        },
+      }),
+    );
+
+    expect(markup).toContain("question_answered");
+    expect(markup).toContain("will it work?");
+    expect(markup).toContain("gpt-4.1-mini");
   });
 });

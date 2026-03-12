@@ -37,3 +37,20 @@ model FortuneShareSnapshot {
 
   @@unique([userId, targetDateKey])
 }
+
+model AdminEventLog {
+  id           String   @id @default(cuid())
+  eventType    String
+  status       String
+  userId       String?
+  source       String
+  message      String
+  questionText String?
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([eventType])
+  @@index([status])
+  @@index([userId])
+}

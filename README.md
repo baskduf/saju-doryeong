@@ -1,71 +1,18 @@
 # 사주도령
 
-카카오톡 챗봇에서 오늘의 운세를 받고, 비공개 상세 페이지와 공유용 운세 카드를 함께 제공하는 Next.js 앱입니다.
+카카오톡 챗봇과 웹 페이지를 연결해 오늘의 운세를 제공하는 Next.js 앱입니다. 사용자는 카카오에서 사주 정보를 등록하고, 비공개 상세 운세 페이지를 열고, 공유용 운세 카드를 만들고, 자유 문장으로 운세 질문까지 할 수 있습니다.
 
-이 저장소는 다음 흐름을 한 번에 다룹니다.
+## 주요 기능
 
-- 카카오 스킬 요청 수신
-- 사용자 사주 등록
+- 카카오 스킬 요청 수신 및 응답
+- 사용자 사주 등록 및 갱신
 - 오늘의 운세 계산
 - 비공개 상세 운세 페이지 제공
-- 공개 공유 페이지 생성
-- 운세 질문 응답
+- 공유용 운세 스냅샷 생성
+- 자유 문장 기반 운세 질문 응답
+- `solar`, `lunar`, `unknown` 달력 기준 지원
 
-## 핵심 특징
-
-- `solar`, `lunar`, `unknown` 달력 기준을 지원합니다.
-- `unknown`은 더 이상 고정 운세가 아니라, 양력/음력 두 후보를 함께 본 blended reference 운세로 처리합니다.
-- 상세 운세 페이지는 토큰이 있어야 열리는 private page입니다.
-- 공유 페이지는 이름을 마스킹하고 출생 정보와 전문 분석을 숨깁니다.
-- 질문하기는 KST 기준 하루 기본 5회입니다.
-- 카카오 공유카드를 생성할 때마다 질문권이 1회 적립되며, 하루 최대 10회까지만 적립됩니다.
-- OpenAI API 키가 있으면 서술 품질을 보강하고, 없으면 규칙 기반 fallback으로 동작합니다.
-
-## 기술 스택
-
-- Next.js 14 App Router
-- TypeScript
-- Prisma
-- PostgreSQL
-- `lunar-javascript`
-- Recharts
-
-## 사용자 흐름
-
-### 1. 등록
-
-카카오 스킬이 사용자별 등록 링크를 발급합니다.
-
-- 등록 페이지: `/register?userId=...&token=...&source=kakao`
-- 등록 토큰이 있어야 저장이 가능합니다.
-- 사용자는 이름, 생년월일, 출생시간, 달력 기준을 입력합니다.
-
-### 2. 상세 운세
-
-등록이 끝나면 private 상세 페이지로 이동합니다.
-
-- 경로: `/fortune/[userId]?token=...`
-- fortune access token이 있어야 접근 가능합니다.
-- 오늘의 점수, 해설, 오행, 해석, 질문 진입, 공유 진입을 제공합니다.
-
-### 3. 공유
-
-카카오에서 `친구에게 공유하기`를 누르면 공유용 스냅샷이 생성됩니다.
-
-- 공유 페이지: `/share/fortune/[snapshotId]?token=...`
-- 이름은 마스킹됩니다.
-- 출생 정보, 원국 세부, 상세 분석 전문은 공개되지 않습니다.
-- 공유카드 생성 시 질문권이 적립됩니다.
-
-### 4. 질문하기
-
-카카오 챗봇에서 `운세 질문`을 입력한 뒤 자유 문장으로 질문합니다.
-
-- 질문 응답은 사용자의 오늘 운세 객체를 기반으로 생성됩니다.
-- 기본 질문 한도는 하루 5회입니다.
-- 공유 적립분을 합쳐 하루 최대 15회까지 사용할 수 있습니다.
-
-## 달력 기준 처리
+## 달력 기준 정책
 
 ### `solar`
 
@@ -77,13 +24,53 @@
 
 ### `unknown`
 
-정확한 만세력 확정 대신 참고용 blended reference 운세를 만듭니다.
+정확한 달력 기준을 확정하지 않고, 양력/음력 두 가능성을 함께 본 참고용 blended reference 운세로 처리합니다.
 
-- `solar` 후보와 `lunar` 후보를 둘 다 계산합니다.
-- 오행, 점수, 카테고리, 균형 지표를 합성합니다.
-- `certainty`는 계속 `calendar-unknown`입니다.
-- exact 만세력 표, exact 지지 합충형, exact 해석은 숨깁니다.
-- UI에는 "양력·음력 공통 경향"으로 안내합니다.
+- `certainty`는 `calendar-unknown`으로 유지됩니다.
+- exact 만세력, 지지 합충형, 정밀 해석은 감춥니다.
+- UI에서는 "양력·음력 공통 흐름"으로 안내합니다.
+
+## 사용자 흐름
+
+### 1. 등록
+
+카카오 스킬이 사용자별 등록 링크를 발급합니다.
+
+- 경로: `/register?userId=...&token=...&source=kakao`
+- 등록 토큰이 있어야 저장할 수 있습니다.
+- 이름, 생년월일, 출생시간, 달력 기준을 입력합니다.
+
+### 2. 상세 운세
+
+등록 후 비공개 상세 페이지로 이동합니다.
+
+- 경로: `/fortune/[userId]?token=...`
+- `fortune-access` 토큰이 있어야 접근할 수 있습니다.
+- 운세 점수, 해설, 오행, 하이브리드 분석, 공유 진입을 제공합니다.
+
+샘플 페이지:
+
+- `/fortune/sample-user`
+
+### 3. 공유
+
+카카오에서 `친구에게 공유하기`를 누르면 공유용 스냅샷을 생성합니다.
+
+- 경로: `/share/fortune/[snapshotId]?token=...`
+- 이름은 마스킹됩니다.
+- 출생 정보와 상세 분석 전문은 공개하지 않습니다.
+- 공유카드 생성 시 질문권이 적립됩니다.
+
+데모 페이지:
+
+- `/share/fortune/demo`
+
+### 4. 질문하기
+
+카카오 챗봇에서 `운세 질문`을 입력한 뒤 자유 문장으로 질문합니다.
+
+- 질문 응답은 해당 사용자의 오늘 운세 객체를 기반으로 생성됩니다.
+- OpenAI API 키가 없으면 규칙 기반 fallback 응답으로 동작합니다.
 
 ## 질문/공유 정책
 
@@ -96,46 +83,47 @@
 
 중요:
 
-- 현재 적립 시점은 "실제 친구가 공유를 완료한 시점"이 아니라 "공유카드를 생성한 시점"입니다.
+- 적립 시점은 "실제 공유 완료 시점"이 아니라 "공유카드를 생성한 시점"입니다.
 - 카카오 share 완료 콜백을 서버에서 받지 못하기 때문에 이렇게 구현되어 있습니다.
 
-## OpenAI 사용 방식
+## 기술 스택
 
-OpenAI는 선택 사항입니다.
-
-- 상세 운세 서술 보강
-- 운세 질문 응답
-
-환경변수가 없으면 서비스 자체는 계속 동작하지만, 응답은 규칙 기반 fallback 문구를 사용합니다.
-
-기본 모델:
-
-- 운세 서술: `gpt-4.1-mini`
-- 질문 응답: `OPENAI_QUESTION_MODEL`이 없으면 `OPENAI_FORTUNE_MODEL`, 둘 다 없으면 `gpt-4.1-mini`
+- Next.js 14 App Router
+- TypeScript
+- React 18
+- Prisma
+- PostgreSQL
+- `lunar-javascript`
+- Recharts
+- Vitest
 
 ## 프로젝트 구조
 
 ```text
 app/
   api/
-    kakao/route.ts           # 카카오 스킬 진입점
-    profile/route.ts         # 등록 API
-  fortune/[id]/             # private 상세 운세 페이지
-  register/                 # 등록 페이지
-  share/fortune/[id]/       # public 공유 페이지
+    kakao/route.ts              # 카카오 스킬 진입점
+    profile/route.ts            # 등록 API
+  fortune/[id]/                 # 비공개 상세 운세 페이지
+  register/                     # 등록 페이지
+  share/fortune/[id]/           # 공개 공유 페이지
+  _components/                  # 홈/온보딩 UI
 lib/
-  access-token.ts           # register/fortune/share 토큰 발급 및 검증
-  fortune.ts                # 일일 운세 생성
-  fortune-llm.ts            # 상세 운세 서술 보강
-  fortune-question.ts       # 질문 응답 생성
-  fortune-share.ts          # 공유 스냅샷 저장/조회
-  profile.ts                # 프로필 저장, 질문 사용량, 공유 적립
-  saju.ts                   # 전통 사주 계산
-  seoul-time.ts             # KST 날짜 유틸
+  access-token.ts               # register/fortune/share 토큰 발급 및 검증
+  fortune.ts                    # 일일 운세 생성
+  fortune-llm.ts                # 상세 운세 서술 보강
+  fortune-question.ts           # 질문 응답 생성
+  fortune-share.ts              # 공유 스냅샷 저장/조회
+  profile.ts                    # 프로필 저장, 질문 사용량, 공유 적립
+  saju.ts                       # 전통 사주 계산
+  kuseong.ts                    # 구성 보정 분석
+  yukhyo.ts                     # 질문용 유효 해석
+  seoul-time.ts                 # KST 날짜 유틸
 prisma/
-  schema.prisma             # 데이터 모델
-public/
-  *.png                     # 캐릭터/카드 이미지
+  schema.prisma                 # 데이터 모델
+tests/
+  app/api/                      # API 테스트
+  lib/                          # 도메인 로직 테스트
 ```
 
 ## 데이터 모델
@@ -146,7 +134,7 @@ public/
 - 저장된 `sajuData`
 - 질문 사용량
 - 공유 적립 사용량
-- 질문 대기 상태
+- 질문 입력 대기 상태
 
 ### `FortuneShareSnapshot`
 
@@ -170,8 +158,6 @@ public/
 
 ## 환경 변수
 
-현재 코드에서 직접 사용하는 주요 값만 적었습니다.
-
 ### 필수
 
 ```env
@@ -192,7 +178,7 @@ OPENAI_QUESTION_MODEL="gpt-4.1-mini"
 
 메모:
 
-- Vercel Postgres를 쓰면 `POSTGRES_PRISMA_URL`이 있을 때 `DATABASE_URL`로 fallback 됩니다.
+- `POSTGRES_PRISMA_URL`이 있으면 런타임에서 `DATABASE_URL`로 fallback 됩니다.
 - `OPENAI_API_KEY`가 없으면 질문/서술은 fallback 문구로 동작합니다.
 
 ## 로컬 실행
@@ -205,13 +191,13 @@ npm install
 
 ### 2. 환경 변수 설정
 
-`.env.example`를 참고해 `.env.local`을 만듭니다.
+`.env.example`를 기준으로 `.env.local`을 만듭니다.
 
 ```bash
 cp .env.example .env.local
 ```
 
-Windows PowerShell에서는:
+Windows PowerShell:
 
 ```powershell
 Copy-Item .env.example .env.local
@@ -249,6 +235,9 @@ npm run dev
 npm run build
 npm run start
 npm run lint
+npm run test
+npm run test:watch
+npm run test:coverage
 npm run prisma:generate
 npm run prisma:push
 npm run prisma:studio
@@ -280,14 +269,14 @@ npm run prisma:studio
 
 주의:
 
-- 현재 `GET /api/profile`은 없습니다.
-- 등록 토큰이 없으면 `401`입니다.
+- `GET /api/profile`은 없습니다.
+- 등록 토큰이 없거나 잘못되면 `401`입니다.
 
 ### `POST /api/kakao?key=...`
 
 카카오 스킬 요청 진입점입니다.
 
-처리하는 대표 utterance:
+대표 utterance:
 
 - `정보 재등록`
 - `오늘의 운세`
@@ -298,17 +287,25 @@ npm run prisma:studio
 
 - 프로필이 없으면 등록 카드 반환
 - 프로필이 있으면 운세 카드, 질문 카드, 공유 카드 반환
-- shared secret query parameter가 일치해야 합니다
+- `key` 쿼리값이 `KAKAO_SKILL_SHARED_SECRET`와 일치해야 합니다
 
-## 카카오 연동 메모
+## 테스트
 
-- 카카오 스킬은 `POST /api/kakao?key=KAKAO_SKILL_SHARED_SECRET` 형태로 호출해야 합니다.
-- 사용자 식별은 카카오 payload의 user id 계열 값을 우선순위로 읽습니다.
-- 응답 형식은 Kakao BasicCard입니다.
+Vitest 기반 테스트가 포함되어 있습니다.
+
+- lib 도메인 로직 테스트
+- 카카오 API 라우트/프레젠터 테스트
+- 등록 API 테스트
+
+실행:
+
+```bash
+npm run test
+```
 
 ## 배포
 
-권장 배포 조합:
+권장 조합:
 
 - Vercel
 - Vercel Postgres 또는 Neon/Postgres
@@ -327,25 +324,15 @@ npm run prisma:studio
 - `KAKAO_SKILL_SHARED_SECRET` 설정 여부
 - DB 연결 확인
 - OpenAI API 키 설정 여부
-- 카카오 스킬 endpoint와 쿼리 key 일치 여부
+- 카카오 스킬 endpoint와 query key 일치 여부
 - 등록 링크와 상세 링크가 실제 도메인으로 생성되는지 확인
 
 ## 알려진 제약
 
-- 자동 테스트 스위트가 아직 없습니다.
 - 공유 적립은 실제 공유 완료가 아니라 공유카드 생성 시점 기준입니다.
-- 질문/서술은 캐시를 사용하지만, 캐시 만료 후에는 표현이 조금 달라질 수 있습니다.
 - `calendarType=unknown`은 참고용 blended reference이며 exact 해석이 아닙니다.
-
-## 수동 확인 권장 항목
-
-- `solar` 등록 후 상세 운세 확인
-- `lunar` 등록 후 상세 운세 확인
-- `unknown` 등록 후 blended reference 안내 확인
-- 카카오 `운세 질문` 응답 확인
-- 카카오 `친구에게 공유하기` 적립 반영 확인
-- 공유 페이지에서 개인정보 비공개 확인
+- 질문/서술은 런타임 환경에 따라 표현이 달라질 수 있습니다.
 
 ## 라이선스
 
-별도 라이선스가 명시되어 있지 않습니다. 필요하면 추가하세요.
+별도 라이선스는 아직 명시되어 있지 않습니다.

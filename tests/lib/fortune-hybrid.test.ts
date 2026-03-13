@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { generateDailyFortune } from "../../lib/fortune";
+import { generateDailyFortune, selectTopFortuneSignals } from "../../lib/fortune";
 import type { KuseongDetail } from "../../lib/kuseong";
 
 function expectedGrade(score: number): "대길" | "길" | "평" | "주의" {
@@ -28,12 +28,13 @@ describe("daily fortune hybrid analysis", () => {
     expect(fortune.grade).toBe(expectedGrade(fortune.score));
     expect(fortune.analysis.hybrid.kuseong?.summary).toContain("본명성");
     expect(fortune.luckyHints.direction).toBe(fortune.analysis.hybrid.kuseong?.direction);
-    expect(fortune.recommendedActions[0]).toBe(fortune.analysis.hybrid.kuseong?.action);
-    expect(fortune.avoidToday[0]).toBe(fortune.analysis.hybrid.kuseong?.caution);
+    expect(fortune.recommendedActions).toEqual(expectedRecommendedActions(fortune));
+    expect(fortune.avoidToday[0]).toBe(expectedAvoidTodayLead(fortune));
     expect(fortune.headline).toContain(fortune.analysis.hybrid.kuseong?.narrative.headlineAddon ?? "");
     expect(fortune.summary).toContain(fortune.analysis.hybrid.kuseong?.narrative.summaryAddon ?? "");
     expect(fortune.detail).toContain(fortune.analysis.hybrid.kuseong?.narrative.detailAddon ?? "");
     expect(fortune.caution).toContain(fortune.analysis.hybrid.kuseong?.narrative.cautionAddon ?? "");
+    expect(fortune.analysis.signals.some((signal) => signal.sources.includes("kuseong"))).toBe(true);
     expect(
       Object.values(fortune.analysis.hybrid.kuseong?.categoryAdjustments ?? {}).every(
         (value) => value >= -3 && value <= 3,
@@ -90,8 +91,10 @@ describe("daily fortune hybrid analysis", () => {
     expect(adjustedScores.money - neutralScores.money).toBe(-1);
     expect(adjustedScores.relationship - neutralScores.relationship).toBe(1);
     expect(adjustedScores.health - neutralScores.health).toBe(-2);
-    expect(adjusted.recommendedActions[0]).toBe(adjusted.analysis.hybrid.kuseong?.action);
-    expect(adjusted.avoidToday[0]).toBe(adjusted.analysis.hybrid.kuseong?.caution);
+    expect(adjusted.recommendedActions).toEqual(expectedRecommendedActions(adjusted));
+    expect(adjusted.avoidToday[0]).toBe(expectedAvoidTodayLead(adjusted));
+    expect(neutral.analysis.signals.find((signal) => signal.key === "relationship")?.sources).not.toContain("kuseong");
+    expect(adjusted.analysis.signals.find((signal) => signal.key === "relationship")?.sources).toContain("kuseong");
     expect(neutral.analysis.hybridExplanation.conflicts).toEqual([]);
     expect(adjusted.analysis.hybridExplanation.conflicts[0]?.type).toBe("tone-conflict");
     expect(adjusted.analysis.hybridExplanation.conflicts[0]?.systems).toEqual(["saju", "kuseong"]);
@@ -120,6 +123,17 @@ afterEach(() => {
   vi.resetModules();
   vi.doUnmock("../../lib/kuseong");
 });
+
+function expectedRecommendedActions(fortune: ReturnType<typeof generateDailyFortune>): string[] {
+  return Array.from(new Set(selectTopFortuneSignals(fortune.analysis.signals).map((signal) => signal.action))).slice(
+    0,
+    3,
+  );
+}
+
+function expectedAvoidTodayLead(fortune: ReturnType<typeof generateDailyFortune>): string {
+  return fortune.analysis.signals.find((signal) => signal.key === "friction")?.caution ?? fortune.caution;
+}
 
 async function generateFortuneWithMockedKuseong(overrides: Partial<KuseongDetail>) {
   vi.resetModules();

@@ -18,13 +18,6 @@ vi.mock("next/link", () => ({
     React.createElement("a", { ...props, href }, children),
 }));
 
-vi.mock("next/script", () => ({
-  default: ({
-    children,
-    ...props
-  }: React.ScriptHTMLAttributes<HTMLScriptElement>) => React.createElement("script", props, children),
-}));
-
 import HomePage from "../../app/page";
 import WelcomPage from "../../app/welcom/page";
 
@@ -35,9 +28,9 @@ describe("home page kakao entry", () => {
     expect(markup).toContain("카카오톡으로 대화 시작");
     expect(markup).toContain("채널 추가하고 소식 받기");
     expect(markup).toContain("운세 샘플 보기");
-    expect(markup).toContain('href="https://pf.kakao.com/_IjiZX"');
+    expect(markup).toContain('href="https://pf.kakao.com/_IjiZX/chat"');
+    expect(markup).toContain('href="https://pf.kakao.com/_IjiZX/friend"');
     expect(markup).toContain('href="/fortune/sample-user"');
-    expect(markup).toContain("https://t1.kakaocdn.net/kakao_js_sdk/2.8.0/kakao.min.js");
   });
 
   it("keeps app/page and app/welcom/page aligned on the same welcome markup", () => {

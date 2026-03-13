@@ -106,9 +106,10 @@ describe("fortune question fallback", () => {
   });
 
   it("returns fallback advice with signal metadata when llm is unavailable", async () => {
+    const fortune = buildUnknownFortune();
     const answer = await answerFortuneQuestion({
       question: "오늘 일 어떻게 풀릴까?",
-      fortune: buildUnknownFortune(),
+      fortune,
       userId: "question-user",
       date: new Date("2026-03-10T09:00:00+09:00"),
     });
@@ -116,6 +117,7 @@ describe("fortune question fallback", () => {
     expect(answer.usedLlm).toBe(false);
     expect(answer.sources).toEqual(["daily", "yukhyo"]);
     expect(answer.oracleMeta).toBeDefined();
+    expect(answer.description).toContain(fortune.analysis.eventOutlook.lead);
     expect(answer.decisionBasis.primarySignalKey).toBeTruthy();
     expect(answer.decisionBasis.secondarySignalKey).toBeTruthy();
     expect(answer.oracleInfluence.channels).not.toContain("caution");

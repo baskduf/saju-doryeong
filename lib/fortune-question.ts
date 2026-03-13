@@ -444,6 +444,7 @@ function buildCacheKey(params: {
     certainty: params.fortune.analysis.certainty,
     referenceMode: params.fortune.analysis.referenceMode,
     uncertaintyMessage: params.fortune.analysis.uncertaintyMessage,
+    eventOutlook: params.fortune.analysis.eventOutlook,
     primaryHexagram: params.oracle.primaryHexagram,
     changedHexagram: params.oracle.changedHexagram,
     movingLines: params.oracle.movingLines,
@@ -496,6 +497,7 @@ function buildPromptContext(params: {
         referenceMode: params.fortune.analysis.referenceMode,
         uncertaintyMessage: params.fortune.analysis.uncertaintyMessage,
       },
+      eventOutlook: params.fortune.analysis.eventOutlook,
       hybridExplanation: params.fortune.analysis.hybridExplanation,
       selectedSignals: [
         serializeSignal("primary", params.analysis.primarySignal),
@@ -573,6 +575,8 @@ function buildFallbackDescription(params: {
   fortune: DailyFortune;
   oracle: YukhyoReading;
 }): string {
+  const eventLead = params.fortune.analysis.eventOutlook.lead;
+  const eventReason = params.fortune.analysis.eventOutlook.reason;
   const uncertaintyLead =
     params.fortune.analysis.certainty === "calendar-unknown"
       ? params.fortune.analysis.uncertaintyMessage ?? "달력 기준이 아직 미확정이라 참고용 흐름으로만 보시오."
@@ -584,11 +588,13 @@ function buildFallbackDescription(params: {
   const cautionLead = shouldUseCautionChannel(params.analysis)
     ? [params.oracle.caution, params.analysis.primarySignal.caution].join(" ")
     : null;
-  const oracleTimingLead = `육효 흐름은 ${params.oracle.timingHint} 쪽으로 리듬을 맞추라 하오.`;
+  const oracleTimingLead = `육효 흐름은 ${params.oracle.timingHint} 쪽에서 반응이 또렷해질 수 있소.`;
 
   if (params.analysis.intent === "caution") {
     return [
       uncertaintyLead,
+      eventLead,
+      eventReason,
       params.oracle.summary,
       params.analysis.primarySignal.summary,
       params.oracle.caution,
@@ -601,6 +607,8 @@ function buildFallbackDescription(params: {
   if (params.analysis.intent === "timing") {
     return [
       uncertaintyLead,
+      eventLead,
+      eventReason,
       oracleTimingLead,
       params.oracle.summary,
       params.analysis.primarySignal.summary,
@@ -614,6 +622,8 @@ function buildFallbackDescription(params: {
   if (params.analysis.intent === "approach") {
     return [
       uncertaintyLead,
+      eventLead,
+      eventReason,
       params.oracle.summary,
       params.analysis.primarySignal.summary,
       params.oracle.action,
@@ -627,6 +637,8 @@ function buildFallbackDescription(params: {
   if (params.analysis.intent === "action") {
     return [
       uncertaintyLead,
+      eventLead,
+      eventReason,
       params.oracle.summary,
       params.analysis.primarySignal.summary,
       `${params.analysis.primarySignal.action} ${params.oracle.action}`,
@@ -638,6 +650,8 @@ function buildFallbackDescription(params: {
 
   return [
     uncertaintyLead,
+    eventLead,
+    eventReason,
     params.oracle.summary,
     params.analysis.primarySignal.summary,
     secondarySummary,
@@ -759,7 +773,7 @@ export async function answerFortuneQuestion(params: {
         model: resolveModel(),
         store: false,
         instructions:
-          "You answer Korean daily fortune questions for a Kakao chatbot. Facts are deterministic and must not be changed or invented. The topic, intent, relationshipKind, and selectedSignals are already chosen. You may decide whether to foreground the primary or secondary signal, but you must not introduce any new facts, conclusions, or exact saju details outside selectedSignals, oracle, and overallTone. Return strict JSON only with keys title and description. title must be under 18 Korean characters. description must be 2 to 4 concise Korean sentences, under 260 characters if possible. Use a concise respectful fortune-teller tone in Korean, a light 도령체. Mention one helpful action. Mention caution only when answerMeta.oracleInfluence.channels includes caution or allowedAnswerFrame.mustMentionCaution is true. If certainty is calendar-unknown, clearly say the answer is reference-only and never imply an exact manse or confirmed lunar/solar basis. If referenceMode is solar-lunar-blend, describe it as a common trend across both solar and lunar possibilities. No markdown, no code fences, no emojis.",
+          "You answer Korean daily fortune questions for a Kakao chatbot. Facts are deterministic and must not be changed or invented. The topic, intent, relationshipKind, selectedSignals, and eventOutlook are already chosen. You may decide whether to foreground the primary or secondary signal, but you must not introduce any new facts, conclusions, or exact saju details outside selectedSignals, oracle, overallTone, and eventOutlook. Return strict JSON only with keys title and description. title must be under 18 Korean characters. description must be 2 to 4 concise Korean sentences, under 260 characters if possible. Use a concise respectful fortune-teller tone in Korean, a light 도령체. Open with an event-possibility sentence when eventOutlook is strong, but keep it as possibility language such as 수 있소, 기미가 있소, 조짐이 있소. Never use deterministic guarantees such as 반드시, 무조건, 확실히, 100%. Mention one helpful action. Mention caution only when answerMeta.oracleInfluence.channels includes caution or allowedAnswerFrame.mustMentionCaution is true. If certainty is calendar-unknown, clearly say the answer is reference-only and never imply an exact manse or confirmed lunar/solar basis. If referenceMode is solar-lunar-blend, describe it as a common trend across both solar and lunar possibilities. No markdown, no code fences, no emojis.",
         input: buildPromptContext({
           question: params.question,
           fortune: params.fortune,

@@ -81,6 +81,25 @@ export type HybridExplanation = {
   conflicts: HybridExplanationConflict[];
 };
 
+export type FortuneEventOutlookKind =
+  | "breakthrough"
+  | "movement"
+  | "contact"
+  | "money-shift"
+  | "conflict"
+  | "recovery"
+  | "rebalancing";
+export type FortuneEventOutlookIntensity = "major" | "notable" | "subtle";
+
+export type FortuneEventOutlook = {
+  kind: FortuneEventOutlookKind;
+  intensity: FortuneEventOutlookIntensity;
+  confidenceMode: "exact" | "reference";
+  lead: string;
+  reason: string;
+  basisSignals: FortuneSignalKey[];
+};
+
 export type DailyFortune = {
   score: number;
   grade: "대길" | "길" | "평" | "주의";
@@ -199,6 +218,7 @@ export type DailyFortune = {
       };
       kuseong?: KuseongDetail;
     };
+    eventOutlook: FortuneEventOutlook;
     signals: FortuneSignal[];
     hybridExplanation: HybridExplanation;
   };
@@ -762,7 +782,7 @@ function buildTodayBranchSummary(interactions: TodayBranchInteraction[]): string
 }
 
 type FortuneWithoutSignals = Omit<DailyFortune, "analysis"> & {
-  analysis: Omit<DailyFortune["analysis"], "signals">;
+  analysis: Omit<DailyFortune["analysis"], "signals" | "eventOutlook">;
 };
 
 function explanationConfidenceMode(certainty: ChartCertainty): HybridExplanation["confidenceMode"] {
@@ -1436,11 +1456,259 @@ function buildSignalDrivenAvoidToday(params: {
   return items.slice(0, 3);
 }
 
+function eventOutlookConfidenceMode(fortune: FortuneWithoutSignals): FortuneEventOutlook["confidenceMode"] {
+  return fortune.analysis.certainty === "calendar-unknown" || fortune.analysis.referenceMode === "solar-lunar-blend"
+    ? "reference"
+    : "exact";
+}
+
+function findSignalByKey(signals: FortuneSignal[], key: FortuneSignalKey): FortuneSignal | undefined {
+  return signals.find((signal) => signal.key === key);
+}
+
+function eventLead(params: {
+  confidenceMode: FortuneEventOutlook["confidenceMode"];
+  kind: FortuneEventOutlookKind;
+  intensity: FortuneEventOutlookIntensity;
+}): string {
+  const prefix = params.confidenceMode === "reference" ? "공통 흐름으로 보면 " : "";
+
+  if (params.kind === "conflict") {
+    if (params.intensity === "major") return `${prefix}오늘은 작은 마찰도 사건처럼 커질 수 있소.`;
+    if (params.intensity === "notable") return `${prefix}오늘은 예상 밖 변수 하나가 흐름을 흔들 수 있소.`;
+    return `${prefix}사소한 어긋남도 가볍게 넘기지 말아야 할 날이오.`;
+  }
+
+  if (params.kind === "contact") {
+    if (params.intensity === "major") return `${prefix}오늘은 사람 일로 하루 판이 바뀔 수 있소.`;
+    if (params.intensity === "notable") return `${prefix}기다리던 연락이나 관계 변화가 들어올 기미가 있소.`;
+    return `${prefix}사람 사이 흐름이 평소보다 더 크게 남을 수 있소.`;
+  }
+
+  if (params.kind === "money-shift") {
+    if (params.intensity === "major") return `${prefix}오늘은 돈이나 계약 문제의 움직임이 커질 수 있소.`;
+    if (params.intensity === "notable") return `${prefix}재물 흐름이 말보다 실제 일로 붙기 쉬운 날이오.`;
+    return `${prefix}돈 문제에서 작은 방향 전환이 생기기 쉬운 날이오.`;
+  }
+
+  if (params.kind === "breakthrough") {
+    if (params.intensity === "major") return `${prefix}오늘은 멈춰 있던 일이 크게 움직일 수 있소.`;
+    if (params.intensity === "notable") return `${prefix}밀어 두던 일이 다시 속도를 얻을 수 있소.`;
+    return `${prefix}작게 밀던 일이 뜻밖에 힘을 받을 수 있소.`;
+  }
+
+  if (params.kind === "movement") {
+    if (params.intensity === "major") return `${prefix}오늘은 한 번 판이 꺾이며 흐름이 바뀔 수 있소.`;
+    if (params.intensity === "notable") return `${prefix}조용히 지나가기보다 한 번 흐름이 움직일 기미가 있소.`;
+    return `${prefix}작은 변화가 쌓여 방향이 정해지기 쉬운 날이오.`;
+  }
+
+  if (params.kind === "recovery") {
+    if (params.intensity === "major") return `${prefix}오늘은 몸과 리듬 관리가 하루 판세를 가를 수 있소.`;
+    if (params.intensity === "notable") return `${prefix}쉬어야 할 곳을 바로잡는 일이 생각보다 크게 작용하오.`;
+    return `${prefix}회복과 정비가 흐름을 지키는 날이오.`;
+  }
+
+  if (params.intensity === "major") return `${prefix}오늘은 큰 파문보다 큰 방향 전환이 먼저 보이는 날이오.`;
+  if (params.intensity === "notable") return `${prefix}오늘은 한쪽으로 밀기보다 판을 다시 고르는 날이오.`;
+  return `${prefix}큰 파문보다 작은 방향 전환이 쌓이는 날이오.`;
+}
+
+function buildEventReason(params: {
+  fortune: FortuneWithoutSignals;
+  signals: FortuneSignal[];
+  kind: FortuneEventOutlookKind;
+}): string {
+  const friction = findSignalByKey(params.signals, "friction");
+  const timing = findSignalByKey(params.signals, "timing");
+  const relationship = findSignalByKey(params.signals, "relationship");
+  const money = findSignalByKey(params.signals, "money");
+  const momentum = findSignalByKey(params.signals, "momentum");
+  const work = findSignalByKey(params.signals, "work");
+  const recovery = findSignalByKey(params.signals, "recovery");
+
+  if (params.kind === "conflict") {
+    return uniqueOrderedStrings([
+      params.fortune.analysis.todayBranchImpact < 0 ? params.fortune.analysis.todayBranchSummary : undefined,
+      params.fortune.analysis.directiveDelta < 0 ? params.fortune.analysis.directiveSummary : undefined,
+      friction?.summary,
+      params.fortune.caution,
+    ]).join(" ");
+  }
+
+  if (params.kind === "contact") {
+    return uniqueOrderedStrings([
+      relationship?.summary,
+      timing?.summary,
+      params.fortune.analysis.relationStrengthSummary,
+    ]).join(" ");
+  }
+
+  if (params.kind === "money-shift") {
+    return uniqueOrderedStrings([
+      money?.summary,
+      params.fortune.analysis.directiveSummary,
+      timing?.summary,
+    ]).join(" ");
+  }
+
+  if (params.kind === "breakthrough" || params.kind === "movement") {
+    return uniqueOrderedStrings([
+      momentum?.summary,
+      work?.summary,
+      timing?.summary,
+      params.fortune.analysis.directiveSummary,
+    ]).join(" ");
+  }
+
+  if (params.kind === "recovery") {
+    return uniqueOrderedStrings([
+      recovery?.summary,
+      params.fortune.analysis.relationStrengthSummary,
+      params.fortune.caution,
+    ]).join(" ");
+  }
+
+  return uniqueOrderedStrings([
+    params.fortune.analysis.relationStrengthSummary,
+    params.fortune.analysis.directiveSummary,
+    timing?.summary,
+  ]).join(" ");
+}
+
+function buildEventOutlook(params: {
+  fortune: FortuneWithoutSignals;
+  signals: FortuneSignal[];
+}): FortuneEventOutlook {
+  const confidenceMode = eventOutlookConfidenceMode(params.fortune);
+  const friction = findSignalByKey(params.signals, "friction");
+  const momentum = findSignalByKey(params.signals, "momentum");
+  const timing = findSignalByKey(params.signals, "timing");
+  const work = findSignalByKey(params.signals, "work");
+  const money = findSignalByKey(params.signals, "money");
+  const relationship = findSignalByKey(params.signals, "relationship");
+  const recovery = findSignalByKey(params.signals, "recovery");
+  const driveScore = Math.max(momentum?.score ?? 0, work?.score ?? 0);
+  const frictionScore = friction?.score ?? 0;
+  const timingScore = timing?.score ?? 0;
+  const moneyScore = money?.score ?? 0;
+  const relationshipScore = relationship?.score ?? 0;
+  const recoveryScore = recovery?.score ?? 0;
+
+  let kind: FortuneEventOutlookKind = "rebalancing";
+  let intensity: FortuneEventOutlookIntensity = "subtle";
+  let basisSignals: FortuneSignalKey[] = ["momentum"];
+
+  if (
+    frictionScore >= 72 ||
+    params.fortune.analysis.todayBranchImpact <= -4 ||
+    params.fortune.analysis.directiveDelta <= -6
+  ) {
+    kind = "conflict";
+    intensity =
+      frictionScore >= 82 || params.fortune.analysis.todayBranchImpact <= -6 ? "major" : "notable";
+    basisSignals = uniqueOrderedStrings([
+      "friction",
+      params.fortune.analysis.todayBranchImpact < 0 ? "timing" : undefined,
+    ]) as FortuneSignalKey[];
+  } else if (relationshipScore >= 72 && timingScore >= 60) {
+    kind = "contact";
+    intensity = relationshipScore >= 82 && timingScore >= 72 ? "major" : "notable";
+    basisSignals = ["relationship", "timing"];
+  } else if (
+    moneyScore >= 74 &&
+    (params.fortune.analysis.todayRelation === "재성" || driveScore >= 60 || timingScore >= 60)
+  ) {
+    kind = "money-shift";
+    intensity = moneyScore >= 84 ? "major" : "notable";
+    basisSignals = uniqueOrderedStrings(["money", driveScore >= timingScore ? "momentum" : "timing"]) as FortuneSignalKey[];
+  } else if (
+    driveScore >= 78 &&
+    frictionScore < 55 &&
+    (timingScore >= 60 || params.fortune.analysis.directiveDelta >= 4)
+  ) {
+    kind = "breakthrough";
+    intensity = driveScore >= 86 ? "major" : "notable";
+    basisSignals = uniqueOrderedStrings([
+      work && work.score >= (momentum?.score ?? 0) ? "work" : "momentum",
+      timingScore >= 60 ? "timing" : undefined,
+    ]) as FortuneSignalKey[];
+  } else if (recoveryScore >= 70 || recovery?.tone === "recover") {
+    kind = "recovery";
+    intensity = recoveryScore >= 82 ? "major" : recoveryScore >= 72 ? "notable" : "subtle";
+    basisSignals = uniqueOrderedStrings(["recovery", frictionScore >= 55 ? "friction" : undefined]) as FortuneSignalKey[];
+  } else if (driveScore >= 64 || timingScore >= 60) {
+    kind = "movement";
+    intensity = driveScore >= 72 || timingScore >= 68 ? "notable" : "subtle";
+    basisSignals = uniqueOrderedStrings([
+      work && work.score >= (momentum?.score ?? 0) ? "work" : "momentum",
+      timingScore >= 60 ? "timing" : undefined,
+    ]) as FortuneSignalKey[];
+  } else {
+    basisSignals = uniqueOrderedStrings([
+      momentum && momentum.score >= (recovery?.score ?? 0) ? "momentum" : undefined,
+      recovery && recovery.score > (momentum?.score ?? 0) ? "recovery" : undefined,
+      timingScore >= 60 ? "timing" : undefined,
+    ]) as FortuneSignalKey[];
+  }
+
+  if (basisSignals.length === 0) {
+    basisSignals = ["momentum"];
+  }
+
+  return {
+    kind,
+    intensity,
+    confidenceMode,
+    lead: eventLead({
+      confidenceMode,
+      kind,
+      intensity,
+    }),
+    reason: buildEventReason({
+      fortune: params.fortune,
+      signals: params.signals,
+      kind,
+    }),
+    basisSignals,
+  };
+}
+
+function applyEventNarrative(params: {
+  fortune: FortuneWithoutSignals;
+  eventOutlook: FortuneEventOutlook;
+}): Pick<DailyFortune, "headline" | "summary" | "detail"> {
+  const headline = appendNarrativeAddon(
+    params.eventOutlook.lead,
+    params.fortune.analysis.hybrid.kuseong?.narrative.headlineAddon,
+  );
+  const summary = uniqueOrderedStrings([params.eventOutlook.reason, params.fortune.summary]).join(" ");
+  const detail = uniqueOrderedStrings([
+    params.eventOutlook.lead,
+    params.eventOutlook.reason,
+    params.fortune.detail,
+  ]).join(" ");
+
+  return {
+    headline,
+    summary,
+    detail,
+  };
+}
+
 function attachFortuneSignals(params: {
   fortune: FortuneWithoutSignals;
 }): DailyFortune {
   const signals = buildFortuneSignals(params.fortune);
   const topSignals = selectTopFortuneSignals(signals);
+  const eventOutlook = buildEventOutlook({
+    fortune: params.fortune,
+    signals,
+  });
+  const narrative = applyEventNarrative({
+    fortune: params.fortune,
+    eventOutlook,
+  });
   const recommendedActions = uniqueOrderedStrings(topSignals.map((signal) => signal.action)).slice(0, 3);
   const avoidToday = buildSignalDrivenAvoidToday({
     fortune: params.fortune,
@@ -1449,11 +1717,13 @@ function attachFortuneSignals(params: {
 
   return {
     ...params.fortune,
+    ...narrative,
     caution: avoidToday[0] ?? params.fortune.caution,
     recommendedActions,
     avoidToday,
     analysis: {
       ...params.fortune.analysis,
+      eventOutlook,
       signals,
     },
   };

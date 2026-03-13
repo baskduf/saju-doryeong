@@ -83,6 +83,17 @@
 - 공유 페이지도 `signals` 기반 렌더링
 - 카카오 presenter는 `SIGNAL_LABELS`를 사용해 질문 메타를 출력
 
+### 3.5 신호기반 모델 원칙
+
+- 이 모델의 목적은 명리 해석 엔진을 바꾸는 것이 아니라, `analysis.signals`를 공통 표현 계층으로 두어 UI / 질문 응답 / 공유 / 외부 소비처가 같은 언어로 결과를 다루게 하는 것이다.
+- 해석의 기준 순서는 유지되어야 한다.
+  - `원국/일진/용신·기신/지지 작용 -> score/category/analysis -> signals`
+  - `signals -> 명리 해석` 순서로 역전되면 안 된다.
+- `signal`은 서비스 친화적 추상화이므로, 반복적인 고정 슬롯을 줄이고 소비처별 표현을 통일하는 데는 유리하지만 명리학적 세부 맥락은 일부 압축될 수 있다.
+- 따라서 `signal` 점수 임계값, 질문 topic-to-signal 매핑, caution 노출 규칙이 사주 기본 해석보다 더 강하게 결과를 좌우하지 않는지 계속 점검해야 한다.
+- `summary`, `reasons`, `sources`, 상세 풀이 섹션은 신호가 어떤 근거에서 나왔는지 되짚을 수 있게 유지하는 편이 좋다.
+- `unknown calendar` 같은 불확실 경로에서는 신호도 확정 판단이 아니라 참고용이라는 성격을 유지해야 한다.
+
 ## 4. 후속 수정 사항
 
 초기 신호 개편 이후 리뷰에서 두 가지 문제가 발견되었고, 추가 수정이 들어갔다.
@@ -203,6 +214,7 @@ npm.cmd test -- tests/lib/fortune-question.test.ts tests/lib/fortune-unknown.tes
 - `lib/fortune-question.ts`에서 signal 선택 기준이 질문 topic/intent와 자연스럽게 맞는지
 - `lib/fortune-llm.ts` 프롬프트가 다시 과도한 경고 톤으로 돌아가게 만들 여지가 없는지
 - `lib/fortune-share.ts`의 레거시 정규화가 너무 넓어서 잘못된 payload까지 통과시키지 않는지
+- `analysis.signals`가 명리 해석의 공통 표현 레이어로만 머무르고, 임계값/매핑 휴리스틱이 사주 기본 해석을 사실상 대체하지 않는지
 
 ## 10. 리뷰 후 남길 코멘트 포맷 권장
 
@@ -211,4 +223,3 @@ npm.cmd test -- tests/lib/fortune-question.test.ts tests/lib/fortune-unknown.tes
 - 재현 조건
 - 실제 영향
 - 수정 권장안
-

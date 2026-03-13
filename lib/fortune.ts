@@ -19,7 +19,7 @@ import {
   type TodayBranchInteraction,
   type TraditionalSajuChart,
 } from "./saju";
-import { getSeoulDateKey, getSeoulDateTimeParts } from "./seoul-time";
+import { getSeoulDateTimeParts } from "./seoul-time";
 
 export type { FiveElements } from "./saju";
 export type { HybridSourceBadge, KuseongDetail } from "./kuseong";

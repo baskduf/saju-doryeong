@@ -7,7 +7,6 @@ import {
   findFortuneShareSnapshotById,
   normalizeFortuneSharePayload,
   shouldRenderSignalCaution,
-  type FortuneShareSignalPayload,
   type FortuneShareSnapshotPayload,
 } from "../../../../lib/fortune-share";
 import { ShareActions } from "./ShareActions";

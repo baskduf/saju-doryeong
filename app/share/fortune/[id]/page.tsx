@@ -221,10 +221,6 @@ export default async function SharedFortunePage({ params, searchParams }: PagePr
                     </p>
                   </div>
                   <div className={detailStyles.reasonRow}>
-                    <span className={detailStyles.reasonLabel}>근거</span>
-                    <p className={detailStyles.reasonText}>{renderHighlightedText(signal.reasons.join(" "))}</p>
-                  </div>
-                  <div className={detailStyles.reasonRow}>
                     <span className={detailStyles.reasonLabel}>움직임</span>
                     <p className={detailStyles.reasonText}>{renderHighlightedText(signal.action)}</p>
                   </div>
@@ -233,6 +229,12 @@ export default async function SharedFortunePage({ params, searchParams }: PagePr
                       <span className={detailStyles.reasonLabel}>주의</span>
                       <p className={detailStyles.reasonText}>{renderHighlightedText(signal.caution)}</p>
                     </div>
+                  ) : null}
+                  {signal.reasons.length > 0 ? (
+                    <details className={detailStyles.analysisExpand}>
+                      <summary>근거 더 보기</summary>
+                      <p className={detailStyles.reasonText}>{renderHighlightedText(signal.reasons.join(" "))}</p>
+                    </details>
                   ) : null}
                 </div>
               ))}

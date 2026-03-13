@@ -176,9 +176,7 @@ export function FortuneSections({ fortune, userId, referenceDate }: Props) {
   const todayReasonText = isCalendarUncertain
     ? fortune.analysis.relationStrengthSummary
     : `오늘 일진 ${fortune.analysis.todayGanji}은 ${fortune.analysis.todayRelation} 흐름으로 들어오며, ${fortune.analysis.relationStrengthSummary}`;
-  const fortuneLeadParagraphs = isBlendedReference
-    ? [fortune.headline, fortune.summary]
-    : [fortune.headline, fortune.detail, fortune.summary, fortune.caution];
+  const fortuneLeadParagraphs = [fortune.headline, fortune.summary];
 
   return (
     <section className={styles.section}>
@@ -255,10 +253,6 @@ export function FortuneSections({ fortune, userId, referenceDate }: Props) {
                     </p>
                   </div>
                   <div className={styles.reasonRow}>
-                    <span className={styles.reasonLabel}>근거</span>
-                    <p className={styles.reasonText}>{renderHighlightedText(signal.reasons.join(" "))}</p>
-                  </div>
-                  <div className={styles.reasonRow}>
                     <span className={styles.reasonLabel}>움직임</span>
                     <p className={styles.reasonText}>{renderHighlightedText(signal.action)}</p>
                   </div>
@@ -268,75 +262,53 @@ export function FortuneSections({ fortune, userId, referenceDate }: Props) {
                       <p className={styles.reasonText}>{renderHighlightedText(signal.caution)}</p>
                     </div>
                   ) : null}
+                  {signal.reasons.length > 0 ? (
+                    <details className={styles.analysisExpand}>
+                      <summary>근거 더 보기</summary>
+                      <p className={styles.reasonText}>{renderHighlightedText(signal.reasons.join(" "))}</p>
+                    </details>
+                  ) : null}
                 </div>
               ))}
             </div>
           </section>
 
-            <section className={styles.innerSection}>
-              <h2>오늘 풀이의 근거</h2>
+          <section className={styles.innerSection}>
+            <h2>오늘 풀이의 근거</h2>
+            <details className={styles.analysisExpand}>
+              <summary>핵심 근거 펼쳐 보기</summary>
               <div className={`${styles.reasonCard} ${styles.pointCard}`}>
                 <div className={styles.reasonRow}>
                   <span className={styles.reasonLabel}>오늘 일진 작용</span>
                   <p className={styles.reasonText}>{renderHighlightedText(todayReasonText)}</p>
                 </div>
-              <div className={styles.reasonRow}>
-                <span className={styles.reasonLabel}>용신·기신 흐름</span>
-                <p className={styles.reasonText}>{renderHighlightedText(fortune.analysis.directiveSummary)}</p>
-              </div>
-              {fortune.analysis.hybrid.kuseong ? (
                 <div className={styles.reasonRow}>
-                  <span className={styles.reasonLabel}>구성 보정</span>
-                  <p className={styles.reasonText}>{renderHighlightedText(kuseongReasonText(fortune))}</p>
+                  <span className={styles.reasonLabel}>용신·기신 흐름</span>
+                  <p className={styles.reasonText}>{renderHighlightedText(fortune.analysis.directiveSummary)}</p>
                 </div>
-              ) : null}
-              {fortune.analysis.todayBranchInteractions.length > 0 ? (
-                <div className={styles.reasonRow}>
-                  <span className={styles.reasonLabel}>지지 상호작용</span>
-                  <p className={styles.reasonText}>{renderHighlightedText(fortune.analysis.todayBranchSummary)}</p>
+                {fortune.analysis.hybrid.kuseong ? (
+                  <div className={styles.reasonRow}>
+                    <span className={styles.reasonLabel}>구성 보정</span>
+                    <p className={styles.reasonText}>{renderHighlightedText(kuseongReasonText(fortune))}</p>
+                  </div>
+                ) : null}
+                {fortune.analysis.todayBranchInteractions.length > 0 ? (
+                  <div className={styles.reasonRow}>
+                    <span className={styles.reasonLabel}>지지 상호작용</span>
+                    <p className={styles.reasonText}>{renderHighlightedText(fortune.analysis.todayBranchSummary)}</p>
+                  </div>
+                ) : null}
+                <div className={styles.pointFlowerOverlay} aria-hidden="true">
+                  <Image
+                    src="/flower.png"
+                    alt=""
+                    width={180}
+                    height={180}
+                    className={styles.pointFlower}
+                  />
                 </div>
-              ) : null}
-              <div className={styles.pointFlowerOverlay} aria-hidden="true">
-                <Image
-                  src="/flower.png"
-                  alt=""
-                  width={180}
-                  height={180}
-                  className={styles.pointFlower}
-                />
               </div>
-            </div>
-          </section>
-
-          <section className={styles.innerSection}>
-            <h2>오늘의 키워드</h2>
-            <div className={styles.keywordChips}>
-              {fortune.keywords.map((keyword) => (
-                <span key={keyword} className={styles.keywordChip}>
-                  {keyword}
-                </span>
-              ))}
-            </div>
-          </section>
-
-          <section className={styles.innerSection}>
-            <h2>영역별 흐름</h2>
-            <div className={styles.categoryCards}>
-              {fortune.categoryScores.map((category) => (
-                <article key={category.key} className={styles.categoryCard}>
-                  <div className={styles.categoryCardTop}>
-                    <h3>{renderHighlightedText(category.label)}</h3>
-                    <strong>{category.score}</strong>
-                  </div>
-                  <div className={styles.categoryMeter}>
-                    <span className={styles.categoryMeterFill} style={{ width: `${category.score}%` }} />
-                  </div>
-                  <span className={styles.categoryTone}>
-                    {renderHighlightedText(categoryToneLabel(category.key, category.score))}
-                  </span>
-                </article>
-              ))}
-            </div>
+            </details>
           </section>
 
           <section className={`${styles.innerSection} ${styles.fortuneCard}`}>
@@ -388,6 +360,37 @@ export function FortuneSections({ fortune, userId, referenceDate }: Props) {
                 className={`${styles.fortuneCharacter} ${styles.fortuneCharacterWarningImage}`}
                 priority
               />
+            </div>
+          </section>
+
+          <section className={styles.innerSection}>
+            <h2>오늘의 키워드</h2>
+            <div className={styles.keywordChips}>
+              {fortune.keywords.map((keyword) => (
+                <span key={keyword} className={styles.keywordChip}>
+                  {keyword}
+                </span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.innerSection}>
+            <h2>영역별 흐름</h2>
+            <div className={styles.categoryCards}>
+              {fortune.categoryScores.map((category) => (
+                <article key={category.key} className={styles.categoryCard}>
+                  <div className={styles.categoryCardTop}>
+                    <h3>{renderHighlightedText(category.label)}</h3>
+                    <strong>{category.score}</strong>
+                  </div>
+                  <div className={styles.categoryMeter}>
+                    <span className={styles.categoryMeterFill} style={{ width: `${category.score}%` }} />
+                  </div>
+                  <span className={styles.categoryTone}>
+                    {renderHighlightedText(categoryToneLabel(category.key, category.score))}
+                  </span>
+                </article>
+              ))}
             </div>
           </section>
 

@@ -17,6 +17,8 @@ body {
 
 body {
   min-height: 100vh;
+  min-height: 100svh;
+  min-height: 100dvh;
   color: var(--ink-900);
   font-family: "Nanum Myeongjo", "Noto Serif KR", serif;
   background:

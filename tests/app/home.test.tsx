@@ -28,6 +28,7 @@ describe("home page kakao entry", () => {
     expect(markup).toContain('src="/home.mp4"');
     expect(markup).toContain('poster="/background.png"');
     expect(markup).not.toContain("DAILY SAJU");
+    expect(markup).toContain("오늘의 흐름을 도령이 살펴드리겠습니다");
     expect(markup).toContain("운세도령과 이야기");
     expect(markup).toContain('href="https://pf.kakao.com/_IjiZX/chat"');
     expect(markup).toContain("운세 샘플 보기");

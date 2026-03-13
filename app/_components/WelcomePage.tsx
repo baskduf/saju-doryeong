@@ -1,6 +1,7 @@
 import React from "react";
 import Image from "next/image";
 import { KakaoChannelActions } from "./KakaoChannelActions";
+import { MobileViewportHeight } from "./MobileViewportHeight";
 import styles from "./welcome-page.module.css";
 
 const KAKAO_CHAT_URL = "https://pf.kakao.com/_IjiZX/chat";
@@ -15,6 +16,7 @@ const guideSteps = [
 export function WelcomePage() {
   return (
     <main className={styles.page}>
+      <MobileViewportHeight />
       <section className={styles.mobileHero} aria-label="운세도령 모바일 시작 화면">
         <video
           className={styles.mobileHeroVideo}
@@ -33,9 +35,12 @@ export function WelcomePage() {
           <div className={styles.mobileHeroBrand}>
             <h1 className={styles.mobileHeroWordmark}>운세도령</h1>
           </div>
-          <a href={KAKAO_CHAT_URL} className={styles.mobileHeroAction}>
-            운세도령과 이야기
-          </a>
+          <div className={styles.mobileHeroCtaBlock}>
+            <p className={styles.mobileHeroCaption}>오늘의 흐름을 도령이 살펴드리겠습니다</p>
+            <a href={KAKAO_CHAT_URL} className={styles.mobileHeroAction}>
+              운세도령과 이야기
+            </a>
+          </div>
         </div>
       </section>
       <div className={styles.background} />

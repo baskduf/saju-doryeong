@@ -17,6 +17,7 @@ pnpm-debug.log*
 *.tsbuildinfo
 .npm-cache/
 .dev-server*.log
+.admin-dev*.log
 .tmp-dev*.log
 .next-dev*.log
 

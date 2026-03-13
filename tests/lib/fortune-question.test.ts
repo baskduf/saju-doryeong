@@ -150,12 +150,14 @@ describe("fortune question fallback", () => {
   });
 
   it("records question signal conflicts when oracle opposes the base signal", async () => {
+    const fortune = buildExactFortune();
     const answer = await answerWithMockedOracle({
       question: "오늘 일 시작해도 될까?",
-      fortune: buildExactFortune(),
+      fortune,
     });
 
     expect(answer.decisionBasis.primarySignalKey).toBeTruthy();
+    expect(answer.description).toContain(fortune.analysis.eventOutlook.reason);
     expect(answer.conflictResolution.status).toBe("question-signal-conflict");
     expect(answer.conflictResolution.appliedPolicy).toBe("가능성은 보되 속도는 늦춤");
   });

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { generateDailyFortune, selectTopFortuneSignals } from "../../lib/fortune";
+import { buildRecommendedActionList } from "../../lib/fortune-guidance";
 import type { KuseongDetail } from "../../lib/kuseong";
 
 function expectedGrade(score: number): "대길" | "길" | "평" | "주의" {
@@ -117,6 +118,28 @@ describe("daily fortune hybrid analysis", () => {
     expect(fortune.analysis.hybridExplanation.confidenceMode).toBe("reference");
     expect(fortune.analysis.hybridExplanation.conflicts).toEqual([]);
   });
+
+  it("does not inject health-only kuseong rest cautions when health is not the weakest category", async () => {
+    const fortune = await generateFortuneWithMockedKuseong({
+      scoreDelta: -2,
+      categoryAdjustments: {
+        work: -3,
+        money: 1,
+        relationship: 2,
+        health: 0,
+      },
+      focusCategories: ["relationship", "money"],
+      narrativeTone: "recover",
+      narrative: {
+        headlineAddon: "구성 흐름은 일과 쪽 과속을 멈추고 약한 분야 조율을 먼저 택하라 하오.",
+        summaryAddon: "특히 관계와 재물 쪽 반응이 두드러지며 동남 방향 흐름을 차분히 타는 편이 맞소.",
+        detailAddon: "본명성과 월성, 일성의 맞물림을 보면 관계와 재물에 힘이 실리고 일과 쪽은 과속보다 조율이 낫소.",
+        cautionAddon: "일과 쪽 과속과 무리한 확장은 줄이고, 약한 분야 조율부터 앞세우시오.",
+      },
+    });
+
+    expect(fortune.avoidToday.some((line) => line.includes("쉬어 가시오"))).toBe(false);
+  });
 });
 
 afterEach(() => {
@@ -125,10 +148,15 @@ afterEach(() => {
 });
 
 function expectedRecommendedActions(fortune: ReturnType<typeof generateDailyFortune>): string[] {
-  return Array.from(new Set(selectTopFortuneSignals(fortune.analysis.signals).map((signal) => signal.action))).slice(
-    0,
-    3,
-  );
+  const topSignals = selectTopFortuneSignals(fortune.analysis.signals);
+  const healthScore = fortune.categoryScores.find((item) => item.key === "health")?.score ?? 0;
+
+  return buildRecommendedActionList({
+    topSignals,
+    signals: fortune.analysis.signals,
+    eventKind: fortune.analysis.eventOutlook.kind,
+    healthScore,
+  });
 }
 
 function expectedAvoidTodayLead(fortune: ReturnType<typeof generateDailyFortune>): string {

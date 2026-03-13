@@ -575,6 +575,10 @@ function buildFallbackDescription(params: {
   fortune: DailyFortune;
   oracle: YukhyoReading;
 }): string {
+  const foregroundRecovery =
+    params.analysis.topic === "health" ||
+    params.analysis.primarySignal.key === "recovery" ||
+    params.fortune.analysis.eventOutlook.kind === "recovery";
   const eventLead = params.fortune.analysis.eventOutlook.lead;
   const eventReason = params.fortune.analysis.eventOutlook.reason;
   const uncertaintyLead =
@@ -582,7 +586,8 @@ function buildFallbackDescription(params: {
       ? params.fortune.analysis.uncertaintyMessage ?? "달력 기준이 아직 미확정이라 참고용 흐름으로만 보시오."
       : null;
   const secondarySummary =
-    params.analysis.secondarySignal.key === params.analysis.primarySignal.key
+    params.analysis.secondarySignal.key === params.analysis.primarySignal.key ||
+    (!foregroundRecovery && params.analysis.secondarySignal.key === "recovery")
       ? null
       : `보조로는 ${params.analysis.secondarySignal.summary}`;
   const cautionLead = shouldUseCautionChannel(params.analysis)
@@ -773,7 +778,7 @@ export async function answerFortuneQuestion(params: {
         model: resolveModel(),
         store: false,
         instructions:
-          "You answer Korean daily fortune questions for a Kakao chatbot. Facts are deterministic and must not be changed or invented. The topic, intent, relationshipKind, selectedSignals, and eventOutlook are already chosen. You may decide whether to foreground the primary or secondary signal, but you must not introduce any new facts, conclusions, or exact saju details outside selectedSignals, oracle, overallTone, and eventOutlook. Preserve the causal axis already chosen by eventOutlook, especially for contact, conflict, and money-shift, and do not flatten it into generic timing-only or advice-only copy. Return strict JSON only with keys title and description. title must be under 18 Korean characters. description must be 2 to 4 concise Korean sentences, under 260 characters if possible. Use a concise respectful fortune-teller tone in Korean, a light 도령체. Open with an event-possibility sentence when eventOutlook is strong, then explain the reason and close with one helpful action. Keep it as possibility language such as 수 있소, 기미가 있소, 조짐이 있소. Never use deterministic guarantees such as 반드시, 무조건, 확실히, 100%. Mention caution only when answerMeta.oracleInfluence.channels includes caution or allowedAnswerFrame.mustMentionCaution is true. If certainty is calendar-unknown, clearly say the answer is reference-only and never imply an exact manse or confirmed lunar/solar basis. If referenceMode is solar-lunar-blend, describe it as a common trend across both solar and lunar possibilities. No markdown, no code fences, no emojis.",
+          "You answer Korean daily fortune questions for a Kakao chatbot. Facts are deterministic and must not be changed or invented. The topic, intent, relationshipKind, selectedSignals, and eventOutlook are already chosen. You may decide whether to foreground the primary or secondary signal, but you must not introduce any new facts, conclusions, or exact saju details outside selectedSignals, oracle, overallTone, and eventOutlook. Preserve the causal axis already chosen by eventOutlook, especially for contact, conflict, and money-shift, and do not flatten it into generic timing-only or advice-only copy. Return strict JSON only with keys title and description. title must be under 18 Korean characters. description must be 2 to 4 concise Korean sentences, under 260 characters if possible. Use a concise respectful fortune-teller tone in Korean, a light 도령체. Open with an event-possibility sentence when eventOutlook is strong, then explain the reason and close with one helpful action. Keep it as possibility language such as 수 있소, 기미가 있소, 조짐이 있소. Do not flatten non-recovery outcomes into generic rest, condition-management, or 쉬시오/휴식 우선 copy. Use explicit rest language only when eventOutlook.kind is recovery, the strongest selected signal is recovery, or the question is about health/condition. Never use deterministic guarantees such as 반드시, 무조건, 확실히, 100%. Mention caution only when answerMeta.oracleInfluence.channels includes caution or allowedAnswerFrame.mustMentionCaution is true. If certainty is calendar-unknown, clearly say the answer is reference-only and never imply an exact manse or confirmed lunar/solar basis. If referenceMode is solar-lunar-blend, describe it as a common trend across both solar and lunar possibilities. No markdown, no code fences, no emojis.",
         input: buildPromptContext({
           question: params.question,
           fortune: params.fortune,

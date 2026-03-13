@@ -454,8 +454,10 @@ function buildNarrative(params: {
     headlineAddon = `구성 흐름은 ${focus1Label} 쪽에서 속도보다 결을 먼저 보라 하오.`;
   } else if (focus1 === "health") {
     headlineAddon = "구성 흐름은 회복과 정비를 먼저 택하라 하오.";
+  } else if (params.weakestCategory === "health") {
+    headlineAddon = `구성 흐름은 ${focus1Label}을 밀기보다 회복과 정비를 먼저 보라 하오.`;
   } else {
-    headlineAddon = `구성 흐름은 ${focus1Label}보다 회복과 정비를 먼저 택하라 하오.`;
+    headlineAddon = `구성 흐름은 ${focusWeakLabel} 쪽 과속을 멈추고 약한 분야 조율을 먼저 택하라 하오.`;
   }
 
   return {
@@ -467,9 +469,11 @@ function buildNarrative(params: {
         ? `기세가 붙어도 한 번에 판을 키우지 말고 ${focus1Label}부터 순서대로 다루시오.`
         : params.narrativeTone === "steady"
           ? `무난한 흐름이라도 ${focusWeakLabel}은 억지로 끌어올리지 마시오.`
-          : params.narrativeTone === "cautious"
-            ? `${focusWeakLabel} 쪽은 서두를수록 어긋나기 쉬우니 확인을 먼저 두시오.`
-            : `${focusWeakLabel}과 무리한 확장은 피하고, 회복과 정리부터 앞세우시오.`,
+        : params.narrativeTone === "cautious"
+          ? `${focusWeakLabel} 쪽은 서두를수록 어긋나기 쉬우니 확인을 먼저 두시오.`
+          : params.weakestCategory === "health"
+            ? `${focusWeakLabel}과 무리한 확장은 피하고, 회복과 정리부터 앞세우시오.`
+            : `${focusWeakLabel} 쪽 과속과 무리한 확장은 줄이고, 약한 분야 조율부터 앞세우시오.`,
   };
 }
 
@@ -497,7 +501,11 @@ function buildAction(params: {
     return `${focus1Label} 쪽은 속도보다 결을 먼저 보며 움직이고, ${focusWeakLabel}은 서두르지 마시오.`;
   }
 
-  return `오늘은 ${focusWeakLabel}과 무리한 확장을 쉬고, 회복과 정비를 먼저 앞세우시오.`;
+  if (params.weakestCategory === "health") {
+    return `오늘은 ${focusWeakLabel}과 무리한 확장을 쉬고, 회복과 정비를 먼저 앞세우시오.`;
+  }
+
+  return `오늘은 ${focusWeakLabel} 쪽 과속을 멈추고, 약한 분야 조율과 정비를 먼저 앞세우시오.`;
 }
 
 function buildCaution(params: {
@@ -521,7 +529,11 @@ function buildCaution(params: {
     return `${focusWeakLabel} 쪽은 서두를수록 어긋나기 쉬우니 확인을 먼저 두시오.`;
   }
 
-  return `${focusWeakLabel}과 무리한 확장은 피하고, 회복과 정리부터 앞세우시오.`;
+  if (params.weakestCategory === "health") {
+    return `${focusWeakLabel}과 무리한 확장은 피하고, 회복과 정리부터 앞세우시오.`;
+  }
+
+  return `${focusWeakLabel} 쪽 과속과 무리한 확장은 피하고, 약한 분야 조율부터 앞세우시오.`;
 }
 
 function describeRelationSummary(params: {

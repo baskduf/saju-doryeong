@@ -206,6 +206,45 @@ describe("resolveEventOutlookScenario", () => {
     expect(scenario.lead).toContain("돈의 자리");
     expect(scenario.reason).toContain("정산과 조율");
   });
+
+  it("does not promote mid recovery scores into recovery outlooks", () => {
+    const base = buildScenarioInput();
+    const scenario = resolveEventOutlookScenario({
+      ...base,
+      directiveDelta: 0,
+      signals: replaceSignals(base, [
+        makeSignal("momentum", 61, "추진은 무난하지만 크게 밀 날은 아니오.", "steady"),
+        makeSignal("work", 59, "일은 차분히 순서를 세우는 편이 좋소.", "steady"),
+        makeSignal("timing", 58, "타이밍은 무난한 편이오.", "steady"),
+        makeSignal("friction", 44, "마찰은 아직 낮은 편이오.", "steady"),
+        makeSignal("recovery", 71, "회복은 정비를 하면 충분히 지킬 수 있소.", "recover"),
+      ]),
+    });
+
+    expect(scenario.kind).not.toBe("recovery");
+    expect(scenario.kind).toBe("rebalancing");
+  });
+
+  it("keeps recovery outlooks only when recovery is clearly foregrounded", () => {
+    const base = buildScenarioInput();
+    const scenario = resolveEventOutlookScenario({
+      ...base,
+      directiveDelta: -1,
+      signals: replaceSignals(base, [
+        makeSignal("momentum", 58, "추진보다 정비가 먼저인 흐름이오.", "steady"),
+        makeSignal("work", 56, "일은 속도보다 리듬 조정이 맞소.", "steady"),
+        makeSignal("timing", 57, "타이밍은 서두르지 않는 편이 좋소.", "steady"),
+        makeSignal("friction", 52, "마찰은 아직 과하지 않소.", "steady"),
+        makeSignal("recovery", 78, "회복 흐름이 실제 중심축으로 올라오고 있소.", "recover"),
+      ]),
+    });
+
+    expect(scenario.kind).toBe("recovery");
+    expect(scenario.intensity).toBe("notable");
+    expect(scenario.basisSignals).toEqual(["recovery"]);
+    expect(scenario.lead).toContain("리듬");
+    expect(scenario.reason).toContain("흐트러진 리듬");
+  });
 });
 
 describe("fortune event outlook integration", () => {

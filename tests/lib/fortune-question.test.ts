@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { generateDailyFortune } from "../../lib/fortune";
+import type { DailyFortune, FortuneSignalKey } from "../../lib/fortune";
 import {
   answerFortuneQuestion,
   isLikelyFortuneQuestion,
@@ -33,6 +34,42 @@ function buildExactFortune() {
     sajuData: {},
     date: new Date("2026-03-10T09:00:00+09:00"),
   });
+}
+
+function buildMovementFortune(): DailyFortune {
+  const base = buildExactFortune();
+  return {
+    ...base,
+    analysis: {
+      ...base.analysis,
+      eventOutlook: {
+        ...base.analysis.eventOutlook,
+        kind: "movement" as const,
+        intensity: "notable" as const,
+        lead: "오늘은 흐름이 한 번 움직이며 방향이 다시 잡힐 수 있소.",
+        reason: "추진과 타이밍이 맞물려 작은 변화가 실제 방향 조정으로 이어지기 쉬운 날이오.",
+        basisSignals: ["momentum", "timing"] as FortuneSignalKey[],
+      },
+    },
+  };
+}
+
+function buildRecoveryFortune(): DailyFortune {
+  const base = buildExactFortune();
+  return {
+    ...base,
+    analysis: {
+      ...base.analysis,
+      eventOutlook: {
+        ...base.analysis.eventOutlook,
+        kind: "recovery" as const,
+        intensity: "notable" as const,
+        lead: "오늘은 흐트러진 리듬을 바로잡는 일이 크게 작용하오.",
+        reason: "회복과 정비를 앞세울수록 하루 기세가 고르게 붙기 쉽소.",
+        basisSignals: ["recovery"] as FortuneSignalKey[],
+      },
+    },
+  };
 }
 
 async function answerWithMockedOracle(params: {
@@ -160,6 +197,30 @@ describe("fortune question fallback", () => {
     expect(answer.description).toContain(fortune.analysis.eventOutlook.reason);
     expect(answer.conflictResolution.status).toBe("question-signal-conflict");
     expect(answer.conflictResolution.appliedPolicy).toBe("가능성은 보되 속도는 늦춤");
+  });
+
+  it("does not foreground rest language for non-health fallback answers", async () => {
+    const fortune = buildMovementFortune();
+    const answer = await answerWithMockedOracle({
+      question: "오늘 일 어떻게 풀릴까?",
+      fortune,
+    });
+
+    expect(answer.usedLlm).toBe(false);
+    expect(answer.description.startsWith(fortune.analysis.eventOutlook.lead)).toBe(true);
+    expect(answer.description.slice(0, fortune.analysis.eventOutlook.lead.length + 20)).not.toMatch(/쉬시오|휴식/);
+  });
+
+  it("keeps recovery wording for health-oriented fallback answers", async () => {
+    const fortune = buildRecoveryFortune();
+    const answer = await answerWithMockedOracle({
+      question: "오늘 컨디션 어떨까?",
+      fortune,
+    });
+
+    expect(answer.usedLlm).toBe(false);
+    expect(answer.description).toContain(fortune.analysis.eventOutlook.lead);
+    expect(answer.description).toContain("회복");
   });
 
   it("adds caution channel only for caution-oriented questions on the llm path", async () => {

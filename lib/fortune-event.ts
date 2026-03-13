@@ -145,8 +145,8 @@ function genericEventLead(params: {
 
   if (params.kind === "recovery") {
     if (params.intensity === "major") return `${prefix}오늘은 몸과 리듬 관리가 하루 판세를 가를 수 있소.`;
-    if (params.intensity === "notable") return `${prefix}쉬어야 할 곳을 바로잡는 일이 생각보다 크게 작용하오.`;
-    return `${prefix}회복과 정비가 흐름을 지키는 날이오.`;
+    if (params.intensity === "notable") return `${prefix}오늘은 흐트러진 리듬을 바로잡는 일이 생각보다 크게 작용하오.`;
+    return `${prefix}정비와 리듬 재정렬이 흐름을 지키는 날이오.`;
   }
 
   if (params.intensity === "major") return `${prefix}오늘은 큰 파문보다 큰 방향 전환이 먼저 보이는 날이오.`;
@@ -212,6 +212,7 @@ function genericEventReason(input: EventContext, kind: FortuneEventOutlookKind):
   if (kind === "recovery") {
     return eventReason(
       [
+        "흐트러진 리듬을 다시 고르게 맞추는 쪽이 오늘 기세를 지키기 쉽소.",
         recovery?.summary,
         input.relationStrengthSummary,
         input.caution,
@@ -493,9 +494,15 @@ function buildGenericScenario(input: EventContext): ResolvedEventOutlookScenario
       input.workScore >= input.momentumScore ? "work" : "momentum",
       input.timingScore >= 60 ? "timing" : undefined,
     ]);
-  } else if (input.recoveryScore >= 70 || input.signalMap.recovery?.tone === "recover") {
+  } else if (
+    input.recoveryScore >= 78 ||
+    (input.recoveryScore >= 72 &&
+      input.driveScore < 62 &&
+      input.frictionScore < 58 &&
+      input.signalMap.recovery?.tone === "recover")
+  ) {
     kind = "recovery";
-    intensity = input.recoveryScore >= 82 ? "major" : input.recoveryScore >= 72 ? "notable" : "subtle";
+    intensity = input.recoveryScore >= 86 ? "major" : "notable";
     basisSignals = orderedSignalKeys(["recovery", input.frictionScore >= 55 ? "friction" : undefined]);
   } else if (input.driveScore >= 64 || input.timingScore >= 60) {
     kind = "movement";

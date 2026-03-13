@@ -1,5 +1,14 @@
 ﻿import { Solar } from "lunar-javascript";
 import { buildEventOutlook } from "./fortune-event";
+import {
+  buildWeaknessWarning,
+  buildRecommendedActionList,
+  calculateElementSpread,
+  dedupeWarningItems,
+  toneFromCategoryScore,
+  type WarningBucket,
+  type WarningItem,
+} from "./fortune-guidance";
 import { generateFortuneNarrativeOverride } from "./fortune-llm";
 import {
   buildKuseongDetail,
@@ -603,7 +612,7 @@ function buildStrengthAwareRelationGuide(params: {
       if (params.strengthLevel === "strong") {
         return {
           summary: "인성이 와도 신강 명식에는 안으로만 머물면 기세가 눌릴 수 있소.",
-          detail: "배움과 정리는 좋으나, 오늘은 생각만 쌓고 움직임이 늦어지지 않게 해야 하오.",
+          detail: "배움과 정리, 보충은 좋으나 오늘은 준비만 쌓고 움직임이 늦어지지 않게 해야 하오.",
           caution: "안전한 것만 붙잡아 결정과 실행을 늦추지 마시오.",
           action: "정리와 보충을 짧게 끝내고, 바로 작은 실행으로 잇으시오.",
           avoid: "준비만 계속하며 움직일 때를 흘려보내지 마시오.",
@@ -612,18 +621,18 @@ function buildStrengthAwareRelationGuide(params: {
       if (params.strengthLevel === "weak") {
         return {
           summary: "인성이 들어와 신약 명식에 숨을 붙여 주니 회복과 도움을 받기 좋은 날이오.",
-          detail: "배움, 조언, 휴식, 보충이 실제 힘으로 이어질 수 있으니 오늘은 채우는 쪽이 맞소.",
+          detail: "배움, 조언, 보충, 짧은 휴식이 실제 힘으로 이어질 수 있으니 오늘은 빈칸을 채우는 쪽이 맞소.",
           caution: "회복이 필요한 날이니 억지로 속도를 끌어올리지 마시오.",
-          action: "몸과 마음을 채우는 일부터 하고, 부족한 부분은 도움을 구하시오.",
+          action: "몸과 일정의 빈칸부터 채우고, 부족한 부분은 도움을 구하시오.",
           avoid: "기운이 붙기 전에 무리해서 일부터 앞세우지 마시오.",
         };
       }
       return {
-        summary: "인성이 드니 몸과 마음을 고르게 보충하기 좋은 날이오.",
-        detail: "정리, 복습, 회복, 조언 듣기가 잘 맞으니 속도를 잠시 낮추면 흐름이 좋아지오.",
-        caution: "쉬는 핑계로 중요한 일을 끝없이 미루지 마시오.",
-        action: "쉬어야 할 곳과 챙겨야 할 곳을 나눠 차분히 보충하시오.",
-        avoid: "기운을 회복한다며 하루 전체를 늘어지게 보내지 마시오.",
+        summary: "인성이 드니 정리와 보충으로 흐름을 다시 고르게 하기 좋은 날이오.",
+        detail: "복습, 조언 듣기, 빈틈 메우기가 잘 맞으니 속도만 조금 조절하면 흐름이 좋아지오.",
+        caution: "정비를 핑계로 중요한 일을 끝없이 미루지 마시오.",
+        action: "챙겨야 할 곳과 미뤄도 될 곳을 나눠 차분히 보충하시오.",
+        avoid: "보충만 반복하며 움직일 때를 계속 늦추지 마시오.",
       };
   }
 }
@@ -689,10 +698,10 @@ function buildCategoryScores(params: {
     work: params.relation === "관성" || params.relation === "식상" ? 6 : params.relation === "재성" ? 3 : -1,
     money: params.relation === "재성" ? 7 : params.relation === "식상" ? 3 : params.relation === "비겁" ? -4 : 0,
     relationship: params.relation === "비겁" || params.relation === "인성" ? 6 : params.relation === "관성" ? -3 : 1,
-    health: params.relation === "인성" ? 6 : params.relation === "관성" ? -3 : 1,
+    health: params.relation === "인성" ? 4 : params.relation === "관성" ? -3 : 0,
   };
   const strengthBias =
-    params.dayMasterStrengthLevel === "weak" ? { work: -2, money: -1, relationship: 1, health: 4 } :
+    params.dayMasterStrengthLevel === "weak" ? { work: -2, money: -1, relationship: 1, health: 2 } :
     params.dayMasterStrengthLevel === "strong" ? { work: 2, money: 1, relationship: -1, health: -1 } :
     { work: 0, money: 0, relationship: 0, health: 0 };
 
@@ -704,7 +713,7 @@ function buildCategoryScores(params: {
       label: "관계",
       score: clamp(params.score + relationBias.relationship + strengthBias.relationship - Math.round(params.branchPenalty * 0.5), 25, 95),
     },
-    { key: "health", label: "회복", score: clamp(params.score + relationBias.health + strengthBias.health - 2, 25, 95) },
+    { key: "health", label: "회복", score: clamp(params.score + relationBias.health + strengthBias.health - 3, 25, 95) },
   ];
 
   return categories.map((category) => ({
@@ -715,29 +724,47 @@ function buildCategoryScores(params: {
 
 function buildAvoidToday(params: {
   grade: DailyFortune["grade"];
-  weakest: ElementKey;
+  elements: FiveElements;
   giShin: ElementKey;
   directiveDelta: number;
   branchPenalty: number;
+  relation: TodayRelation;
   relationAvoid: string;
 }): string[] {
-  const avoid = [
-    params.directiveDelta <= -3
-      ? `오늘은 기신 ${elementLabel(params.giShin)} 흐름이 세지기 쉬우니 ${ELEMENT_RISK_MAP[params.giShin]}을 먼저 경계하시오.`
-      : `${withTopicParticle(ELEMENT_RISK_MAP[params.giShin])} 오늘 특히 과해지기 쉽소.`,
-    `${elementLabel(params.weakest)} 기운이 약하니 컨디션 관리 없는 무리수는 피하시오.`,
-    params.relationAvoid,
-  ];
+  const overloadWarning: WarningItem = {
+    bucket: "overload",
+    text:
+      params.directiveDelta <= -3
+        ? `오늘은 기신 ${elementLabel(params.giShin)} 흐름이 세지기 쉬우니 ${ELEMENT_RISK_MAP[params.giShin]}을 먼저 경계하시오.`
+        : `${withTopicParticle(ELEMENT_RISK_MAP[params.giShin])} 오늘 특히 과해지기 쉽소.`,
+  };
+  const branchWarning =
+    params.branchPenalty > 0
+      ? ({
+          bucket: "timing",
+          text: "사람 문제와 일정 문제를 한 번에 처리하려 들면 마찰이 커지오.",
+        } satisfies WarningItem)
+      : null;
+  const weakestWarning = buildWeaknessWarning(params.elements);
+  const relationWarning: WarningItem = {
+    bucket: warningBucketForRelation(params.relation),
+    text: params.relationAvoid,
+  };
+  const cautionWarning =
+    params.grade === "주의"
+      ? ({
+          bucket: "overload",
+          text: "결론을 급히 내리기보다 한 번 더 미루는 편이 낫소.",
+        } satisfies WarningItem)
+      : null;
 
-  if (params.branchPenalty > 0) {
-    avoid.push("사람 문제와 일정 문제를 한 번에 처리하려 들면 마찰이 커지오.");
-  }
-
-  if (params.grade === "주의") {
-    avoid.unshift("결론을 급히 내리기보다 한 번 더 미루는 편이 낫소.");
-  }
-
-  return avoid.slice(0, 3);
+  return dedupeWarningItems([
+    cautionWarning,
+    overloadWarning,
+    branchWarning,
+    weakestWarning,
+    relationWarning,
+  ]).slice(0, 3);
 }
 
 function todayBranchInteractionPriority(pillar: PillarKey): number {
@@ -954,9 +981,33 @@ function buildKuseongFocusAction(kuseong: KuseongDetail): string {
   return `${labels[0] ?? "회복"} 쪽은 오늘 먼저 손을 대야 흐름이 풀리오.`;
 }
 
+function warningBucketForRelation(relation: TodayRelation): WarningBucket {
+  if (relation === "재성") return "money";
+  if (relation === "비겁") return "relationship";
+  if (relation === "인성") return "recovery";
+  if (relation === "unknown") return "timing";
+  return "overload";
+}
+
+function warningBucketForCategory(category: CategoryKey): WarningBucket {
+  if (category === "money") return "money";
+  if (category === "relationship") return "relationship";
+  if (category === "health") return "recovery";
+  return "overload";
+}
+
 function buildKuseongWeakCaution(kuseong: KuseongDetail): string {
   const weakest = sortKuseongCategoryKeys(kuseong.categoryAdjustments, "asc")[0];
-  return `${categoryDisplayLabel(weakest)} 쪽은 오늘 억지로 끌어올리지 말고 한 박자 쉬어 가시오.`;
+  if (weakest === "health") {
+    return "회복 쪽은 오늘 억지로 버티지 말고 쉬어 갈 틈을 먼저 남기시오.";
+  }
+  if (weakest === "money") {
+    return "재물 쪽은 오늘 억지로 끌어올리지 말고 지출과 조건부터 다시 보시오.";
+  }
+  if (weakest === "relationship") {
+    return "관계 쪽은 오늘 억지로 풀려 하지 말고 말수와 거리부터 조정하시오.";
+  }
+  return "일과 쪽은 오늘 억지로 끌어올리지 말고 순서와 밀도부터 다시 조정하시오.";
 }
 
 function applyKuseongHybrid(params: {
@@ -1083,27 +1134,27 @@ function categoryInsightTitle(category: DailyFortune["categoryScores"][number]):
     if (category.key === "work") return "일의 주도권을 잡기 좋은 흐름이오.";
     if (category.key === "money") return "재물 흐름을 먼저 챙기기 좋은 날이오.";
     if (category.key === "relationship") return "관계의 결이 부드럽게 풀리기 쉬운 날이오.";
-    return "회복과 균형이 잘 붙는 흐름이오.";
+    return "리듬과 균형을 잘 살리면 기세가 고르게 이어지오.";
   }
 
   if (category.score >= 65) {
     if (category.key === "work") return "일은 무난히 밀되 순서를 먼저 세우시오.";
     if (category.key === "money") return "재물은 무리 없이 운용하되 점검이 필요하오.";
     if (category.key === "relationship") return "관계는 속도보다 결을 맞추는 편이 좋소.";
-    return "회복은 유지 중심으로 챙기면 흐름이 좋소.";
+    return "정비와 보충으로 흐름을 고르게 다듬기 좋소.";
   }
 
   if (category.score >= 45) {
     if (category.key === "work") return "일은 유지 중심으로 다루는 편이 낫소.";
     if (category.key === "money") return "재물은 보수적으로 보는 편이 안전하오.";
     if (category.key === "relationship") return "관계는 거리와 속도를 차분히 보아야 하오.";
-    return "회복은 무리 없이 균형을 잡는 편이 낫소.";
+    return "일정 밀도와 에너지 분배를 다시 조정할 필요가 있소.";
   }
 
   if (category.key === "work") return "일은 무리해서 밀기보다 정리가 먼저이오.";
   if (category.key === "money") return "재물은 지출과 판단을 더 조심해야 하오.";
   if (category.key === "relationship") return "관계는 감정보다 분위기 조율이 먼저이오.";
-  return "회복은 쉬는 결을 먼저 살려야 하오.";
+  return "지친 결부터 덜어내고 쉬어야 할 자리를 분명히 해야 하오.";
 }
 
 function categoryInsightAction(category: DailyFortune["categoryScores"][number]): string {
@@ -1126,7 +1177,7 @@ function categoryInsightAction(category: DailyFortune["categoryScores"][number])
   }
 
   if (category.score >= 70) return "회복 리듬을 유지하며 몸을 가볍게 움직이시오.";
-  if (category.score >= 55) return "휴식과 일정의 균형을 먼저 맞추시오.";
+  if (category.score >= 55) return "일정 밀도와 보충 순서를 먼저 조정하시오.";
   return "무리한 일정부터 덜어내고 쉬시오.";
 }
 
@@ -1143,7 +1194,9 @@ function categoryInsightCaution(
   if (category.key === "relationship") {
     return category.score < 55 ? "감정이 앞서 말이 빨라지는 흐름을 경계하시오." : fallbackCaution;
   }
-  return category.score < 55 ? "컨디션을 무시하고 무리수부터 두지 마시오." : fallbackCaution;
+  if (category.score >= 70) return fallbackCaution;
+  if (category.score >= 55) return "정비를 핑계로 흐름 전체를 멈추지 말고 일정 밀도부터 조절하시오.";
+  return "몸의 신호를 무시하고 무리수부터 두지 마시오.";
 }
 
 function categoryInsightBoost(category: DailyFortune["categoryScores"][number]): string {
@@ -1207,20 +1260,6 @@ function relationMomentumBias(relation: TodayRelation): number {
   if (relation === "관성") return 2;
   if (relation === "인성") return -2;
   return 0;
-}
-
-function toneFromCategoryScore(
-  key: "work" | "money" | "relationship" | "recovery",
-  score: number,
-): FortuneSignalTone {
-  if (key === "recovery") {
-    if (score >= 65) return "recover";
-    return score >= 50 ? "steady" : "caution";
-  }
-
-  if (score >= 78) return "push";
-  if (score >= 58) return "steady";
-  return "caution";
 }
 
 function signalKeyFromCategory(category: DailyFortune["categoryScores"][number]): FortuneSignalKey {
@@ -1447,14 +1486,40 @@ function buildSignalDrivenAvoidToday(params: {
   fortune: FortuneWithoutSignals;
   signals: FortuneSignal[];
 }): string[] {
-  const weakest = weakestElement(params.fortune.elements);
-  const items = uniqueOrderedStrings([
-    params.signals.find((signal) => signal.key === "friction")?.caution ?? params.fortune.caution,
-    `${elementLabel(weakest)} 기운이 약하니 컨디션 관리 없는 무리수는 피하시오.`,
-    params.fortune.analysis.todayBranchImpact < 0 ? params.fortune.analysis.todayBranchSummary : undefined,
-  ]);
+  const overloadWarning: WarningItem = {
+    bucket: "overload",
+    text: params.signals.find((signal) => signal.key === "friction")?.caution ?? params.fortune.caution,
+  };
+  const branchWarning =
+    params.fortune.analysis.todayBranchImpact < 0
+      ? ({
+          bucket: "timing",
+          text: params.fortune.analysis.todayBranchSummary,
+        } satisfies WarningItem)
+      : null;
+  const weakestWarning = buildWeaknessWarning(params.fortune.elements);
+  const relationWarning: WarningItem = {
+    bucket: warningBucketForRelation(params.fortune.analysis.todayRelation),
+    text: params.fortune.analysis.relationStrengthAvoid,
+  };
+  const kuseongWeakest = params.fortune.analysis.hybrid.kuseong
+    ? sortKuseongCategoryKeys(params.fortune.analysis.hybrid.kuseong.categoryAdjustments, "asc")[0]
+    : null;
+  const kuseongWarning =
+    kuseongWeakest && warningBucketForCategory(kuseongWeakest) !== relationWarning.bucket
+      ? ({
+          bucket: warningBucketForCategory(kuseongWeakest),
+          text: buildKuseongWeakCaution(params.fortune.analysis.hybrid.kuseong as KuseongDetail),
+        } satisfies WarningItem)
+      : null;
 
-  return items.slice(0, 3);
+  return dedupeWarningItems([
+    overloadWarning,
+    branchWarning,
+    weakestWarning,
+    relationWarning,
+    kuseongWarning,
+  ]).slice(0, 3);
 }
 
 function applyEventNarrative(params: {
@@ -1500,7 +1565,13 @@ function attachFortuneSignals(params: {
     fortune: params.fortune,
     eventOutlook,
   });
-  const recommendedActions = uniqueOrderedStrings(topSignals.map((signal) => signal.action)).slice(0, 3);
+  const healthScore = params.fortune.categoryScores.find((category) => category.key === "health")?.score ?? 0;
+  const recommendedActions = buildRecommendedActionList({
+    topSignals,
+    signals,
+    eventKind: eventOutlook.kind,
+    healthScore,
+  });
   const avoidToday = buildSignalDrivenAvoidToday({
     fortune: params.fortune,
     signals,
@@ -1726,9 +1797,7 @@ function resolveBlendedStrengthLevel(candidates: DailyFortune[], averagedElement
     return levels[0] as StrengthLevel;
   }
 
-  const spread =
-    Math.max(averagedElements.wood, averagedElements.fire, averagedElements.earth, averagedElements.metal, averagedElements.water) -
-    Math.min(averagedElements.wood, averagedElements.fire, averagedElements.earth, averagedElements.metal, averagedElements.water);
+  const spread = calculateElementSpread(averagedElements);
   const averageStrengthScore = Math.round(
     candidates.reduce((sum, candidate) => sum + candidate.analysis.strengthScore, 0) / candidates.length,
   );
@@ -1944,10 +2013,11 @@ function buildSolarLunarBlendedReferenceFortune(params: {
   ]);
   const avoidToday = buildAvoidToday({
     grade: blended.grade,
-    weakest: blended.weakestElement,
+    elements: blended.elements,
     giShin: blended.giShin,
     directiveDelta: blended.directiveDelta,
     branchPenalty: 0,
+    relation: blended.todayRelation,
     relationAvoid: blended.relationStrengthAvoid,
   });
   const trimmedAvoidToday = uniqueOrderedStrings(avoidToday).slice(0, 3);
@@ -2257,9 +2327,7 @@ function generateBaseDailyFortune(params: {
     );
   }
 
-  const spread =
-    Math.max(chartElements.wood, chartElements.fire, chartElements.earth, chartElements.metal, chartElements.water) -
-    Math.min(chartElements.wood, chartElements.fire, chartElements.earth, chartElements.metal, chartElements.water);
+  const spread = calculateElementSpread(chartElements);
 
   const relation = exactChart ? fivePhaseRelation(dayMasterElement, elementFromStem(todayDayGan)) : "unknown";
   const relationGuide = buildStrengthAwareRelationGuide({
@@ -2418,10 +2486,11 @@ function generateBaseDailyFortune(params: {
   });
   const avoidToday = buildAvoidToday({
     grade,
-    weakest,
+    elements: chartElements,
     giShin,
     directiveDelta,
     branchPenalty,
+    relation,
     relationAvoid: relationGuide.avoid,
   });
   if (primaryTodayBranchPressure) {

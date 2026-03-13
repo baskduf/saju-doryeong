@@ -1,4 +1,5 @@
 import type { ElementKey } from "./saju";
+import { selectDeterministicVariant } from "./fortune-guidance";
 import { getSeoulDateKey } from "./seoul-time";
 
 export type YukhyoAnswerTrend = "positive" | "neutral" | "negative";
@@ -291,13 +292,22 @@ function describeTrendSentence(params: {
   lower: TrigramDefinition;
 }): string {
   if (params.trend === "positive") {
-    return `본괘 ${params.label}는 ${params.upper.keyword}의 바깥 흐름이 ${params.lower.keyword}의 안쪽 움직임을 돕는 형세이니, 밀어도 괜찮은 편이오.`;
+    return selectDeterministicVariant([params.label, params.upper.keyword, params.lower.keyword, params.trend], [
+      `본괘 ${params.label}는 ${params.upper.keyword}의 바깥 흐름이 ${params.lower.keyword}의 안쪽 움직임을 떠밀어 주니, 작게 밀어도 반응이 붙기 쉬운 형세이오.`,
+      `본괘 ${params.label}는 ${params.upper.keyword}의 결이 ${params.lower.keyword}를 받쳐 주니, 판을 여는 쪽으로 기세가 모이오.`,
+    ]);
   }
   if (params.trend === "negative") {
-    return `본괘 ${params.label}는 ${params.upper.keyword}의 바깥 흐름이 ${params.lower.keyword}를 눌러 조급히 밀수록 불리해질 수 있소.`;
+    return selectDeterministicVariant([params.label, params.upper.keyword, params.lower.keyword, params.trend], [
+      `본괘 ${params.label}는 ${params.upper.keyword}의 바깥 흐름이 ${params.lower.keyword}를 눌러, 조급히 밀수록 판이 거칠어질 수 있소.`,
+      `본괘 ${params.label}는 ${params.upper.keyword}의 압박이 ${params.lower.keyword}를 흔드니, 급히 결론을 내리면 불리해지기 쉽소.`,
+    ]);
   }
 
-  return `본괘 ${params.label}는 ${params.upper.keyword}와 ${params.lower.keyword}가 팽팽하니, 속도를 조절하며 간격을 보는 편이 낫소.`;
+  return selectDeterministicVariant([params.label, params.upper.keyword, params.lower.keyword, params.trend], [
+    `본괘 ${params.label}는 ${params.upper.keyword}와 ${params.lower.keyword}가 팽팽하니, 앞머리만 가볍게 열고 반응을 더 보는 편이 낫소.`,
+    `본괘 ${params.label}는 ${params.upper.keyword}와 ${params.lower.keyword}가 맞서는 결이 있어, 한꺼번에 밀기보다 판을 나눠 보는 편이 무난하오.`,
+  ]);
 }
 
 function describeShiftSentence(params: {
@@ -305,13 +315,105 @@ function describeShiftSentence(params: {
   changedTrend: YukhyoAnswerTrend;
 }): string {
   if (params.changedTrend === "positive") {
-    return `후반 흐름은 ${params.changedLabel}로 변하니 차츰 기회가 살아날 수 있소.`;
+    return `후반 흐름은 ${params.changedLabel}로 변하니 갈수록 기회가 붙을 수 있소.`;
   }
   if (params.changedTrend === "negative") {
-    return `후반 흐름은 ${params.changedLabel}로 변하니 갈수록 무리수를 줄이는 편이 안전하오.`;
+    return `후반 흐름은 ${params.changedLabel}로 변하니 뒤로 갈수록 무리수를 더 줄이는 편이 안전하오.`;
   }
 
-  return `후반 흐름은 ${params.changedLabel}로 변하니 끝으로 갈수록 한 박자 쉬어 가는 편이 무난하오.`;
+  return `후반 흐름은 ${params.changedLabel}로 변하니 마무리 쪽에서 판을 다시 고르는 편이 무난하오.`;
+}
+
+function buildOracleAction(params: {
+  lower: TrigramDefinition;
+  upper: TrigramDefinition;
+  answerTrend: YukhyoAnswerTrend;
+  movingLineCount: number;
+  changedTrend: YukhyoAnswerTrend;
+}): string {
+  const volatile = params.movingLineCount >= 3;
+  if (params.answerTrend === "positive" && !volatile) {
+    return selectDeterministicVariant(
+      [params.lower.label, params.upper.label, params.answerTrend, params.movingLineCount],
+      [
+        `${params.lower.keyword} 쪽 판을 먼저 열고 반응이 붙는 선에서 한 걸음 더 내보시오.`,
+        `${params.lower.keyword} 흐름이 살아 있으니 작은 움직임부터 실제로 붙여 보시오.`,
+      ],
+    );
+  }
+
+  if (params.answerTrend === "positive") {
+    return selectDeterministicVariant(
+      [params.lower.label, params.upper.label, params.answerTrend, params.movingLineCount],
+      [
+        `${params.lower.keyword} 쪽 움직임은 살리되 판이 흔들릴 수 있으니 가볍게 시험하듯 먼저 두시오.`,
+        `${params.lower.keyword} 흐름은 열리나 변동도 함께 있으니 범위를 좁혀 먼저 붙여 보시오.`,
+      ],
+    );
+  }
+
+  if (params.answerTrend === "negative" || params.changedTrend === "negative") {
+    return selectDeterministicVariant(
+      [params.lower.label, params.upper.label, params.answerTrend, params.movingLineCount],
+      [
+        `${params.lower.keyword} 쪽은 크게 벌리지 말고 작게 확인하듯 두시오.`,
+        `${params.lower.keyword} 흐름은 시험하듯 짧게 보고 큰 결정은 뒤로 미루시오.`,
+      ],
+    );
+  }
+
+  return selectDeterministicVariant(
+    [params.lower.label, params.upper.label, params.answerTrend, params.movingLineCount],
+    [
+      `${params.lower.keyword} 쪽 판부터 가볍게 열고 반응을 본 뒤 다음 수를 정하시오.`,
+      `${params.lower.keyword} 흐름은 작게 먼저 두고 붙는 반응을 보며 이어 가시오.`,
+    ],
+  );
+}
+
+function buildOracleCaution(params: {
+  upper: TrigramDefinition;
+  answerTrend: YukhyoAnswerTrend;
+  movingLineCount: number;
+  changedTrend: YukhyoAnswerTrend;
+}): string {
+  if (params.changedTrend === "negative" || params.movingLineCount >= 4) {
+    return selectDeterministicVariant(
+      [params.upper.label, params.answerTrend, params.movingLineCount, params.changedTrend],
+      [
+        `${params.upper.keyword} 쪽 바깥 압박이 커질 수 있으니 즉답과 무리수는 피하시오.`,
+        `${params.upper.keyword} 흐름이 흔들리기 쉬우니 급한 확답과 과한 밀어붙임은 금하시오.`,
+      ],
+    );
+  }
+
+  if (params.answerTrend === "positive") {
+    return selectDeterministicVariant(
+      [params.upper.label, params.answerTrend, params.movingLineCount, params.changedTrend],
+      [
+        `${params.upper.keyword} 기세가 살아도 한 번에 판을 키우지 마시오.`,
+        `${params.upper.keyword} 흐름이 좋더라도 욕심으로 범위를 넓히지 마시오.`,
+      ],
+    );
+  }
+
+  if (params.answerTrend === "negative") {
+    return selectDeterministicVariant(
+      [params.upper.label, params.answerTrend, params.movingLineCount, params.changedTrend],
+      [
+        `${params.upper.keyword} 쪽 압박에 끌려 판단을 급히 뒤집지 마시오.`,
+        `${params.upper.keyword} 바깥 흐름이 거칠 수 있으니 반응 속도로 승부 보지 마시오.`,
+      ],
+    );
+  }
+
+  return selectDeterministicVariant(
+    [params.upper.label, params.answerTrend, params.movingLineCount, params.changedTrend],
+    [
+      `${params.upper.keyword} 쪽 반응이 팽팽하니 거리를 너무 급히 좁히지 마시오.`,
+      `${params.upper.keyword} 흐름이 맞서는 결이라 한 번에 결론을 밀어붙이지 마시오.`,
+    ],
+  );
 }
 
 export function buildYukhyoReading(params: {
@@ -378,6 +480,19 @@ export function buildYukhyoReading(params: {
   const answerTrend =
     changed && changedTrend !== primaryTrend && movingLines.length >= 3 ? changedTrend : primaryTrend;
   const appliedScore = changed && changedTrend !== primaryTrend && movingLines.length >= 3 ? (changedScore ?? primaryScore) : primaryScore;
+  const action = buildOracleAction({
+    lower: primary.lower,
+    upper: primary.upper,
+    answerTrend,
+    movingLineCount: movingLines.length,
+    changedTrend,
+  });
+  const caution = buildOracleCaution({
+    upper: changed?.upper ?? primary.upper,
+    answerTrend,
+    movingLineCount: movingLines.length,
+    changedTrend,
+  });
 
   return {
     primaryHexagram: primary.label,
@@ -388,8 +503,8 @@ export function buildYukhyoReading(params: {
     primaryBits,
     changedBits: changed ? changedBits : null,
     summary,
-    action: primary.lower.action,
-    caution: changed?.upper.caution ?? primary.upper.caution,
+    action,
+    caution,
     timingHint: changed?.upper.timing ?? primary.upper.timing,
     sourceLine: changed ? `육효 괘상: ${primary.label} -> ${changed.label}` : `육효 괘상: ${primary.label}`,
     network: {

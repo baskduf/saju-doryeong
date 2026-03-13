@@ -208,7 +208,22 @@ describe("fortune question fallback", () => {
 
     expect(answer.usedLlm).toBe(false);
     expect(answer.description.startsWith(fortune.analysis.eventOutlook.lead)).toBe(true);
+    expect(answer.description.startsWith("육효")).toBe(false);
     expect(answer.description.slice(0, fortune.analysis.eventOutlook.lead.length + 20)).not.toMatch(/쉬시오|휴식/);
+  });
+
+  it("keeps direct timing words as support copy only when timing is foregrounded", async () => {
+    const fortune = buildMovementFortune();
+    const answer = await answerWithMockedOracle({
+      question: "오늘 언제 움직이면 좋을까?",
+      fortune,
+    });
+
+    expect(answer.usedLlm).toBe(false);
+    expect(answer.description.startsWith(fortune.analysis.eventOutlook.lead)).toBe(true);
+    expect(answer.description).toContain("오후");
+    expect(answer.description.startsWith("오후")).toBe(false);
+    expect(answer.description.startsWith("육효")).toBe(false);
   });
 
   it("keeps recovery wording for health-oriented fallback answers", async () => {

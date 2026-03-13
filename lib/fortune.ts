@@ -2,9 +2,14 @@
 import { buildEventOutlook } from "./fortune-event";
 import {
   buildWeaknessWarning,
+  buildFrictionNarrative,
   buildRecommendedActionList,
+  buildTimingNarrative,
   calculateElementSpread,
   dedupeWarningItems,
+  isStrongTimingSignal,
+  resolveFrictionDriver,
+  selectDeterministicVariant,
   toneFromCategoryScore,
   type WarningBucket,
   type WarningItem,
@@ -1269,6 +1274,34 @@ function signalKeyFromCategory(category: DailyFortune["categoryScores"][number])
   return category.key;
 }
 
+function buildMomentumTitle(params: {
+  relation: TodayRelation;
+  directiveDelta: number;
+  score: number;
+}): string {
+  if (params.directiveDelta >= 3) {
+    return selectDeterministicVariant([params.relation, "push", params.score], [
+      "기세가 붙는 자리를 잘 잡으면 성과가 따르오.",
+      "앞머리를 잘 열면 일이 실제로 붙는 날이오.",
+      "밀어야 할 판을 가려 움직이면 손에 남는 날이오.",
+    ]);
+  }
+
+  if (params.directiveDelta <= -3) {
+    return selectDeterministicVariant([params.relation, "caution", params.score], [
+      "판을 급히 밀기보다 범위를 줄여 다루는 편이 낫소.",
+      "서두른 답보다 앞뒤를 먼저 가르는 편이 좋소.",
+      "한꺼번에 밀지 말고 감당할 선부터 다시 정하시오.",
+    ]);
+  }
+
+  return selectDeterministicVariant([params.relation, "steady", params.score], [
+    "붙는 자리를 골라 하나씩 잇는 편이 좋소.",
+    "흐름의 앞뒤를 가르며 차례대로 움직이시오.",
+    "판이 열리는 순서를 따라가는 편이 무난하오.",
+  ]);
+}
+
 function buildSignal(params: {
   key: FortuneSignalKey;
   score: number;
@@ -1332,12 +1365,11 @@ function buildMomentumSignal(fortune: FortuneWithoutSignals): FortuneSignal {
   const score = Math.round(fortune.score + Math.max(0, directiveDelta) * 2 + relationMomentumBias(fortune.analysis.todayRelation) - branchDrag);
   const tone: FortuneSignalTone =
     directiveDelta >= 3 ? "push" : directiveDelta <= -3 ? "caution" : fortune.score >= 60 ? "steady" : "caution";
-  const title =
-    directiveDelta >= 3
-      ? "밀기보다 결을 맞추면 성과가 붙는 날이오."
-      : directiveDelta <= -3
-        ? "서두르지 말고 보수적으로 다루는 편이 낫소."
-        : "속도보다 결을 먼저 맞추는 편이 좋소.";
+  const title = buildMomentumTitle({
+    relation: fortune.analysis.todayRelation,
+    directiveDelta,
+    score,
+  });
 
   return buildSignal({
     key: "momentum",
@@ -1379,24 +1411,34 @@ function buildFrictionSignal(fortune: FortuneWithoutSignals): FortuneSignal {
       directivePenalty * 5 +
       (fortune.grade === "주의" ? 14 : fortune.grade === "평" ? 6 : 0),
   );
-  const title =
-    score >= 70 ? "오늘은 무리수 한 번이 크게 번질 수 있소." : "작은 과속이 흐름을 거칠게 만들기 쉬운 날이오.";
-  const summary =
-    fortune.analysis.todayBranchImpact < 0 && fortune.analysis.certainty !== "calendar-unknown"
-      ? `${referenceLead}${fortune.analysis.todayBranchSummary}`
-      : `${referenceLead}${fortune.caution}`;
+  const driver = resolveFrictionDriver({
+    todayBranchImpact: fortune.analysis.todayBranchImpact,
+    directiveDelta: fortune.analysis.directiveDelta,
+    todayRelation: fortune.analysis.todayRelation,
+    moneyScore: fortune.categoryScores.find((category) => category.key === "money")?.score ?? fortune.score,
+  });
+  const copy = buildFrictionNarrative({
+    driver,
+    score,
+    referenceLead,
+    todayBranchSummary: fortune.analysis.todayBranchSummary,
+    directiveSummary: fortune.analysis.directiveSummary,
+    caution: fortune.caution,
+    moneySummary: fortune.categoryScores.find((category) => category.key === "money")?.summary,
+  });
 
   return buildSignal({
     key: "friction",
     score,
     tone: score >= 55 ? "caution" : "steady",
-    title,
-    summary,
-    action: "중요한 결정은 한 박자 늦추고 다시 확인하시오.",
-    caution: fortune.caution,
+    title: copy.title,
+    summary: copy.summary,
+    action: copy.action,
+    caution: copy.caution,
     reasons: [
-      fortune.caution,
+      copy.summary,
       fortune.analysis.todayBranchImpact < 0 ? fortune.analysis.todayBranchSummary : undefined,
+      fortune.analysis.directiveSummary,
       buildKuseongReason({ fortune }),
     ],
     sources: buildSignalSources({
@@ -1415,19 +1457,23 @@ function buildTimingSignal(fortune: FortuneWithoutSignals): FortuneSignal {
     55 +
     Math.min(20, Math.abs(fortune.analysis.directiveDelta) * 4) +
     (fortune.analysis.todayRelation === "식상" || fortune.analysis.todayRelation === "관성" ? 10 : 0);
+  const copy = buildTimingNarrative({
+    timing,
+    strongTiming: score >= 72,
+    positive,
+    referenceLead,
+  });
 
   return buildSignal({
     key: "timing",
     score,
     tone: score >= 72 ? "push" : score >= 60 ? "steady" : "caution",
-    title: `${timing} 흐름을 먼저 쓰는 편이 좋소.`,
-    summary: `${referenceLead}${timing} 쪽이 오늘 호흡을 맞추기 좋소. ${
-      positive ? "움직일 일은 앞당기고" : "서두름은 줄이고"
-    } 리듬을 맞추는 편이 흐름이 고르오.`,
-    action: `${timing}에 중요한 연락과 결정부터 두시오.`,
-    caution: `${timing}을 놓친 뒤 급히 만회하려 들지 마시오.`,
+    title: copy.title,
+    summary: copy.summary,
+    action: copy.action,
+    caution: copy.caution,
     reasons: [
-      `${timing} 쪽이 오늘 리듬을 잡기 좋소.`,
+      copy.reason,
       fortune.analysis.directiveSummary,
       buildKuseongReason({ fortune }),
     ],
@@ -1435,6 +1481,88 @@ function buildTimingSignal(fortune: FortuneWithoutSignals): FortuneSignal {
       fortune,
       includeKuseongWhenDelta: true,
     }),
+  });
+}
+
+function tuneFortuneSignals(params: {
+  fortune: FortuneWithoutSignals;
+  signals: FortuneSignal[];
+  topSignals: FortuneSignal[];
+  eventOutlook: FortuneEventOutlook;
+}): FortuneSignal[] {
+  const referenceLead =
+    params.fortune.analysis.certainty === "calendar-unknown" ? "공통 흐름 기준으로 " : "";
+  const timingSignal = params.signals.find((signal) => signal.key === "timing");
+  const strongTiming =
+    timingSignal ?
+      isStrongTimingSignal({
+        topSignalKey: params.topSignals[0]?.key,
+        timingScore: timingSignal.score,
+        eventBasisSignals: params.eventOutlook.basisSignals,
+        eventIntensity: params.eventOutlook.intensity,
+      })
+    : false;
+  const positive = params.fortune.analysis.directiveDelta >= 0;
+  const frictionDriver = resolveFrictionDriver({
+    todayBranchImpact: params.fortune.analysis.todayBranchImpact,
+    directiveDelta: params.fortune.analysis.directiveDelta,
+    todayRelation: params.fortune.analysis.todayRelation,
+    moneyScore: params.fortune.categoryScores.find((category) => category.key === "money")?.score ?? params.fortune.score,
+  });
+  const moneySummary = params.fortune.categoryScores.find((category) => category.key === "money")?.summary;
+
+  return params.signals.map((signal) => {
+    if (signal.key === "timing") {
+      const copy = buildTimingNarrative({
+        timing: params.fortune.luckyHints.timing,
+        strongTiming,
+        positive,
+        referenceLead,
+        eventKind: params.eventOutlook.kind,
+      });
+
+      return {
+        ...signal,
+        title: copy.title,
+        summary: copy.summary,
+        action: copy.action,
+        caution: copy.caution,
+        reasons: uniqueSignalReasons([
+          copy.reason,
+          params.fortune.analysis.directiveSummary,
+          buildKuseongReason({ fortune: params.fortune }),
+        ]),
+      };
+    }
+
+    if (signal.key === "friction") {
+      const copy = buildFrictionNarrative({
+        driver: frictionDriver,
+        score: signal.score,
+        referenceLead,
+        todayBranchSummary: params.fortune.analysis.todayBranchSummary,
+        directiveSummary: params.fortune.analysis.directiveSummary,
+        caution: params.fortune.caution,
+        moneySummary,
+        eventKind: params.eventOutlook.kind,
+      });
+
+      return {
+        ...signal,
+        title: copy.title,
+        summary: copy.summary,
+        action: copy.action,
+        caution: copy.caution,
+        reasons: uniqueSignalReasons([
+          copy.summary,
+          params.fortune.analysis.directiveSummary,
+          params.fortune.analysis.todayBranchImpact < 0 ? params.fortune.analysis.todayBranchSummary : undefined,
+          buildKuseongReason({ fortune: params.fortune }),
+        ]),
+      };
+    }
+
+    return signal;
   });
 }
 
@@ -1547,8 +1675,8 @@ function applyEventNarrative(params: {
 function attachFortuneSignals(params: {
   fortune: FortuneWithoutSignals;
 }): DailyFortune {
-  const signals = buildFortuneSignals(params.fortune);
-  const topSignals = selectTopFortuneSignals(signals);
+  const baseSignals = buildFortuneSignals(params.fortune);
+  const initialTopSignals = selectTopFortuneSignals(baseSignals);
   const eventOutlook = buildEventOutlook({
     certainty: params.fortune.analysis.certainty,
     referenceMode: params.fortune.analysis.referenceMode,
@@ -1559,8 +1687,15 @@ function attachFortuneSignals(params: {
     todayRelation: params.fortune.analysis.todayRelation,
     todayBranchImpact: params.fortune.analysis.todayBranchImpact,
     todayBranchSummary: params.fortune.analysis.todayBranchSummary,
-    signals,
+    signals: baseSignals,
   });
+  const signals = tuneFortuneSignals({
+    fortune: params.fortune,
+    signals: baseSignals,
+    topSignals: initialTopSignals,
+    eventOutlook,
+  });
+  const topSignals = selectTopFortuneSignals(signals);
   const narrative = applyEventNarrative({
     fortune: params.fortune,
     eventOutlook,

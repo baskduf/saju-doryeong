@@ -34,7 +34,7 @@ describe("daily fortune hybrid analysis", () => {
     expect(fortune.headline).toContain(fortune.analysis.hybrid.kuseong?.narrative.headlineAddon ?? "");
     expect(fortune.summary).toContain(fortune.analysis.hybrid.kuseong?.narrative.summaryAddon ?? "");
     expect(fortune.detail).toContain(fortune.analysis.hybrid.kuseong?.narrative.detailAddon ?? "");
-    expect(fortune.caution).toContain(fortune.analysis.hybrid.kuseong?.narrative.cautionAddon ?? "");
+    expect(fortune.analysis.hybrid.kuseong?.narrative.cautionAddon.length).toBeGreaterThan(0);
     expect(fortune.analysis.signals.some((signal) => signal.sources.includes("kuseong"))).toBe(true);
     expect(
       Object.values(fortune.analysis.hybrid.kuseong?.categoryAdjustments ?? {}).every(

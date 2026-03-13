@@ -1,4 +1,5 @@
 import { Lunar, Solar } from "lunar-javascript";
+import { selectDeterministicVariant } from "./fortune-guidance";
 import { type CalendarType, type ElementKey } from "./saju";
 import {
   kuseongCategoryNarrativeLabel,
@@ -434,6 +435,10 @@ function buildNarrativeTone(params: {
   return "cautious";
 }
 
+function kuseongVariant(seedParts: Array<string | number | null | undefined>, variants: string[]): string {
+  return selectDeterministicVariant(seedParts, variants);
+}
+
 function buildNarrative(params: {
   focusCategories: FortuneCategoryKey[];
   weakestCategory: FortuneCategoryKey;
@@ -444,36 +449,73 @@ function buildNarrative(params: {
   const focus1Label = kuseongCategoryNarrativeLabel(focus1);
   const focusWeakLabel = kuseongCategoryNarrativeLabel(params.weakestCategory);
   const focusSummary = categoryJoinText(params.focusCategories);
+  const seed = [focus1, params.weakestCategory, params.direction, params.narrativeTone];
 
   let headlineAddon: string;
   if (params.narrativeTone === "push") {
-    headlineAddon = `구성 흐름까지 받쳐 주니 ${focus1Label} 쪽은 한 걸음 먼저 내도 괜찮소.`;
+    headlineAddon = kuseongVariant(seed, [
+      `구성 흐름까지 받쳐 주니 ${focus1Label} 쪽은 한 걸음 먼저 내도 괜찮소.`,
+      `구성 흐름은 ${focus1Label} 쪽 앞머리를 먼저 열어도 버틸 힘이 있소.`,
+    ]);
   } else if (params.narrativeTone === "steady") {
-    headlineAddon = `구성 흐름은 ${focus1Label} 쪽을 고르게 밀어 주는 편이오.`;
+    headlineAddon = kuseongVariant(seed, [
+      `구성 흐름은 ${focus1Label} 쪽을 고르게 밀어 주는 편이오.`,
+      `구성 흐름은 ${focus1Label} 쪽 판을 차분히 이어 주는 편이오.`,
+    ]);
   } else if (params.narrativeTone === "cautious") {
-    headlineAddon = `구성 흐름은 ${focus1Label} 쪽에서 속도보다 결을 먼저 보라 하오.`;
+    headlineAddon = kuseongVariant(seed, [
+      `구성 흐름은 ${focus1Label} 쪽 판의 앞뒤를 먼저 가르라 하오.`,
+      `구성 흐름은 ${focus1Label} 쪽은 급히 밀기보다 호흡을 고르라 하오.`,
+    ]);
   } else if (focus1 === "health") {
-    headlineAddon = "구성 흐름은 회복과 정비를 먼저 택하라 하오.";
+    headlineAddon = kuseongVariant(seed, [
+      "구성 흐름은 회복과 정비를 먼저 택하라 하오.",
+      "구성 흐름은 몸의 리듬부터 바로잡는 편이 맞다 하오.",
+    ]);
   } else if (params.weakestCategory === "health") {
-    headlineAddon = `구성 흐름은 ${focus1Label}을 밀기보다 회복과 정비를 먼저 보라 하오.`;
+    headlineAddon = kuseongVariant(seed, [
+      `구성 흐름은 ${focus1Label}을 밀기보다 회복과 정비를 먼저 보라 하오.`,
+      `구성 흐름은 ${focus1Label}의 확장보다 몸의 리듬을 먼저 고르라 하오.`,
+    ]);
   } else {
-    headlineAddon = `구성 흐름은 ${focusWeakLabel} 쪽 과속을 멈추고 약한 분야 조율을 먼저 택하라 하오.`;
+    headlineAddon = kuseongVariant(seed, [
+      `구성 흐름은 ${focusWeakLabel} 쪽 과속을 멈추고 약한 분야 조율을 먼저 택하라 하오.`,
+      `구성 흐름은 ${focusWeakLabel} 쪽을 억지로 끌어올리기보다 약한 분야 재배치를 먼저 보라 하오.`,
+    ]);
   }
 
   return {
     headlineAddon,
     summaryAddon: `특히 ${focusSummary} 쪽 반응이 두드러지며, ${params.direction} 방향 흐름을 타는 편이 맞소.`,
-    detailAddon: `본명성·월성·일성의 맞물림을 보면 ${focusSummary}에 힘이 실리고, 나머지 분야는 과속보다 조율이 낫소.`,
+    detailAddon: kuseongVariant(seed, [
+      `본명성·월성·일성의 맞물림을 보면 ${focusSummary}에 힘이 실리고, 나머지 분야는 한꺼번에 끌어올리기보다 균형을 맞추는 편이 낫소.`,
+      `본명성·월성·일성의 결을 보면 ${focusSummary}이 먼저 반응하고, 다른 분야는 판의 앞뒤를 다시 가르는 편이 좋소.`,
+    ]),
     cautionAddon:
       params.narrativeTone === "push"
-        ? `기세가 붙어도 한 번에 판을 키우지 말고 ${focus1Label}부터 순서대로 다루시오.`
+        ? kuseongVariant(seed, [
+            `기세가 붙어도 한 번에 판을 키우지 말고 ${focus1Label}부터 순서대로 다루시오.`,
+            `흐름이 살아도 ${focus1Label}부터 끊어 챙기고 나머지는 뒤로 미루시오.`,
+          ])
         : params.narrativeTone === "steady"
-          ? `무난한 흐름이라도 ${focusWeakLabel}은 억지로 끌어올리지 마시오.`
+          ? kuseongVariant(seed, [
+              `무난한 흐름이라도 ${focusWeakLabel}은 억지로 끌어올리지 마시오.`,
+              `${focusWeakLabel} 쪽은 판이 붙는 만큼만 다루고 무리한 만회는 피하시오.`,
+            ])
         : params.narrativeTone === "cautious"
-          ? `${focusWeakLabel} 쪽은 서두를수록 어긋나기 쉬우니 확인을 먼저 두시오.`
+          ? kuseongVariant(seed, [
+              `${focusWeakLabel} 쪽은 서두를수록 어긋나기 쉬우니 앞뒤부터 다시 살피시오.`,
+              `${focusWeakLabel} 쪽은 급히 답을 내기보다 기준부터 다시 세우시오.`,
+            ])
           : params.weakestCategory === "health"
-            ? `${focusWeakLabel}과 무리한 확장은 피하고, 회복과 정리부터 앞세우시오.`
-            : `${focusWeakLabel} 쪽 과속과 무리한 확장은 줄이고, 약한 분야 조율부터 앞세우시오.`,
+            ? kuseongVariant(seed, [
+                `${focusWeakLabel}과 무리한 확장은 피하고, 회복과 정리부터 앞세우시오.`,
+                `${focusWeakLabel}보다 몸의 리듬을 먼저 살피고 확장은 뒤로 미루시오.`,
+              ])
+            : kuseongVariant(seed, [
+                `${focusWeakLabel} 쪽 과속과 무리한 확장은 줄이고, 약한 분야 조율부터 앞세우시오.`,
+                `${focusWeakLabel} 쪽은 억지 확장보다 약한 분야 재배치부터 먼저 하시오.`,
+              ]),
   };
 }
 
@@ -488,24 +530,40 @@ function buildAction(params: {
   const focus1Label = kuseongCategoryNarrativeLabel(focus1);
   const focus2Label = focus2 ? kuseongCategoryNarrativeLabel(focus2) : null;
   const focusWeakLabel = kuseongCategoryNarrativeLabel(params.weakestCategory);
+  const seed = [focus1, focus2 ?? "none", params.weakestCategory, params.direction, params.narrativeTone];
 
   if (params.narrativeTone === "push") {
-    return `${focus1Label}${focus2Label ? `과 ${focus2Label}` : ""} 쪽은 오늘 먼저 움직여도 좋소. ${params.direction} 방향 흐름을 타며 한 걸음 앞서 보시오.`;
+    return kuseongVariant(seed, [
+      `${focus1Label}${focus2Label ? `과 ${focus2Label}` : ""} 쪽은 오늘 먼저 움직여도 좋소. ${params.direction} 방향 흐름을 타며 한 걸음 앞서 보시오.`,
+      `${focus1Label}${focus2Label ? `과 ${focus2Label}` : ""} 쪽부터 열고 ${params.direction} 방향 흐름을 따라 판의 앞머리를 잡아 보시오.`,
+    ]);
   }
 
   if (params.narrativeTone === "steady") {
-    return `${focus1Label} 쪽을 중심으로 흐름을 고르게 밀고, ${focus2Label ? `${focus2Label}도 함께 맞춰 가시오.` : `${params.direction} 방향 흐름을 타며 차분히 이어 가시오.`}`;
+    return kuseongVariant(seed, [
+      `${focus1Label} 쪽을 중심으로 흐름을 고르게 밀고, ${focus2Label ? `${focus2Label}도 함께 맞춰 가시오.` : `${params.direction} 방향 흐름을 타며 차분히 이어 가시오.`}`,
+      `${focus1Label} 쪽 판을 먼저 세우고, ${focus2Label ? `${focus2Label}은 그 뒤를 받쳐 이어 가시오.` : `${params.direction} 방향 흐름에 맞춰 한 갈래씩 잇듯 다루시오.`}`,
+    ]);
   }
 
   if (params.narrativeTone === "cautious") {
-    return `${focus1Label} 쪽은 속도보다 결을 먼저 보며 움직이고, ${focusWeakLabel}은 서두르지 마시오.`;
+    return kuseongVariant(seed, [
+      `${focus1Label} 쪽은 판의 앞뒤를 먼저 보며 움직이고, ${focusWeakLabel}은 급히 밀지 마시오.`,
+      `${focus1Label} 쪽은 호흡을 고르며 다루고, ${focusWeakLabel}은 성급히 만회하지 마시오.`,
+    ]);
   }
 
   if (params.weakestCategory === "health") {
-    return `오늘은 ${focusWeakLabel}과 무리한 확장을 쉬고, 회복과 정비를 먼저 앞세우시오.`;
+    return kuseongVariant(seed, [
+      `오늘은 ${focusWeakLabel}과 무리한 확장을 쉬고, 회복과 정비를 먼저 앞세우시오.`,
+      `오늘은 ${focusWeakLabel}을 억지로 밀지 말고 몸의 리듬을 고르게 세우시오.`,
+    ]);
   }
 
-  return `오늘은 ${focusWeakLabel} 쪽 과속을 멈추고, 약한 분야 조율과 정비를 먼저 앞세우시오.`;
+  return kuseongVariant(seed, [
+    `오늘은 ${focusWeakLabel} 쪽 과속을 멈추고, 약한 분야 조율과 정비를 먼저 앞세우시오.`,
+    `오늘은 ${focusWeakLabel} 쪽 억지 만회를 멈추고, 약한 분야 재배치부터 먼저 하시오.`,
+  ]);
 }
 
 function buildCaution(params: {
@@ -516,24 +574,40 @@ function buildCaution(params: {
   const focus1 = params.focusCategories[0] ?? "health";
   const focus1Label = kuseongCategoryNarrativeLabel(focus1);
   const focusWeakLabel = kuseongCategoryNarrativeLabel(params.weakestCategory);
+  const seed = [focus1, params.weakestCategory, params.narrativeTone];
 
   if (params.narrativeTone === "push") {
-    return `기세가 붙어도 한 번에 판을 키우지 말고 ${focus1Label}부터 순서대로 다루시오.`;
+    return kuseongVariant(seed, [
+      `기세가 붙어도 한 번에 판을 키우지 말고 ${focus1Label}부터 순서대로 다루시오.`,
+      `흐름이 살아도 ${focus1Label}부터 끊어 챙기고 나머지는 뒤로 미루시오.`,
+    ]);
   }
 
   if (params.narrativeTone === "steady") {
-    return `무난한 흐름이라도 ${focusWeakLabel}은 억지로 끌어올리지 마시오.`;
+    return kuseongVariant(seed, [
+      `무난한 흐름이라도 ${focusWeakLabel}은 억지로 끌어올리지 마시오.`,
+      `${focusWeakLabel} 쪽은 판이 붙는 만큼만 다루고 무리한 만회는 피하시오.`,
+    ]);
   }
 
   if (params.narrativeTone === "cautious") {
-    return `${focusWeakLabel} 쪽은 서두를수록 어긋나기 쉬우니 확인을 먼저 두시오.`;
+    return kuseongVariant(seed, [
+      `${focusWeakLabel} 쪽은 서두를수록 어긋나기 쉬우니 앞뒤부터 다시 살피시오.`,
+      `${focusWeakLabel} 쪽은 급히 답을 내기보다 기준부터 다시 세우시오.`,
+    ]);
   }
 
   if (params.weakestCategory === "health") {
-    return `${focusWeakLabel}과 무리한 확장은 피하고, 회복과 정리부터 앞세우시오.`;
+    return kuseongVariant(seed, [
+      `${focusWeakLabel}과 무리한 확장은 피하고, 회복과 정리부터 앞세우시오.`,
+      `${focusWeakLabel}보다 몸의 리듬을 먼저 살피고 확장은 뒤로 미루시오.`,
+    ]);
   }
 
-  return `${focusWeakLabel} 쪽 과속과 무리한 확장은 피하고, 약한 분야 조율부터 앞세우시오.`;
+  return kuseongVariant(seed, [
+    `${focusWeakLabel} 쪽 과속과 무리한 확장은 피하고, 약한 분야 조율부터 앞세우시오.`,
+    `${focusWeakLabel} 쪽은 무리한 확장보다 약한 분야 재배치부터 먼저 하시오.`,
+  ]);
 }
 
 function describeRelationSummary(params: {

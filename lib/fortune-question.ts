@@ -1,6 +1,7 @@
 import { selectTopFortuneSignals } from "./fortune";
 import type { DailyFortune, FortuneSignal, FortuneSignalKey } from "./fortune";
 import { logAdminEventSafe } from "./admin-event-log";
+import { describeTimingWindow, isStrongTimingSignal } from "./fortune-guidance";
 import { getSeoulDateKey } from "./seoul-time";
 import {
   buildYukhyoReading,
@@ -570,6 +571,44 @@ function fallbackTitle(topic: QuestionTopic, relationshipKind: QuestionRelations
   }
 }
 
+function buildOracleTimingLead(params: {
+  analysis: QuestionAnalysis;
+  fortune: DailyFortune;
+  oracle: YukhyoReading;
+}): string {
+  const timingSignal = params.fortune.analysis.signals.find((signal) => signal.key === "timing");
+  const strongTiming =
+    timingSignal ?
+      isStrongTimingSignal({
+        topSignalKey: params.analysis.primarySignal.key,
+        timingScore: timingSignal.score,
+        eventBasisSignals: params.fortune.analysis.eventOutlook.basisSignals,
+        eventIntensity: params.fortune.analysis.eventOutlook.intensity,
+      })
+    : false;
+
+  if (strongTiming) {
+    return `육효 흐름은 ${params.oracle.timingHint} 쪽에서 반응이 또렷해질 수 있소.`;
+  }
+
+  const window = describeTimingWindow(params.oracle.timingHint);
+  if (window.phase === "early") {
+    return "육효 흐름은 초반 반응이 먼저 살아날 수 있소.";
+  }
+  if (window.phase === "late") {
+    return "육효 흐름은 뒤로 갈수록 반응이 살아날 수 있소.";
+  }
+  return "육효 흐름은 한가운데 구간에서 반응이 붙을 수 있소.";
+}
+
+function buildOracleActionLead(oracle: YukhyoReading): string {
+  return `육효로 보면 ${oracle.action}`;
+}
+
+function buildOracleCautionLead(oracle: YukhyoReading): string {
+  return `육효 쪽 경계는 ${oracle.caution}`;
+}
+
 function buildFallbackDescription(params: {
   analysis: QuestionAnalysis;
   fortune: DailyFortune;
@@ -591,9 +630,10 @@ function buildFallbackDescription(params: {
       ? null
       : `보조로는 ${params.analysis.secondarySignal.summary}`;
   const cautionLead = shouldUseCautionChannel(params.analysis)
-    ? [params.oracle.caution, params.analysis.primarySignal.caution].join(" ")
+    ? [buildOracleCautionLead(params.oracle), params.analysis.primarySignal.caution].join(" ")
     : null;
-  const oracleTimingLead = `육효 흐름은 ${params.oracle.timingHint} 쪽에서 반응이 또렷해질 수 있소.`;
+  const oracleTimingLead = buildOracleTimingLead(params);
+  const oracleActionLead = buildOracleActionLead(params.oracle);
 
   if (params.analysis.intent === "caution") {
     return [
@@ -602,7 +642,7 @@ function buildFallbackDescription(params: {
       eventReason,
       params.oracle.summary,
       params.analysis.primarySignal.summary,
-      params.oracle.caution,
+      buildOracleCautionLead(params.oracle),
       params.analysis.primarySignal.caution,
     ]
       .filter((line): line is string => Boolean(line))
@@ -631,7 +671,7 @@ function buildFallbackDescription(params: {
       eventReason,
       params.oracle.summary,
       params.analysis.primarySignal.summary,
-      params.oracle.action,
+      oracleActionLead,
       params.analysis.primarySignal.action,
       cautionLead,
     ]
@@ -646,7 +686,7 @@ function buildFallbackDescription(params: {
       eventReason,
       params.oracle.summary,
       params.analysis.primarySignal.summary,
-      `${params.analysis.primarySignal.action} ${params.oracle.action}`,
+      `${params.analysis.primarySignal.action} ${oracleActionLead}`,
       cautionLead,
     ]
       .filter((line): line is string => Boolean(line))
@@ -778,7 +818,7 @@ export async function answerFortuneQuestion(params: {
         model: resolveModel(),
         store: false,
         instructions:
-          "You answer Korean daily fortune questions for a Kakao chatbot. Facts are deterministic and must not be changed or invented. The topic, intent, relationshipKind, selectedSignals, and eventOutlook are already chosen. You may decide whether to foreground the primary or secondary signal, but you must not introduce any new facts, conclusions, or exact saju details outside selectedSignals, oracle, overallTone, and eventOutlook. Preserve the causal axis already chosen by eventOutlook, especially for contact, conflict, and money-shift, and do not flatten it into generic timing-only or advice-only copy. Return strict JSON only with keys title and description. title must be under 18 Korean characters. description must be 2 to 4 concise Korean sentences, under 260 characters if possible. Use a concise respectful fortune-teller tone in Korean, a light 도령체. Open with an event-possibility sentence when eventOutlook is strong, then explain the reason and close with one helpful action. Keep it as possibility language such as 수 있소, 기미가 있소, 조짐이 있소. Do not flatten non-recovery outcomes into generic rest, condition-management, or 쉬시오/휴식 우선 copy. Use explicit rest language only when eventOutlook.kind is recovery, the strongest selected signal is recovery, or the question is about health/condition. Never use deterministic guarantees such as 반드시, 무조건, 확실히, 100%. Mention caution only when answerMeta.oracleInfluence.channels includes caution or allowedAnswerFrame.mustMentionCaution is true. If certainty is calendar-unknown, clearly say the answer is reference-only and never imply an exact manse or confirmed lunar/solar basis. If referenceMode is solar-lunar-blend, describe it as a common trend across both solar and lunar possibilities. No markdown, no code fences, no emojis.",
+          "You answer Korean daily fortune questions for a Kakao chatbot. Facts are deterministic and must not be changed or invented. The topic, intent, relationshipKind, selectedSignals, and eventOutlook are already chosen. You may decide whether to foreground the primary or secondary signal, but you must not introduce any new facts, conclusions, or exact saju details outside selectedSignals, oracle, overallTone, and eventOutlook. Preserve the causal axis already chosen by eventOutlook, especially for contact, conflict, and money-shift, and do not flatten it into generic timing-only or advice-only copy. Return strict JSON only with keys title and description. title must be under 18 Korean characters. description must be 2 to 4 concise Korean sentences, under 260 characters if possible. Use a concise respectful fortune-teller tone in Korean, a light 도령체. Open with an event-possibility sentence when eventOutlook is strong, then explain the reason and close with one helpful action. Keep it as possibility language such as 수 있소, 기미가 있소, 조짐이 있소. Do not flatten non-recovery outcomes into generic rest, condition-management, or 쉬시오/휴식 우선 copy. Use explicit rest language only when eventOutlook.kind is recovery, the strongest selected signal is recovery, or the question is about health/condition. Do not put 오전/오후/저녁 style direct timing in the first sentence unless timing is clearly strong in the supplied signals or eventOutlook. Avoid repeating generic safety phrases such as 조율, 속도, 확인 in consecutive sentences unless they are the only allowed deterministic facts. Treat yukhyo as a support layer: it may reinforce reason, timing, or caution, but it must not replace the daily/eventOutlook opening or become the main thesis of the answer. Never use deterministic guarantees such as 반드시, 무조건, 확실히, 100%. Mention caution only when answerMeta.oracleInfluence.channels includes caution or allowedAnswerFrame.mustMentionCaution is true. If certainty is calendar-unknown, clearly say the answer is reference-only and never imply an exact manse or confirmed lunar/solar basis. If referenceMode is solar-lunar-blend, describe it as a common trend across both solar and lunar possibilities. No markdown, no code fences, no emojis.",
         input: buildPromptContext({
           question: params.question,
           fortune: params.fortune,

@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   analyzeWeakness,
+  buildFrictionNarrative,
   buildRecommendedActionList,
+  buildTimingNarrative,
   buildWeaknessWarning,
+  isStrongTimingSignal,
+  resolveFrictionDriver,
   toneFromCategoryScore,
 } from "../../lib/fortune-guidance";
 
@@ -108,5 +112,100 @@ describe("fortune guidance helpers", () => {
     });
 
     expect(actions).toContain("무리한 일정부터 덜어내고 쉬시오.");
+  });
+
+  it("keeps direct timing wording only when timing is clearly strong", () => {
+    const weakTiming = buildTimingNarrative({
+      timing: "오전",
+      strongTiming: false,
+      positive: true,
+    });
+    const strongTiming = buildTimingNarrative({
+      timing: "오전",
+      strongTiming: true,
+      positive: true,
+    });
+
+    expect(weakTiming.title).not.toContain("오전");
+    expect(weakTiming.summary).not.toContain("오전");
+    expect(strongTiming.summary).toContain("오전");
+    expect(strongTiming.action).toContain("오전");
+  });
+
+  it("treats timing as strong only when the gating conditions are met", () => {
+    expect(
+      isStrongTimingSignal({
+        topSignalKey: "momentum",
+        timingScore: 64,
+        eventBasisSignals: ["momentum"],
+        eventIntensity: "subtle",
+      }),
+    ).toBe(false);
+    expect(
+      isStrongTimingSignal({
+        topSignalKey: "timing",
+        timingScore: 64,
+        eventBasisSignals: ["momentum"],
+        eventIntensity: "subtle",
+      }),
+    ).toBe(true);
+    expect(
+      isStrongTimingSignal({
+        topSignalKey: "momentum",
+        timingScore: 64,
+        eventBasisSignals: ["timing"],
+        eventIntensity: "notable",
+      }),
+    ).toBe(true);
+  });
+
+  it("splits friction wording by the strongest cause", () => {
+    expect(
+      resolveFrictionDriver({
+        todayBranchImpact: -5,
+        directiveDelta: -1,
+        todayRelation: "비겁",
+        moneyScore: 55,
+      }),
+    ).toBe("branch-clash");
+    expect(
+      resolveFrictionDriver({
+        todayBranchImpact: -1,
+        directiveDelta: -5,
+        todayRelation: "관성",
+        moneyScore: 55,
+      }),
+    ).toBe("directive-pressure");
+    expect(
+      resolveFrictionDriver({
+        todayBranchImpact: -1,
+        directiveDelta: -2,
+        todayRelation: "재성",
+        moneyScore: 70,
+      }),
+    ).toBe("money-check");
+  });
+
+  it("builds branch and money friction cautions with different language", () => {
+    const branch = buildFrictionNarrative({
+      driver: "branch-clash",
+      score: 72,
+      todayBranchSummary: "일정과 사람 문제가 얽히기 쉬운 흐름이오.",
+      directiveSummary: "압박은 아직 크지 않소.",
+      caution: "무리수는 줄이시오.",
+      eventKind: "conflict",
+    });
+    const money = buildFrictionNarrative({
+      driver: "money-check",
+      score: 68,
+      todayBranchSummary: "일정은 무난하오.",
+      directiveSummary: "압박은 아직 버틸 만하오.",
+      caution: "무리수는 줄이시오.",
+      moneySummary: "재물은 계산부터 다시 보는 편이 낫소.",
+    });
+
+    expect(branch.caution).toContain("사람 문제");
+    expect(money.caution).toMatch(/결제|조건|지출/);
+    expect(branch.caution).not.toBe(money.caution);
   });
 });

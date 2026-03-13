@@ -78,5 +78,8 @@ describe("buildYukhyoReading", () => {
     expect(volatile.breakdown.changedScore).not.toBeNull();
     expect(volatile.changedBits).not.toBeNull();
     expect(volatile.sourceLine).toContain("육효 괘상:");
+    expect(stable.action).not.toBe(volatile.action);
+    expect(stable.caution).not.toBe(volatile.caution);
+    expect(volatile.caution).toMatch(/즉답|급한 확답|무리수|밀어붙임/);
   });
 });

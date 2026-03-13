@@ -22,15 +22,17 @@ import HomePage from "../../app/page";
 import WelcomPage from "../../app/welcom/page";
 
 describe("home page kakao entry", () => {
-  it("renders kakao mobile actions, fallback links, and the sample link", () => {
+  it("renders the mobile video hero, chat CTA, and desktop sample link", () => {
     const markup = renderToStaticMarkup(<HomePage />);
 
-    expect(markup).toContain("카카오톡으로 대화 시작");
-    expect(markup).toContain("채널 추가하고 소식 받기");
-    expect(markup).toContain("운세 샘플 보기");
+    expect(markup).toContain('src="/home.mp4"');
+    expect(markup).toContain('poster="/background.png"');
+    expect(markup).not.toContain("DAILY SAJU");
+    expect(markup).toContain("운세도령과 이야기");
     expect(markup).toContain('href="https://pf.kakao.com/_IjiZX/chat"');
-    expect(markup).toContain('href="https://pf.kakao.com/_IjiZX/friend"');
+    expect(markup).toContain("운세 샘플 보기");
     expect(markup).toContain('href="/fortune/sample-user"');
+    expect(markup).not.toContain("채널 추가하고 소식 받기");
   });
 
   it("keeps app/page and app/welcom/page aligned on the same welcome markup", () => {

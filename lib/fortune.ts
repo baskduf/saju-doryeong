@@ -1,11 +1,20 @@
 ﻿import { Solar } from "lunar-javascript";
 import { buildEventOutlook } from "./fortune-event";
 import {
+  emptyFortuneEvidence,
+  type FortuneEvidence,
+  type FortuneFact,
+  type FortuneFactPolarity,
+  type SignalContribution,
+} from "./fortune-facts";
+import {
+  analyzeWeakness,
   buildWeaknessWarning,
   buildFrictionNarrative,
   buildRecommendedActionList,
   buildTimingNarrative,
   calculateElementSpread,
+  describeTimingWindow,
   dedupeWarningItems,
   isStrongTimingSignal,
   resolveFrictionDriver,
@@ -233,6 +242,7 @@ export type DailyFortune = {
       };
       kuseong?: KuseongDetail;
     };
+    evidence: FortuneEvidence;
     eventOutlook: FortuneEventOutlook;
     signals: FortuneSignal[];
     hybridExplanation: HybridExplanation;
@@ -817,6 +827,687 @@ function buildTodayBranchSummary(interactions: TodayBranchInteraction[]): string
 type FortuneWithoutSignals = Omit<DailyFortune, "analysis"> & {
   analysis: Omit<DailyFortune["analysis"], "signals" | "eventOutlook">;
 };
+
+type SignalContributionMap = Record<FortuneSignalKey, SignalContribution[]>;
+
+function emptySignalContributionMap(): SignalContributionMap {
+  return {
+    momentum: [],
+    friction: [],
+    timing: [],
+    work: [],
+    money: [],
+    relationship: [],
+    recovery: [],
+  };
+}
+
+function categoryKeyFromSignal(signalKey: FortuneSignalKey): CategoryKey {
+  return signalKey === "recovery" ? "health" : (signalKey as CategoryKey);
+}
+
+function normalizeFactStrength(value: number): number {
+  return clamp(Math.round(value), 0, 6);
+}
+
+function factPolarityFromDelta(delta: number): FortuneFactPolarity {
+  if (delta > 0) return "opportunity";
+  if (delta < 0) return "risk";
+  return "mixed";
+}
+
+function buildFortuneFact(params: Omit<FortuneFact, "strength" | "risk" | "opportunity"> & {
+  strength: number;
+  risk?: number;
+  opportunity?: number;
+}): FortuneFact {
+  return {
+    ...params,
+    strength: normalizeFactStrength(params.strength),
+    risk: normalizeFactStrength(params.risk ?? 0),
+    opportunity: normalizeFactStrength(params.opportunity ?? 0),
+  };
+}
+
+function buildTimingFacts(fortune: FortuneWithoutSignals): FortuneFact[] {
+  const window = describeTimingWindow(fortune.luckyHints.timing);
+  const positive = fortune.analysis.directiveDelta >= 0;
+
+  return [
+    buildFortuneFact({
+      id: `timing-${window.phase}`,
+      source: "timing",
+      kind: "timing",
+      subtype: `timing-${window.phase}`,
+      domains: ["timing", ...(window.phase === "early" || window.phase === "late" ? ["momentum"] : [])],
+      polarity: positive ? "opportunity" : "mixed",
+      strength: window.phase === "mid" ? 2 : 3,
+      risk: positive ? 1 : 2,
+      opportunity: positive ? 3 : 1,
+      summary: window.abstractSummary,
+      rawRefs: {
+        timing: fortune.luckyHints.timing,
+        phase: window.phase,
+        directiveDelta: fortune.analysis.directiveDelta,
+      },
+    }),
+  ];
+}
+
+function buildBranchInteractionFacts(fortune: FortuneWithoutSignals): FortuneFact[] {
+  return fortune.analysis.todayBranchInteractions.map((interaction, index) => {
+    const subtype =
+      interaction.type === "충"
+        ? "branch-clash"
+        : interaction.type === "형"
+          ? "branch-pressure"
+          : "branch-harmony";
+    const domains: FortuneSignalKey[] =
+      interaction.type === "충"
+        ? ["friction", "momentum", "timing"]
+        : interaction.type === "형"
+          ? ["friction", "work", "recovery"]
+          : ["relationship", "timing", "momentum"];
+    const polarity: FortuneFactPolarity =
+      interaction.type === "충" ? "mixed" : interaction.type === "형" ? "risk" : "opportunity";
+    const strength = Math.max(2, Math.abs(interaction.weight));
+
+    return buildFortuneFact({
+      id: `today-branch-${index}-${subtype}`,
+      source: "today-branch",
+      kind: "branch-interaction",
+      subtype,
+      domains,
+      polarity,
+      strength,
+      risk: interaction.type === "합" ? 0 : strength,
+      opportunity: interaction.type === "형" ? 0 : Math.max(1, Math.ceil(strength / 2)),
+      summary: interaction.description,
+      rawRefs: {
+        pillar: interaction.pillar,
+        pillarLabel: interaction.pillarLabel,
+        branch: interaction.branch,
+        branchKorean: interaction.branchKorean,
+        type: interaction.type,
+        weight: interaction.weight,
+      },
+    });
+  });
+}
+
+function buildBranchStructureFacts(fortune: FortuneWithoutSignals): FortuneFact[] {
+  return fortune.analysis.branchRelations.map((relation, index) => {
+    const subtype =
+      relation.type === "충"
+        ? "natal-branch-clash"
+        : relation.type === "형"
+          ? "natal-branch-pressure"
+          : "natal-branch-harmony";
+    const strength = relation.type === "충" ? 3 : relation.type === "형" ? 2 : 2;
+
+    return buildFortuneFact({
+      id: `branch-structure-${index}-${subtype}`,
+      source: "branch-structure",
+      kind: "branch-structure",
+      subtype,
+      domains:
+        relation.type === "충"
+          ? ["friction", "timing"]
+          : relation.type === "형"
+            ? ["friction", "recovery"]
+            : ["relationship", "timing"],
+      polarity: relation.type === "합" ? "opportunity" : relation.type === "형" ? "risk" : "mixed",
+      strength,
+      risk: relation.type === "합" ? 0 : strength,
+      opportunity: relation.type === "형" ? 0 : 1,
+      summary: relation.description,
+      rawRefs: {
+        label: relation.label,
+        type: relation.type,
+        pillars: relation.pillars,
+      },
+    });
+  });
+}
+
+function buildDirectiveFact(fortune: FortuneWithoutSignals): FortuneFact {
+  const delta = fortune.analysis.directiveDelta;
+  const subtype = delta >= 2 ? "directive-positive" : delta <= -2 ? "directive-negative" : "directive-neutral";
+
+  return buildFortuneFact({
+    id: `directive-${subtype}`,
+    source: "directive",
+    kind: "directive",
+    subtype,
+    domains:
+      subtype === "directive-positive"
+        ? ["momentum", "timing", "work", "money"]
+        : subtype === "directive-negative"
+          ? ["friction", "recovery", "money"]
+          : ["timing"],
+    polarity: delta > 0 ? "opportunity" : delta < 0 ? "risk" : "neutral",
+    strength: Math.max(1, Math.abs(delta)),
+    risk: delta < 0 ? Math.abs(delta) : 0,
+    opportunity: delta > 0 ? delta : 0,
+    summary: fortune.analysis.directiveSummary,
+    rawRefs: {
+      directiveDelta: delta,
+    },
+  });
+}
+
+function buildRelationFact(fortune: FortuneWithoutSignals): FortuneFact {
+  const relation = fortune.analysis.todayRelation;
+  const subtype =
+    relation === "비겁"
+      ? "relation-support"
+      : relation === "식상"
+        ? "relation-output"
+        : relation === "재성"
+          ? "relation-money"
+          : relation === "관성"
+            ? "relation-duty"
+            : relation === "인성"
+              ? "relation-recovery"
+              : "relation-unknown";
+
+  return buildFortuneFact({
+    id: `relation-${subtype}`,
+    source: "relation",
+    kind: "relation",
+    subtype,
+    domains:
+      relation === "비겁"
+        ? ["relationship", "momentum"]
+        : relation === "식상"
+          ? ["momentum", "work", "timing"]
+          : relation === "재성"
+            ? ["money", "work", "momentum"]
+            : relation === "관성"
+              ? ["work", "friction"]
+              : relation === "인성"
+                ? ["recovery", "timing"]
+                : ["timing"],
+    polarity:
+      relation === "관성"
+        ? fortune.analysis.strengthLevel === "weak"
+          ? "risk"
+          : "mixed"
+        : relation === "unknown"
+          ? "neutral"
+          : "opportunity",
+    strength: 3,
+    risk: relation === "관성" && fortune.analysis.strengthLevel === "weak" ? 3 : 0,
+    opportunity: relation === "unknown" ? 0 : 3,
+    summary: fortune.analysis.relationStrengthSummary,
+    rawRefs: {
+      todayRelation: relation,
+      strengthLevel: fortune.analysis.strengthLevel,
+    },
+  });
+}
+
+function buildRecoveryFacts(fortune: FortuneWithoutSignals): FortuneFact[] {
+  const weakness = analyzeWeakness(fortune.elements);
+  const healthScore = fortune.categoryScores.find((category) => category.key === "health")?.score ?? 0;
+  const weaknessWarning = buildWeaknessWarning(fortune.elements);
+  const facts: FortuneFact[] = [];
+
+  if (weakness.severity !== "none" || healthScore < 58) {
+    const strength =
+      weakness.severity === "severe" ? 5 : weakness.severity === "moderate" ? 4 : healthScore < 50 ? 4 : 3;
+    facts.push(
+      buildFortuneFact({
+        id: "recovery-need",
+        source: "recovery",
+        kind: "recovery",
+        subtype: "recovery-need",
+        domains: ["recovery", "friction"],
+        polarity: "risk",
+        strength,
+        risk: strength,
+        opportunity: 0,
+        summary: weaknessWarning?.text ?? fortune.analysis.relationStrengthCaution,
+        rawRefs: {
+          weakest: weakness.weakest,
+          weakestValue: weakness.weakestValue,
+          severity: weakness.severity,
+          healthScore,
+          categoryScores: fortune.categoryScores.map((category) => category.score),
+        },
+      }),
+    );
+  }
+
+  if (fortune.analysis.todayRelation === "인성" || healthScore >= 70) {
+    facts.push(
+      buildFortuneFact({
+        id: "recovery-window",
+        source: "recovery",
+        kind: "recovery",
+        subtype: "recovery-window",
+        domains: ["recovery", "timing"],
+        polarity: "opportunity",
+        strength: healthScore >= 78 ? 4 : 3,
+        risk: 0,
+        opportunity: healthScore >= 78 ? 4 : 3,
+        summary:
+          fortune.analysis.todayRelation === "인성"
+            ? fortune.analysis.relationStrengthSummary
+            : fortune.categoryScores.find((category) => category.key === "health")?.summary ??
+              fortune.analysis.relationStrengthSummary,
+        rawRefs: {
+          todayRelation: fortune.analysis.todayRelation,
+          healthScore,
+          categoryScores: fortune.categoryScores.map((category) => category.score),
+        },
+      }),
+    );
+  }
+
+  return facts;
+}
+
+function buildCategoryTrendFacts(fortune: FortuneWithoutSignals): FortuneFact[] {
+  const facts: FortuneFact[] = [];
+
+  for (const category of fortune.categoryScores) {
+    if (category.key === "health") {
+      continue;
+    }
+
+    const signalKey = signalKeyFromCategory(category);
+    if (category.score >= 72 || category.score <= 48) {
+      const positive = category.score >= 72;
+      const strength = positive
+        ? clamp(Math.round((category.score - 60) / 6), 2, 5)
+        : clamp(Math.round((56 - category.score) / 5), 2, 5);
+      facts.push(
+        buildFortuneFact({
+          id: `category-${category.key}-${positive ? "opportunity" : "pressure"}`,
+          source: "category",
+          kind: "category-trend",
+          subtype: `${signalKey}-${positive ? "opportunity" : "pressure"}`,
+          domains: [signalKey],
+          polarity: positive ? "opportunity" : "risk",
+          strength,
+          risk: positive ? 0 : strength,
+          opportunity: positive ? strength : 0,
+          summary: category.summary,
+          rawRefs: {
+            categoryKey: category.key,
+            categoryScore: category.score,
+            categoryScores: fortune.categoryScores.map((item) => item.score),
+          },
+        }),
+      );
+    }
+  }
+
+  return facts;
+}
+
+function kuseongFactSummary(category: CategoryKey, adjustment: number, focus: boolean): string {
+  const label = categoryDisplayLabel(category);
+  if (adjustment > 0) {
+    return `구성 보정은 ${label} 쪽 흐름을 더 받쳐 주오.`;
+  }
+  if (adjustment < 0) {
+    return `구성 보정은 ${label} 쪽 과속을 줄이라 하오.`;
+  }
+  if (focus) {
+    return `구성 보정은 ${label} 쪽을 오늘 함께 짚으라 하오.`;
+  }
+  return "구성 보정은 오늘 흐름의 균형을 다시 보라 하오.";
+}
+
+function buildKuseongFacts(fortune: FortuneWithoutSignals): FortuneFact[] {
+  const kuseong = fortune.analysis.hybrid.kuseong;
+  if (!kuseong) {
+    return [];
+  }
+
+  const facts: FortuneFact[] = [];
+
+  for (const category of ["work", "money", "relationship", "health"] as CategoryKey[]) {
+    const adjustment = kuseong.categoryAdjustments[category];
+    const focus = kuseong.focusCategories.includes(category);
+    if (adjustment === 0 && !focus) {
+      continue;
+    }
+
+    facts.push(
+      buildFortuneFact({
+        id: `kuseong-${category}`,
+        source: "kuseong",
+        kind: "kuseong",
+        subtype: `kuseong-${category}`,
+        domains: [signalKeyFromCategory({ key: category, label: "", score: 0, summary: "" })],
+        polarity: factPolarityFromDelta(adjustment),
+        strength: Math.max(1, Math.abs(adjustment) + (focus ? 1 : 0)),
+        risk: adjustment < 0 ? Math.abs(adjustment) + 1 : 0,
+        opportunity: adjustment > 0 ? adjustment + 1 : focus ? 1 : 0,
+        summary: kuseongFactSummary(category, adjustment, focus),
+        rawRefs: {
+          categoryKey: category,
+          adjustment,
+          focusCategories: kuseong.focusCategories,
+          narrativeTone: kuseong.narrativeTone,
+          scoreDelta: kuseong.scoreDelta,
+          direction: kuseong.direction,
+        },
+      }),
+    );
+  }
+
+  facts.push(
+    buildFortuneFact({
+      id: `kuseong-tone-${kuseong.narrativeTone}`,
+      source: "kuseong",
+      kind: "kuseong",
+      subtype: `kuseong-tone-${kuseong.narrativeTone}`,
+      domains:
+        kuseong.narrativeTone === "push"
+          ? ["momentum", "timing"]
+          : kuseong.narrativeTone === "recover"
+            ? ["recovery", "friction"]
+            : kuseong.narrativeTone === "cautious"
+              ? ["friction", "timing"]
+              : ["momentum"],
+      polarity:
+        kuseong.narrativeTone === "push"
+          ? "opportunity"
+          : kuseong.narrativeTone === "recover"
+            ? "mixed"
+            : kuseong.narrativeTone === "cautious"
+              ? "risk"
+              : "opportunity",
+      strength: Math.max(1, Math.abs(kuseong.scoreDelta)),
+      risk: kuseong.narrativeTone === "cautious" ? 3 : kuseong.narrativeTone === "recover" ? 2 : 0,
+      opportunity: kuseong.narrativeTone === "push" ? 3 : kuseong.narrativeTone === "steady" ? 1 : 0,
+      summary: kuseong.summary,
+      rawRefs: {
+        focusCategories: kuseong.focusCategories,
+        narrativeTone: kuseong.narrativeTone,
+        scoreDelta: kuseong.scoreDelta,
+      },
+    }),
+  );
+
+  return facts;
+}
+
+function buildFortuneEvidenceFacts(fortune: FortuneWithoutSignals): FortuneFact[] {
+  return [
+    ...buildBranchInteractionFacts(fortune),
+    ...buildBranchStructureFacts(fortune),
+    buildDirectiveFact(fortune),
+    buildRelationFact(fortune),
+    ...buildRecoveryFacts(fortune),
+    ...buildTimingFacts(fortune),
+    ...buildCategoryTrendFacts(fortune),
+    ...buildKuseongFacts(fortune),
+  ];
+}
+
+function pushContribution(
+  contributions: SignalContribution[],
+  signalKey: FortuneSignalKey,
+  fact: FortuneFact,
+  scoreDelta: number,
+  reason: string = fact.summary,
+): void {
+  if (scoreDelta === 0) {
+    return;
+  }
+
+  contributions.push({
+    signalKey,
+    factId: fact.id,
+    source: fact.source,
+    scoreDelta,
+    reason,
+  });
+}
+
+function buildSignalContributions(params: {
+  fortune: FortuneWithoutSignals;
+  facts: FortuneFact[];
+}): SignalContribution[] {
+  const { fortune, facts } = params;
+  const contributions: SignalContribution[] = [];
+  const workScore = fortune.categoryScores.find((category) => category.key === "work")?.score ?? 0;
+
+  for (const fact of facts) {
+    switch (fact.subtype) {
+      case "branch-clash":
+        pushContribution(contributions, "friction", fact, clamp(fact.risk + 2, 2, 10));
+        pushContribution(contributions, "timing", fact, clamp(fact.strength - 1, 1, 4));
+        if (fortune.analysis.directiveDelta >= 0) {
+          pushContribution(contributions, "momentum", fact, clamp(fact.opportunity + 1, 1, 6));
+        }
+        if (["day", "month"].includes(String(fact.rawRefs.pillar))) {
+          pushContribution(contributions, "relationship", fact, -2, `${fact.summary} 관계 쪽은 말의 결을 더 다듬어야 하오.`);
+        }
+        break;
+      case "branch-pressure":
+        pushContribution(contributions, "friction", fact, clamp(fact.risk + 2, 3, 9));
+        pushContribution(contributions, "recovery", fact, clamp(Math.ceil(fact.risk / 2), 2, 5));
+        pushContribution(
+          contributions,
+          "work",
+          fact,
+          workScore >= 65 ? 2 : -3,
+          workScore >= 65
+            ? `${fact.summary} 다만 일 쪽은 기준을 세우면 오히려 흐름을 붙일 수 있소.`
+            : `${fact.summary} 일 쪽은 범위를 줄이지 않으면 쉽게 눌릴 수 있소.`,
+        );
+        break;
+      case "branch-harmony":
+        pushContribution(contributions, "relationship", fact, clamp(fact.opportunity + 2, 3, 8));
+        pushContribution(contributions, "timing", fact, 2);
+        pushContribution(contributions, "momentum", fact, 2);
+        break;
+      case "natal-branch-clash":
+        pushContribution(contributions, "friction", fact, 2);
+        pushContribution(contributions, "timing", fact, 1);
+        break;
+      case "natal-branch-pressure":
+        pushContribution(contributions, "friction", fact, 2);
+        pushContribution(contributions, "recovery", fact, 1);
+        break;
+      case "natal-branch-harmony":
+        pushContribution(contributions, "relationship", fact, 2);
+        pushContribution(contributions, "timing", fact, 1);
+        break;
+      case "directive-positive":
+        pushContribution(contributions, "momentum", fact, clamp(fact.opportunity + 2, 3, 10));
+        pushContribution(contributions, "timing", fact, clamp(Math.ceil(fact.strength / 2), 1, 4));
+        pushContribution(contributions, "work", fact, fortune.analysis.todayRelation === "식상" || fortune.analysis.todayRelation === "관성" ? 2 : 1);
+        if (fortune.analysis.todayRelation === "재성") {
+          pushContribution(contributions, "money", fact, 2);
+        }
+        break;
+      case "directive-negative":
+        pushContribution(contributions, "friction", fact, clamp(fact.risk + 2, 4, 10));
+        pushContribution(contributions, "recovery", fact, clamp(Math.ceil(fact.risk / 2), 1, 4));
+        pushContribution(contributions, "momentum", fact, -clamp(Math.ceil(fact.risk / 2), 1, 4));
+        pushContribution(contributions, "money", fact, -1);
+        break;
+      case "directive-neutral":
+        pushContribution(contributions, "timing", fact, 1);
+        break;
+      case "relation-support":
+        pushContribution(contributions, "relationship", fact, 4);
+        pushContribution(contributions, "momentum", fact, 2);
+        break;
+      case "relation-output":
+        pushContribution(contributions, "momentum", fact, 4);
+        pushContribution(contributions, "work", fact, 3);
+        pushContribution(contributions, "timing", fact, 1);
+        break;
+      case "relation-money":
+        pushContribution(contributions, "money", fact, 4);
+        pushContribution(contributions, "work", fact, 1);
+        pushContribution(contributions, "momentum", fact, 2);
+        break;
+      case "relation-duty":
+        pushContribution(contributions, "work", fact, fortune.analysis.strengthLevel === "strong" ? 3 : 1);
+        pushContribution(contributions, "friction", fact, fortune.analysis.strengthLevel === "weak" ? 3 : 1);
+        break;
+      case "relation-recovery":
+        pushContribution(contributions, "recovery", fact, 5);
+        pushContribution(contributions, "timing", fact, 1);
+        break;
+      case "relation-unknown":
+        pushContribution(contributions, "timing", fact, 1);
+        break;
+      case "recovery-need":
+        pushContribution(contributions, "recovery", fact, 6);
+        pushContribution(contributions, "friction", fact, 2);
+        pushContribution(contributions, "momentum", fact, -2);
+        break;
+      case "recovery-window":
+        pushContribution(contributions, "recovery", fact, 4);
+        pushContribution(contributions, "timing", fact, 2);
+        break;
+      case "timing-early":
+      case "timing-mid":
+      case "timing-late":
+        pushContribution(contributions, "timing", fact, clamp(fact.opportunity + fact.strength, 3, 6));
+        if (fortune.analysis.directiveDelta >= 0) {
+          pushContribution(contributions, "momentum", fact, 1);
+        }
+        break;
+      case "work-opportunity":
+      case "work-pressure":
+      case "money-opportunity":
+      case "money-pressure":
+      case "relationship-opportunity":
+      case "relationship-pressure":
+        pushContribution(
+          contributions,
+          fact.domains[0] ?? "momentum",
+          fact,
+          fact.polarity === "opportunity" ? fact.opportunity : -fact.risk,
+        );
+        if (fact.polarity === "risk") {
+          pushContribution(contributions, "friction", fact, 1);
+        }
+        break;
+      default:
+        if (fact.subtype.startsWith("kuseong-") && !fact.subtype.startsWith("kuseong-tone-")) {
+          const signalKey = fact.domains[0] ?? "momentum";
+          const categoryKey = categoryKeyFromSignal(signalKey);
+          const adjustment = Number(fact.rawRefs.adjustment ?? 0);
+          pushContribution(contributions, signalKey, fact, adjustment * 2 || (categoryKey === "health" ? 1 : 0));
+          if (adjustment < 0 && signalKey !== "recovery") {
+            pushContribution(contributions, "friction", fact, 1);
+          }
+          if (adjustment > 0 && (signalKey === "work" || signalKey === "money")) {
+            pushContribution(contributions, "momentum", fact, 1);
+          }
+          break;
+        }
+
+        if (fact.subtype.startsWith("kuseong-tone-")) {
+          if (fact.subtype === "kuseong-tone-push") {
+            pushContribution(contributions, "momentum", fact, 2);
+            pushContribution(contributions, "timing", fact, 1);
+          } else if (fact.subtype === "kuseong-tone-cautious") {
+            pushContribution(contributions, "friction", fact, 2);
+            pushContribution(contributions, "momentum", fact, -1);
+          } else if (fact.subtype === "kuseong-tone-recover") {
+            pushContribution(contributions, "recovery", fact, 3);
+            pushContribution(contributions, "friction", fact, 1);
+          } else {
+            pushContribution(contributions, "momentum", fact, 1);
+          }
+        }
+        break;
+    }
+  }
+
+  return contributions;
+}
+
+function buildFortuneEvidence(fortune: FortuneWithoutSignals): FortuneEvidence {
+  const facts = buildFortuneEvidenceFacts(fortune);
+  return {
+    facts,
+    signalContributions: buildSignalContributions({
+      fortune,
+      facts,
+    }),
+  };
+}
+
+function contributionMap(evidence: FortuneEvidence): SignalContributionMap {
+  const map = emptySignalContributionMap();
+
+  for (const contribution of evidence.signalContributions) {
+    map[contribution.signalKey].push(contribution);
+  }
+
+  for (const key of Object.keys(map) as FortuneSignalKey[]) {
+    map[key].sort((left, right) => Math.abs(right.scoreDelta) - Math.abs(left.scoreDelta));
+  }
+
+  return map;
+}
+
+function signalContributionReasons(params: {
+  signalKey: FortuneSignalKey;
+  evidence: FortuneEvidence;
+  fallback: Array<string | undefined | null>;
+}): string[] {
+  const map = contributionMap(params.evidence);
+  const evidenceReasons = map[params.signalKey].slice(0, 2).map((item) => item.reason);
+  return uniqueSignalReasons([...evidenceReasons, ...params.fallback]);
+}
+
+function signalSourcesFromEvidence(params: {
+  signalKey: FortuneSignalKey;
+  evidence: FortuneEvidence;
+}): Array<"saju" | "kuseong"> {
+  const map = contributionMap(params.evidence);
+  const sources = new Set<"saju" | "kuseong">(["saju"]);
+
+  if (map[params.signalKey].some((item) => item.source === "kuseong")) {
+    sources.add("kuseong");
+  }
+
+  return [...sources];
+}
+
+function applyEvidenceToSignals(params: {
+  fortune: FortuneWithoutSignals;
+  signals: FortuneSignal[];
+  evidence: FortuneEvidence;
+}): FortuneSignal[] {
+  const map = contributionMap(params.evidence);
+
+  return params.signals.map((signal) => {
+    const scoreDelta = map[signal.key].reduce((sum, contribution) => sum + contribution.scoreDelta, 0);
+    const score = clamp(signal.score + scoreDelta, 0, 100);
+    const categoryKey = categoryKeyFromSignal(signal.key);
+
+    return {
+      ...signal,
+      score,
+      tone: toneFromCategoryScore(categoryKey === "health" ? "recovery" : categoryKey, score),
+      reasons: signalContributionReasons({
+        signalKey: signal.key,
+        evidence: params.evidence,
+        fallback: signal.reasons,
+      }),
+      sources: signalSourcesFromEvidence({
+        signalKey: signal.key,
+        evidence: params.evidence,
+      }),
+    };
+  });
+}
 
 function explanationConfidenceMode(certainty: ChartCertainty): HybridExplanation["confidenceMode"] {
   return certainty === "calendar-unknown" ? "reference" : "exact";
@@ -1489,6 +2180,7 @@ function tuneFortuneSignals(params: {
   signals: FortuneSignal[];
   topSignals: FortuneSignal[];
   eventOutlook: FortuneEventOutlook;
+  evidence: FortuneEvidence;
 }): FortuneSignal[] {
   const referenceLead =
     params.fortune.analysis.certainty === "calendar-unknown" ? "공통 흐름 기준으로 " : "";
@@ -1527,11 +2219,15 @@ function tuneFortuneSignals(params: {
         summary: copy.summary,
         action: copy.action,
         caution: copy.caution,
-        reasons: uniqueSignalReasons([
-          copy.reason,
-          params.fortune.analysis.directiveSummary,
-          buildKuseongReason({ fortune: params.fortune }),
-        ]),
+        reasons: signalContributionReasons({
+          signalKey: signal.key,
+          evidence: params.evidence,
+          fallback: [
+            copy.reason,
+            params.fortune.analysis.directiveSummary,
+            buildKuseongReason({ fortune: params.fortune }),
+          ],
+        }),
       };
     }
 
@@ -1553,12 +2249,16 @@ function tuneFortuneSignals(params: {
         summary: copy.summary,
         action: copy.action,
         caution: copy.caution,
-        reasons: uniqueSignalReasons([
-          copy.summary,
-          params.fortune.analysis.directiveSummary,
-          params.fortune.analysis.todayBranchImpact < 0 ? params.fortune.analysis.todayBranchSummary : undefined,
-          buildKuseongReason({ fortune: params.fortune }),
-        ]),
+        reasons: signalContributionReasons({
+          signalKey: signal.key,
+          evidence: params.evidence,
+          fallback: [
+            copy.summary,
+            params.fortune.analysis.directiveSummary,
+            params.fortune.analysis.todayBranchImpact < 0 ? params.fortune.analysis.todayBranchSummary : undefined,
+            buildKuseongReason({ fortune: params.fortune }),
+          ],
+        }),
       };
     }
 
@@ -1675,8 +2375,14 @@ function applyEventNarrative(params: {
 function attachFortuneSignals(params: {
   fortune: FortuneWithoutSignals;
 }): DailyFortune {
+  const evidence = buildFortuneEvidence(params.fortune);
   const baseSignals = buildFortuneSignals(params.fortune);
-  const initialTopSignals = selectTopFortuneSignals(baseSignals);
+  const evidenceSignals = applyEvidenceToSignals({
+    fortune: params.fortune,
+    signals: baseSignals,
+    evidence,
+  });
+  const initialTopSignals = selectTopFortuneSignals(evidenceSignals);
   const eventOutlook = buildEventOutlook({
     certainty: params.fortune.analysis.certainty,
     referenceMode: params.fortune.analysis.referenceMode,
@@ -1687,13 +2393,15 @@ function attachFortuneSignals(params: {
     todayRelation: params.fortune.analysis.todayRelation,
     todayBranchImpact: params.fortune.analysis.todayBranchImpact,
     todayBranchSummary: params.fortune.analysis.todayBranchSummary,
-    signals: baseSignals,
+    signals: evidenceSignals,
+    evidence,
   });
   const signals = tuneFortuneSignals({
     fortune: params.fortune,
-    signals: baseSignals,
+    signals: evidenceSignals,
     topSignals: initialTopSignals,
     eventOutlook,
+    evidence,
   });
   const topSignals = selectTopFortuneSignals(signals);
   const narrative = applyEventNarrative({
@@ -1720,6 +2428,7 @@ function attachFortuneSignals(params: {
     avoidToday,
     analysis: {
       ...params.fortune.analysis,
+      evidence,
       eventOutlook,
       signals,
     },
@@ -2224,6 +2933,7 @@ function buildSolarLunarBlendedReferenceFortune(params: {
         },
       },
       hybridExplanation: {} as HybridExplanation,
+      evidence: emptyFortuneEvidence(),
     },
   };
   baseFortune.analysis.hybrid = buildInitialHybridAnalysis({
@@ -2754,6 +3464,7 @@ function generateBaseDailyFortune(params: {
             },
           },
           hybridExplanation: {} as HybridExplanation,
+          evidence: emptyFortuneEvidence(),
         }
       : {
           certainty,
@@ -2805,6 +3516,7 @@ function generateBaseDailyFortune(params: {
             },
           },
           hybridExplanation: {} as HybridExplanation,
+          evidence: emptyFortuneEvidence(),
         },
   };
   baseFortune.analysis.hybrid = buildInitialHybridAnalysis({

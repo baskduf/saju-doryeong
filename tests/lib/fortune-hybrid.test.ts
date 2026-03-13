@@ -36,6 +36,10 @@ describe("daily fortune hybrid analysis", () => {
     expect(fortune.detail).toContain(fortune.analysis.hybrid.kuseong?.narrative.detailAddon ?? "");
     expect(fortune.analysis.hybrid.kuseong?.narrative.cautionAddon.length).toBeGreaterThan(0);
     expect(fortune.analysis.signals.some((signal) => signal.sources.includes("kuseong"))).toBe(true);
+    expect(fortune.analysis.evidence.facts.some((fact) => fact.source === "kuseong")).toBe(true);
+    expect(
+      fortune.analysis.evidence.signalContributions.some((contribution) => contribution.source === "kuseong"),
+    ).toBe(true);
     expect(
       Object.values(fortune.analysis.hybrid.kuseong?.categoryAdjustments ?? {}).every(
         (value) => value >= -3 && value <= 3,
@@ -96,6 +100,17 @@ describe("daily fortune hybrid analysis", () => {
     expect(adjusted.avoidToday[0]).toBe(expectedAvoidTodayLead(adjusted));
     expect(neutral.analysis.signals.find((signal) => signal.key === "relationship")?.sources).not.toContain("kuseong");
     expect(adjusted.analysis.signals.find((signal) => signal.key === "relationship")?.sources).toContain("kuseong");
+    expect(
+      adjusted.analysis.evidence.facts.some((fact) => fact.id === "kuseong-relationship" && fact.source === "kuseong"),
+    ).toBe(true);
+    expect(
+      adjusted.analysis.evidence.signalContributions.some(
+        (contribution) =>
+          contribution.signalKey === "relationship" &&
+          contribution.source === "kuseong" &&
+          contribution.scoreDelta > 0,
+      ),
+    ).toBe(true);
     expect(neutral.analysis.hybridExplanation.conflicts).toEqual([]);
     expect(adjusted.analysis.hybridExplanation.conflicts[0]?.type).toBe("tone-conflict");
     expect(adjusted.analysis.hybridExplanation.conflicts[0]?.systems).toEqual(["saju", "kuseong"]);

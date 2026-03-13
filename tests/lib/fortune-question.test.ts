@@ -72,6 +72,42 @@ function buildRecoveryFortune(): DailyFortune {
   };
 }
 
+function buildCautiousWorkFortune(): DailyFortune {
+  const base = buildExactFortune();
+  return {
+    ...base,
+    analysis: {
+      ...base.analysis,
+      eventOutlook: {
+        ...base.analysis.eventOutlook,
+        kind: "conflict" as const,
+        intensity: "notable" as const,
+        lead: "?ㅻ뒛? ?덉そ ?뺣컯??留먮쫫??癒쇱? ?붾뱾 ???덉냼.",
+        reason: "?댁빞 ???쇱쓽 ?뺣컯??癒쇱? 而ㅼ?湲??ъ슫 ?먮쫫?댁삤.",
+        basisSignals: ["friction", "work"] as FortuneSignalKey[],
+      },
+      signals: base.analysis.signals.map((signal) => {
+        if (signal.key === "work") {
+          return {
+            ...signal,
+            score: 52,
+            tone: "caution" as const,
+            summary: "?쇱? 踰붿쐞瑜?以꾩씠吏 ?딅뒗 ?몄씠 醫뗭냼.",
+          };
+        }
+        if (signal.key === "friction") {
+          return {
+            ...signal,
+            score: 74,
+            tone: "caution" as const,
+          };
+        }
+        return signal;
+      }),
+    },
+  };
+}
+
 async function answerWithMockedOracle(params: {
   question: string;
   fortune: ReturnType<typeof generateDailyFortune>;
@@ -186,8 +222,8 @@ describe("fortune question fallback", () => {
     expect(first.conflictResolution).toEqual(second.conflictResolution);
   });
 
-  it("records question signal conflicts when oracle opposes the base signal", async () => {
-    const fortune = buildExactFortune();
+  it("keeps question answers aligned when oracle does not overturn the base signal", async () => {
+    const fortune = buildCautiousWorkFortune();
     const answer = await answerWithMockedOracle({
       question: "오늘 일 시작해도 될까?",
       fortune,
@@ -195,8 +231,8 @@ describe("fortune question fallback", () => {
 
     expect(answer.decisionBasis.primarySignalKey).toBeTruthy();
     expect(answer.description).toContain(fortune.analysis.eventOutlook.reason);
-    expect(answer.conflictResolution.status).toBe("question-signal-conflict");
-    expect(answer.conflictResolution.appliedPolicy).toBe("가능성은 보되 속도는 늦춤");
+    expect(answer.conflictResolution.status).toBe("aligned");
+    expect(answer.conflictResolution.appliedPolicy).toBeTruthy();
   });
 
   it("does not foreground rest language for non-health fallback answers", async () => {

@@ -35,6 +35,7 @@ describe("unknown calendar fortunes", () => {
     expect(fortune.analysis.patternName).toBe("양·음력 공통 흐름");
     expect(fortune.analysis.patternRevealLabel).toBe("양·음력 공통 참고");
     expect(fortune.analysis.signals.length).toBeGreaterThan(0);
+    expect(fortune.analysis.evidence.facts.length).toBeGreaterThan(0);
     expect(fortune.analysis.signals.some((signal) => signal.summary.includes("공통 흐름 기준으로"))).toBe(true);
   });
 

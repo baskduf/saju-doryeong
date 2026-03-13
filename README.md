@@ -174,12 +174,16 @@ POSTGRES_PRISMA_URL=""
 OPENAI_API_KEY=""
 OPENAI_FORTUNE_MODEL="gpt-4.1-mini"
 OPENAI_QUESTION_MODEL="gpt-4.1-mini"
+NEXT_PUBLIC_KAKAO_JS_KEY="your-kakao-javascript-key"
+NEXT_PUBLIC_KAKAO_CHANNEL_PUBLIC_ID="_IjiZX"
 ```
 
 메모:
 
 - `POSTGRES_PRISMA_URL`이 있으면 런타임에서 `DATABASE_URL`로 fallback 됩니다.
 - `OPENAI_API_KEY`가 없으면 질문/서술은 fallback 문구로 동작합니다.
+- `NEXT_PUBLIC_KAKAO_JS_KEY`가 있으면 모바일 홈에서 카카오 JS SDK로 채널 대화 시작/채널 추가 버튼을 사용합니다.
+- `NEXT_PUBLIC_KAKAO_CHANNEL_PUBLIC_ID`는 `pf.kakao.com` 링크와 SDK 브리지 호출에 같이 사용합니다.
 
 ## 로컬 실행
 
@@ -322,6 +326,9 @@ npm run test
 
 - `APP_SIGNING_SECRET` 설정 여부
 - `KAKAO_SKILL_SHARED_SECRET` 설정 여부
+- `NEXT_PUBLIC_KAKAO_JS_KEY` 설정 여부
+- Kakao Developers JavaScript 키 허용 도메인에 실제 배포 도메인 등록 여부
+- `NEXT_PUBLIC_KAKAO_CHANNEL_PUBLIC_ID`가 실제 채널 public id와 일치하는지 여부
 - DB 연결 확인
 - OpenAI API 키 설정 여부
 - 카카오 스킬 endpoint와 query key 일치 여부

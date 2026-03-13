@@ -152,24 +152,44 @@
 .actionBlock {
   display: grid;
   gap: 12px;
+  width: 100%;
   justify-items: center;
 }
 
-.mobileChannelAction {
+.mobileChannelActions {
   display: none;
+  gap: 12px;
+  width: 100%;
+}
+
+.mobilePrimaryAction,
+.mobileSecondaryAction {
   align-items: center;
   justify-content: center;
   min-height: 56px;
   padding: 0 22px;
   border-radius: 18px;
-  border: 1px solid rgba(117, 80, 34, 0.16);
-  background: rgba(255, 255, 255, 0.8);
-  color: #6c4618;
   font-weight: 800;
+  text-align: center;
+}
+
+.mobilePrimaryAction {
+  display: inline-flex;
+  border: 1px solid rgba(117, 80, 34, 0.14);
+  background: linear-gradient(135deg, #f4d569, #e6c14f);
+  color: #3a260f;
+  box-shadow: 0 14px 24px rgba(134, 93, 18, 0.18);
+}
+
+.mobileSecondaryAction {
+  display: inline-flex;
+  border: 1px solid rgba(117, 80, 34, 0.16);
+  background: rgba(255, 255, 255, 0.82);
+  color: #6c4618;
   box-shadow: 0 12px 24px rgba(88, 52, 17, 0.1);
 }
 
-.primaryAction {
+.sampleAction {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -261,12 +281,13 @@
     width: min(100%, 320px);
   }
 
-  .primaryAction {
-    width: 100%;
+  .mobileChannelActions {
+    display: grid;
   }
 
-  .mobileChannelAction {
-    display: inline-flex;
+  .mobilePrimaryAction,
+  .mobileSecondaryAction,
+  .sampleAction {
     width: 100%;
   }
 }

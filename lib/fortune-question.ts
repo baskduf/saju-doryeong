@@ -1,8 +1,5 @@
-import type {
-  DailyFortune,
-  DailyFortuneInsight,
-  DailyFortuneInsightKey,
-} from "./fortune";
+import { selectTopFortuneSignals } from "./fortune";
+import type { DailyFortune, FortuneSignal, FortuneSignalKey } from "./fortune";
 import { logAdminEventSafe } from "./admin-event-log";
 import { getSeoulDateKey } from "./seoul-time";
 import {
@@ -19,8 +16,8 @@ type QuestionAnalysis = {
   topic: QuestionTopic;
   intent: QuestionIntent;
   relationshipKind: QuestionRelationshipKind;
-  primaryInsight: DailyFortuneInsight;
-  secondaryInsight: DailyFortuneInsight;
+  primarySignal: FortuneSignal;
+  secondarySignal: FortuneSignal;
 };
 
 type QuestionSignalStrength = "aggressive" | "balanced" | "conservative";
@@ -31,8 +28,8 @@ export type FortuneQuestionDecisionBasis = {
   topic: QuestionTopic;
   intent: QuestionIntent;
   relationshipKind: QuestionRelationshipKind;
-  primaryInsightKey: DailyFortuneInsightKey;
-  secondaryInsightKey: DailyFortuneInsightKey;
+  primarySignalKey: FortuneSignalKey;
+  secondarySignalKey: FortuneSignalKey;
 };
 
 export type FortuneQuestionOracleInfluence = {
@@ -63,24 +60,24 @@ const MAX_CACHE_ENTRIES = 200;
 const questionCache = new Map<string, { expiresAt: number; value: FortuneQuestionAnswer }>();
 
 const TOPIC_KEYWORDS: Record<QuestionTopic, string[]> = {
-  work: ["일", "직장", "회사", "업무", "과제", "공부", "학업", "시험", "면접", "승진", "발표"],
-  money: ["돈", "재물", "금전", "지출", "소비", "투자", "계약", "매매", "매출", "수입"],
-  relationship: ["연애", "사랑", "썸", "소개팅", "애인", "커플", "인간관계", "모임", "친구", "대인관계"],
-  health: ["건강", "몸", "컨디션", "체력", "운동", "휴식", "병원", "잠", "회복"],
+  work: ["일", "직장", "회사", "업무", "면접", "시험", "과제", "발표", "취업", "이직"],
+  money: ["돈", "재물", "금전", "지출", "계약", "투자", "매매", "매출", "수입", "대출"],
+  relationship: ["연애", "사람", "관계", "고백", "연락", "소개팅", "친구", "모임", "썸", "인연"],
+  health: ["건강", "몸", "컨디션", "체력", "휴식", "회복", "병원", "운동", "수면"],
   general: [],
 };
 
 const INTENT_KEYWORDS: Array<[QuestionIntent, string[]]> = [
-  ["caution", ["조심", "피해야", "위험", "실수", "망칠", "문제", "싸울"]],
-  ["timing", ["언제", "지금", "오늘", "오전", "오후", "타이밍", "먼저", "기다릴", "미뤄"]],
-  ["approach", ["어떻게", "어떤 태도", "말투", "거리", "조율", "대화", "방식"]],
-  ["action", ["할까", "해도", "가도", "보내도", "연락", "고백", "지원", "투자", "시작", "움직일"]],
-  ["outcome", ["될까", "어떨까", "괜찮을까", "잘될까", "통할까", "붙을까", "성공"]],
+  ["caution", ["조심", "주의", "피해야", "위험", "실수", "문제", "불안"]],
+  ["timing", ["언제", "지금", "오늘", "내일", "타이밍", "시기", "나중", "곧"]],
+  ["approach", ["어떻게", "어떤", "방식", "태도", "말투", "접근", "거리", "조율"]],
+  ["action", ["할까", "해도", "가도", "보내도", "고백", "연락", "시작", "움직여", "사도"]],
+  ["outcome", ["괜찮을까", "될까", "붙을까", "잘될까", "성공", "통할까", "나을까"]],
 ];
 
 const RELATIONSHIP_KIND_KEYWORDS: Record<QuestionRelationshipKind, string[]> = {
-  romance: ["연애", "사랑", "썸", "소개팅", "애인", "고백", "재회", "데이트"],
-  social: ["친구", "인간관계", "대인관계", "모임", "동료", "상사", "팀", "가족"],
+  romance: ["연애", "고백", "썸", "소개팅", "연인", "호감", "데이트"],
+  social: ["친구", "동료", "가족", "사람들", "모임", "인간관계", "지인"],
   generic: [],
 };
 
@@ -159,7 +156,7 @@ export function isLikelyFortuneQuestion(question: string): boolean {
   const normalized = normalizeQuestion(question).toLowerCase();
   if (!normalized) return false;
 
-  const directSignals = ["?", "어때", "될까", "괜찮", "좋을까", "운세", "봐줘", "알려", "궁금", "조언"];
+  const directSignals = ["운세", "오늘", "될까", "괜찮을까", "조심", "언제", "흐름", "도와줘"];
   if (directSignals.some((signal) => normalized.includes(signal))) {
     return true;
   }
@@ -209,61 +206,66 @@ function inferRelationshipKind(question: string): QuestionRelationshipKind {
   return "generic";
 }
 
-function resolveInsightKeys(params: {
+function resolveSignalKeys(params: {
   topic: QuestionTopic;
   intent: QuestionIntent;
   relationshipKind: QuestionRelationshipKind;
-}): [DailyFortuneInsightKey, DailyFortuneInsightKey] {
+}): [FortuneSignalKey, FortuneSignalKey] {
   const { topic, intent, relationshipKind } = params;
 
   if (topic === "work") {
-    if (intent === "outcome") return ["work", "approach"];
+    if (intent === "outcome") return ["work", "momentum"];
     if (intent === "action") return ["work", "timing"];
     if (intent === "timing") return ["timing", "work"];
-    if (intent === "approach") return ["approach", "work"];
-    return ["risk", "work"];
+    if (intent === "approach") return ["momentum", "work"];
+    return ["friction", "work"];
   }
 
   if (topic === "money") {
-    if (intent === "outcome") return ["money", "risk"];
+    if (intent === "outcome") return ["money", "friction"];
     if (intent === "action") return ["money", "timing"];
     if (intent === "timing") return ["timing", "money"];
-    if (intent === "approach") return ["approach", "money"];
-    return ["risk", "money"];
+    if (intent === "approach") return ["momentum", "money"];
+    return ["friction", "money"];
   }
 
   if (topic === "health") {
-    if (intent === "outcome") return ["health", "approach"];
-    if (intent === "action") return ["health", "timing"];
-    if (intent === "timing") return ["timing", "health"];
-    if (intent === "approach") return ["approach", "health"];
-    return ["risk", "health"];
+    if (intent === "outcome") return ["recovery", "momentum"];
+    if (intent === "action") return ["recovery", "timing"];
+    if (intent === "timing") return ["timing", "recovery"];
+    if (intent === "approach") return ["recovery", "momentum"];
+    return ["friction", "recovery"];
   }
 
   if (topic === "relationship") {
-    if (intent === "outcome") return ["relationship", relationshipKind === "romance" ? "timing" : "approach"];
-    if (intent === "action") return [relationshipKind === "romance" ? "timing" : "approach", "relationship"];
+    if (intent === "outcome") return ["relationship", relationshipKind === "romance" ? "timing" : "momentum"];
+    if (intent === "action") return [relationshipKind === "romance" ? "timing" : "momentum", "relationship"];
     if (intent === "timing") return ["timing", "relationship"];
-    if (intent === "approach") return ["approach", "relationship"];
-    return ["risk", "relationship"];
+    if (intent === "approach") return ["momentum", "relationship"];
+    return ["friction", "relationship"];
   }
 
-  if (intent === "outcome") return ["approach", "risk"];
-  if (intent === "action") return ["approach", "timing"];
-  if (intent === "timing") return ["timing", "approach"];
-  if (intent === "approach") return ["approach", "risk"];
-  return ["risk", "approach"];
+  if (intent === "outcome") return ["momentum", "friction"];
+  if (intent === "action") return ["momentum", "timing"];
+  if (intent === "timing") return ["timing", "momentum"];
+  if (intent === "approach") return ["momentum", "work"];
+  return ["friction", "momentum"];
 }
 
-function findInsight(fortune: DailyFortune, key: DailyFortuneInsightKey): DailyFortuneInsight {
-  return fortune.insights.find((insight) => insight.key === key) ?? fortune.featuredInsight;
+function fallbackSignal(fortune: DailyFortune): FortuneSignal {
+  const topSignals = selectTopFortuneSignals(fortune.analysis.signals);
+  return topSignals[0] ?? fortune.analysis.signals[0];
+}
+
+function findSignal(fortune: DailyFortune, key: FortuneSignalKey): FortuneSignal {
+  return fortune.analysis.signals.find((signal) => signal.key === key) ?? fallbackSignal(fortune);
 }
 
 function buildQuestionAnalysis(question: string, fortune: DailyFortune): QuestionAnalysis {
   const topic = inferQuestionTopic(question);
   const intent = inferQuestionIntent(question);
   const relationshipKind = topic === "relationship" ? inferRelationshipKind(question) : "generic";
-  const [primaryKey, secondaryKey] = resolveInsightKeys({
+  const [primaryKey, secondaryKey] = resolveSignalKeys({
     topic,
     intent,
     relationshipKind,
@@ -273,8 +275,8 @@ function buildQuestionAnalysis(question: string, fortune: DailyFortune): Questio
     topic,
     intent,
     relationshipKind,
-    primaryInsight: findInsight(fortune, primaryKey),
-    secondaryInsight: findInsight(fortune, secondaryKey),
+    primarySignal: findSignal(fortune, primaryKey),
+    secondarySignal: findSignal(fortune, secondaryKey),
   };
 }
 
@@ -283,8 +285,8 @@ function buildDecisionBasis(analysis: QuestionAnalysis): FortuneQuestionDecision
     topic: analysis.topic,
     intent: analysis.intent,
     relationshipKind: analysis.relationshipKind,
-    primaryInsightKey: analysis.primaryInsight.key,
-    secondaryInsightKey: analysis.secondaryInsight.key,
+    primarySignalKey: analysis.primarySignal.key,
+    secondarySignalKey: analysis.secondarySignal.key,
   };
 }
 
@@ -295,19 +297,21 @@ function inferBaseSignalStrength(params: {
   if (
     params.fortune.analysis.certainty === "calendar-unknown" ||
     params.fortune.grade === "주의" ||
-    params.analysis.primaryInsight.key === "risk" ||
-    params.analysis.topic === "health"
+    params.analysis.topic === "health" ||
+    params.analysis.primarySignal.key === "friction" ||
+    params.analysis.primarySignal.tone === "caution"
   ) {
     return "conservative";
   }
 
   if (
     params.fortune.grade === "대길" ||
-    params.analysis.primaryInsight.key === "work" ||
-    params.analysis.primaryInsight.key === "money" ||
+    params.analysis.primarySignal.tone === "push" ||
+    params.analysis.primarySignal.key === "momentum" ||
+    params.analysis.primarySignal.key === "work" ||
+    params.analysis.primarySignal.key === "money" ||
     params.analysis.intent === "action" ||
     params.analysis.intent === "approach" ||
-    params.analysis.intent === "outcome" ||
     params.analysis.intent === "timing"
   ) {
     return "aggressive";
@@ -316,11 +320,22 @@ function inferBaseSignalStrength(params: {
   return "balanced";
 }
 
+function shouldUseCautionChannel(analysis: QuestionAnalysis): boolean {
+  const selectedSignals = [analysis.primarySignal, analysis.secondarySignal];
+  if (analysis.intent === "caution") {
+    return true;
+  }
+
+  return selectedSignals.some(
+    (signal) => signal.key === "friction" || (signal.tone === "caution" && signal.score >= 65),
+  );
+}
+
 function buildOracleInfluence(params: {
   analysis: QuestionAnalysis;
   oracle: YukhyoReading;
 }): FortuneQuestionOracleInfluence {
-  const channels = new Set<OracleInfluenceChannel>(["caution"]);
+  const channels = new Set<OracleInfluenceChannel>();
 
   if (
     params.analysis.intent === "action" ||
@@ -330,17 +345,36 @@ function buildOracleInfluence(params: {
     channels.add("direction");
   }
 
-  if (params.analysis.intent === "timing" || params.analysis.primaryInsight.key === "timing") {
+  if (
+    params.analysis.intent === "timing" ||
+    params.analysis.primarySignal.key === "timing" ||
+    params.analysis.secondarySignal.key === "timing"
+  ) {
     channels.add("timing");
+  }
+
+  if (shouldUseCautionChannel(params.analysis)) {
+    channels.add("caution");
   }
 
   const orderedChannels = ["direction", "timing", "caution"].filter((channel) =>
     channels.has(channel as OracleInfluenceChannel),
   ) as OracleInfluenceChannel[];
 
+  const channelLabelMap: Record<OracleInfluenceChannel, string> = {
+    direction: "방향",
+    timing: "타이밍",
+    caution: "주의",
+  };
+
+  const summary =
+    orderedChannels.length > 0
+      ? `육효는 ${orderedChannels.map((channel) => channelLabelMap[channel]).join(", ")} 채널에서 보조 판단을 더하오.`
+      : "육효는 배경 흐름만 가볍게 보조하오.";
+
   return {
     channels: orderedChannels,
-    summary: `육효는 ${orderedChannels.join(", ")} 채널에서 답변을 보강하며 ${params.oracle.answerTrend} 방향의 신호를 보태오.`,
+    summary,
   };
 }
 
@@ -352,7 +386,7 @@ function buildConflictResolution(params: {
   if (params.fortune.analysis.certainty === "calendar-unknown") {
     return {
       status: "reference-priority",
-      summary: "달력 기준이 미확정이라 육효와 기본 인사이트의 차이보다 참고용 성격을 먼저 드러내오.",
+      summary: "달력 기준이 아직 미확정이라 육효보다 참고용 공통 흐름을 먼저 따르오.",
       appliedPolicy: "불확실성 우선",
     };
   }
@@ -365,22 +399,22 @@ function buildConflictResolution(params: {
   if (params.oracle.answerTrend === "positive" && baseSignal === "conservative") {
     return {
       status: "question-signal-conflict",
-      summary: "육효는 가능성을 밀어 주지만 기본 인사이트는 보수적이니 속도를 조절하는 쪽으로 중재하오.",
-      appliedPolicy: "가능성은 있으나 속도를 조절",
+      summary: "육효는 열려 있으나 기본 신호는 보수적이라 속도를 낮추는 쪽으로 중재하오.",
+      appliedPolicy: "가능성은 보되 속도는 늦춤",
     };
   }
 
   if (params.oracle.answerTrend === "negative" && baseSignal === "aggressive") {
     return {
       status: "question-signal-conflict",
-      summary: "육효는 제동을 거나 기본 인사이트는 전진 쪽이라 무리를 금지하는 쪽으로 중재하오.",
-      appliedPolicy: "기회는 있으나 무리 금지",
+      summary: "육효는 제동을 걸지만 기본 신호는 살아 있어 무리만 금하고 방향은 남기오.",
+      appliedPolicy: "기회가 있어도 무리 금지",
     };
   }
 
   return {
     status: "aligned",
-    summary: "육효와 기본 인사이트가 크게 충돌하지 않아 같은 결로 답변을 정리하오.",
+    summary: "육효와 기본 신호가 크게 충돌하지 않아 같은 결로 정리하오.",
     appliedPolicy: "기본 흐름 유지",
   };
 }
@@ -403,8 +437,10 @@ function buildCacheKey(params: {
     topic: params.analysis.topic,
     intent: params.analysis.intent,
     relationshipKind: params.analysis.relationshipKind,
-    primaryInsight: params.analysis.primaryInsight.key,
-    secondaryInsight: params.analysis.secondaryInsight.key,
+    primarySignal: params.analysis.primarySignal.key,
+    primarySignalScore: params.analysis.primarySignal.score,
+    secondarySignal: params.analysis.secondarySignal.key,
+    secondarySignalScore: params.analysis.secondarySignal.score,
     certainty: params.fortune.analysis.certainty,
     referenceMode: params.fortune.analysis.referenceMode,
     uncertaintyMessage: params.fortune.analysis.uncertaintyMessage,
@@ -428,15 +464,19 @@ function buildPromptContext(params: {
   profileName?: string;
   date: Date;
 }): string {
-  const serializeInsight = (role: "primary" | "secondary", insight: DailyFortuneInsight) => ({
+  const serializeSignal = (role: "primary" | "secondary", signal: FortuneSignal) => ({
     role,
-    key: insight.key,
-    label: insight.label,
-    title: insight.title,
-    summary: insight.summary,
-    action: insight.action,
-    caution: insight.caution,
+    key: signal.key,
+    label: signal.label,
+    score: signal.score,
+    tone: signal.tone,
+    title: signal.title,
+    summary: signal.summary,
+    action: signal.action,
+    caution: signal.caution,
+    reasons: signal.reasons,
   });
+  const mustMentionCaution = shouldUseCautionChannel(params.analysis);
 
   return JSON.stringify(
     {
@@ -457,9 +497,9 @@ function buildPromptContext(params: {
         uncertaintyMessage: params.fortune.analysis.uncertaintyMessage,
       },
       hybridExplanation: params.fortune.analysis.hybridExplanation,
-      selectedInsights: [
-        serializeInsight("primary", params.analysis.primaryInsight),
-        serializeInsight("secondary", params.analysis.secondaryInsight),
+      selectedSignals: [
+        serializeSignal("primary", params.analysis.primarySignal),
+        serializeSignal("secondary", params.analysis.secondarySignal),
       ],
       oracle: {
         primaryHexagram: params.oracle.primaryHexagram,
@@ -478,8 +518,8 @@ function buildPromptContext(params: {
       },
       allowedAnswerFrame: {
         mustMentionAction: true,
-        mustMentionCaution: true,
-        canPreferSecondaryInsight: true,
+        mustMentionCaution,
+        canPreferSecondarySignal: true,
       },
     },
     null,
@@ -516,15 +556,15 @@ function parseQuestionAnswer(
 function fallbackTitle(topic: QuestionTopic, relationshipKind: QuestionRelationshipKind): string {
   switch (topic) {
     case "work":
-      return "도령의 일풀이";
+      return "도령의 일운";
     case "money":
-      return "도령의 재물풀이";
+      return "도령의 재물운";
     case "relationship":
-      return relationshipKind === "romance" ? "도령의 연정풀이" : "도령의 인연풀이";
+      return relationshipKind === "romance" ? "도령의 연애운" : "도령의 인연운";
     case "health":
-      return "도령의 기력풀이";
+      return "도령의 기력운";
     default:
-      return "도령의 운세풀이";
+      return "도령의 오늘운";
   }
 }
 
@@ -535,21 +575,24 @@ function buildFallbackDescription(params: {
 }): string {
   const uncertaintyLead =
     params.fortune.analysis.certainty === "calendar-unknown"
-      ? params.fortune.analysis.uncertaintyMessage ?? "달력 기준이 확정되지 않아 참고용 풀이로만 보아야 하오."
+      ? params.fortune.analysis.uncertaintyMessage ?? "달력 기준이 아직 미확정이라 참고용 흐름으로만 보시오."
       : null;
   const secondarySummary =
-    params.analysis.secondaryInsight.key === params.analysis.primaryInsight.key
+    params.analysis.secondarySignal.key === params.analysis.primarySignal.key
       ? null
-      : `보조로는 ${params.analysis.secondaryInsight.summary}`;
-  const oracleTimingLead = `육효 흐름은 ${params.oracle.timingHint} 쪽에서 결이 더 잘 드러나오.`;
+      : `보조로는 ${params.analysis.secondarySignal.summary}`;
+  const cautionLead = shouldUseCautionChannel(params.analysis)
+    ? [params.oracle.caution, params.analysis.primarySignal.caution].join(" ")
+    : null;
+  const oracleTimingLead = `육효 흐름은 ${params.oracle.timingHint} 쪽으로 리듬을 맞추라 하오.`;
 
   if (params.analysis.intent === "caution") {
     return [
       uncertaintyLead,
       params.oracle.summary,
-      params.analysis.primaryInsight.summary,
+      params.analysis.primarySignal.summary,
       params.oracle.caution,
-      params.analysis.primaryInsight.caution,
+      params.analysis.primarySignal.caution,
     ]
       .filter((line): line is string => Boolean(line))
       .join(" ");
@@ -560,9 +603,9 @@ function buildFallbackDescription(params: {
       uncertaintyLead,
       oracleTimingLead,
       params.oracle.summary,
-      params.analysis.primaryInsight.summary,
-      params.analysis.primaryInsight.action,
-      params.oracle.caution,
+      params.analysis.primarySignal.summary,
+      params.analysis.primarySignal.action,
+      cautionLead,
     ]
       .filter((line): line is string => Boolean(line))
       .join(" ");
@@ -572,10 +615,10 @@ function buildFallbackDescription(params: {
     return [
       uncertaintyLead,
       params.oracle.summary,
-      params.analysis.primaryInsight.summary,
+      params.analysis.primarySignal.summary,
       params.oracle.action,
-      params.analysis.primaryInsight.action,
-      params.oracle.caution,
+      params.analysis.primarySignal.action,
+      cautionLead,
     ]
       .filter((line): line is string => Boolean(line))
       .join(" ");
@@ -585,9 +628,9 @@ function buildFallbackDescription(params: {
     return [
       uncertaintyLead,
       params.oracle.summary,
-      params.analysis.primaryInsight.summary,
-      `${params.analysis.primaryInsight.action} ${params.oracle.action}`,
-      params.oracle.caution,
+      params.analysis.primarySignal.summary,
+      `${params.analysis.primarySignal.action} ${params.oracle.action}`,
+      cautionLead,
     ]
       .filter((line): line is string => Boolean(line))
       .join(" ");
@@ -596,10 +639,10 @@ function buildFallbackDescription(params: {
   return [
     uncertaintyLead,
     params.oracle.summary,
-    params.analysis.primaryInsight.summary,
+    params.analysis.primarySignal.summary,
     secondarySummary,
-    params.analysis.primaryInsight.action,
-    params.oracle.caution,
+    params.analysis.primarySignal.action,
+    cautionLead,
   ]
     .filter((line): line is string => Boolean(line))
     .join(" ");
@@ -716,7 +759,7 @@ export async function answerFortuneQuestion(params: {
         model: resolveModel(),
         store: false,
         instructions:
-          "You answer Korean daily fortune questions for a Kakao chatbot. Facts are deterministic and must not be changed or invented. The topic, intent, relationshipKind, and selectedInsights are already chosen. You may decide whether to foreground the primary or secondary insight, but you must not introduce any new facts, conclusions, or exact saju details outside selectedInsights and overallTone. Return strict JSON only with keys title and description. title must be under 18 Korean characters. description must be 2 to 4 concise Korean sentences, under 260 characters if possible. Use a concise respectful fortune-teller tone in Korean, a light 도령체. Mention one helpful action and one caution naturally. If certainty is calendar-unknown, clearly say the answer is reference-only and never imply an exact manse or confirmed lunar/solar basis. If referenceMode is solar-lunar-blend, describe it as a common trend across both solar and lunar possibilities. No markdown, no code fences, no emojis.",
+          "You answer Korean daily fortune questions for a Kakao chatbot. Facts are deterministic and must not be changed or invented. The topic, intent, relationshipKind, and selectedSignals are already chosen. You may decide whether to foreground the primary or secondary signal, but you must not introduce any new facts, conclusions, or exact saju details outside selectedSignals, oracle, and overallTone. Return strict JSON only with keys title and description. title must be under 18 Korean characters. description must be 2 to 4 concise Korean sentences, under 260 characters if possible. Use a concise respectful fortune-teller tone in Korean, a light 도령체. Mention one helpful action. Mention caution only when answerMeta.oracleInfluence.channels includes caution or allowedAnswerFrame.mustMentionCaution is true. If certainty is calendar-unknown, clearly say the answer is reference-only and never imply an exact manse or confirmed lunar/solar basis. If referenceMode is solar-lunar-blend, describe it as a common trend across both solar and lunar possibilities. No markdown, no code fences, no emojis.",
         input: buildPromptContext({
           question: params.question,
           fortune: params.fortune,
@@ -758,7 +801,7 @@ export async function answerFortuneQuestion(params: {
         source: "fortune-question",
         userId: params.userId,
         questionText: params.question,
-        message: "질문 OpenAI 응답에 output_text가 없어 fallback을 사용했습니다.",
+        message: "질문 OpenAI 응답의 output_text가 없어 fallback을 사용했습니다.",
         metadata: {
           ...baseLogMetadata,
           reason: "empty_output_text",
@@ -779,7 +822,7 @@ export async function answerFortuneQuestion(params: {
         source: "fortune-question",
         userId: params.userId,
         questionText: params.question,
-        message: "질문 OpenAI 응답 파싱에 실패해 fallback을 사용했습니다.",
+        message: "질문 OpenAI 응답 파싱이 실패해 fallback을 사용했습니다.",
         metadata: {
           ...baseLogMetadata,
           reason: "invalid_payload",
@@ -810,7 +853,7 @@ export async function answerFortuneQuestion(params: {
       source: "fortune-question",
       userId: params.userId,
       questionText: params.question,
-      message: "질문 답변이 생성되었습니다.",
+      message: "질문 응답을 생성했습니다.",
       metadata: {
         ...baseLogMetadata,
         usedLlm: true,

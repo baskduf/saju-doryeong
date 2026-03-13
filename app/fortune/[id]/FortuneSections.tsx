@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 
 import Image from "next/image";
 import { Fragment, useState, type ReactNode } from "react";
-import type { DailyFortune } from "../../../lib/fortune";
+import { selectTopFortuneSignals, shouldRenderSignalCaution, type DailyFortune } from "../../../lib/fortune";
 import { kuseongFocusLabel, kuseongToneLabel } from "../../../lib/kuseong-labels";
 import { FiveElementsChart } from "./FiveElementsChart";
 import { KuseongChartSection, YukhyoChartSection } from "./HybridCharts";
@@ -164,6 +164,7 @@ function ReadingGuide({ summary, intro, tips }: ReadingGuideProps) {
 export function FortuneSections({ fortune, userId, referenceDate }: Props) {
   const [activeTab, setActiveTab] = useState<TabKey>("fortune");
   const [activeAnalysisTab, setActiveAnalysisTab] = useState<AnalysisTabKey>("manse");
+  const topSignals = selectTopFortuneSignals(fortune.analysis.signals);
   const isCalendarUncertain = fortune.analysis.certainty === "calendar-unknown";
   const isBlendedReference = fortune.analysis.referenceMode === "solar-lunar-blend";
   const uncertaintyMessage =
@@ -242,32 +243,33 @@ export function FortuneSections({ fortune, userId, referenceDate }: Props) {
           ) : null}
 
           <section className={styles.innerSection}>
-            <h2>오늘의 포인트</h2>
-            <div className={`${styles.reasonCard} ${styles.pointCard}`}>
-              <div className={styles.reasonRow}>
-                <span className={styles.reasonLabel}>{fortune.featuredInsight.label}</span>
-                <p className={styles.reasonText}>
-                  <strong className={styles.inlineHighlight}>{fortune.featuredInsight.title}</strong>{" "}
-                  {renderHighlightedText(fortune.featuredInsight.summary)}
-                </p>
-              </div>
-              <div className={styles.reasonRow}>
-                <span className={styles.reasonLabel}>움직임</span>
-                <p className={styles.reasonText}>{renderHighlightedText(fortune.featuredInsight.action)}</p>
-              </div>
-              <div className={styles.reasonRow}>
-                <span className={styles.reasonLabel}>주의</span>
-                <p className={styles.reasonText}>{renderHighlightedText(fortune.featuredInsight.caution)}</p>
-              </div>
-              <div className={styles.pointFlowerOverlay} aria-hidden="true">
-                <Image
-                  src="/flower.png"
-                  alt=""
-                  width={180}
-                  height={180}
-                  className={styles.pointFlower}
-                />
-              </div>
+            <h2>오늘의 신호</h2>
+            <div className={styles.analysisGrid}>
+              {topSignals.map((signal) => (
+                <div key={signal.key} className={`${styles.reasonCard} ${styles.pointCard}`}>
+                  <div className={styles.reasonRow}>
+                    <span className={styles.reasonLabel}>{signal.label}</span>
+                    <p className={styles.reasonText}>
+                      <strong className={styles.inlineHighlight}>{signal.title}</strong>{" "}
+                      {renderHighlightedText(signal.summary)}
+                    </p>
+                  </div>
+                  <div className={styles.reasonRow}>
+                    <span className={styles.reasonLabel}>근거</span>
+                    <p className={styles.reasonText}>{renderHighlightedText(signal.reasons.join(" "))}</p>
+                  </div>
+                  <div className={styles.reasonRow}>
+                    <span className={styles.reasonLabel}>움직임</span>
+                    <p className={styles.reasonText}>{renderHighlightedText(signal.action)}</p>
+                  </div>
+                  {shouldRenderSignalCaution(signal) ? (
+                    <div className={styles.reasonRow}>
+                      <span className={styles.reasonLabel}>주의</span>
+                      <p className={styles.reasonText}>{renderHighlightedText(signal.caution)}</p>
+                    </div>
+                  ) : null}
+                </div>
+              ))}
             </div>
           </section>
 
@@ -893,3 +895,4 @@ export function FortuneSections({ fortune, userId, referenceDate }: Props) {
     </section>
   );
 }
+

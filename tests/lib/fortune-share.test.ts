@@ -27,6 +27,8 @@ vi.mock("../../lib/admin-event-log", () => ({
 
 import {
   findFortuneShareSnapshotById,
+  normalizeFortuneSharePayload,
+  shouldRenderSignalCaution,
   upsertFortuneShareSnapshot,
 } from "../../lib/fortune-share";
 
@@ -51,7 +53,7 @@ describe("fortune share snapshots", () => {
     });
     mocks.findUnique.mockResolvedValue({
       id: "snapshot-1",
-      payload: { displayName: "홍**" },
+      payload: { displayName: "홍*" },
       expiresAt: new Date("2026-04-09T00:00:00Z"),
     });
   });
@@ -86,6 +88,8 @@ describe("fortune share snapshots", () => {
     expect(createPayload.targetDateKey).toBe("2026-03-10");
     expect(createPayload.certainty).toBe("calendar-unknown");
     expect(createPayload.uncertaintyMessage).toBeTypeOf("string");
+    expect(Array.isArray(createPayload.signals)).toBe(true);
+    expect((createPayload.signals as Array<{ key: string }>).length).toBeGreaterThan(0);
     expect((createPayload.recommendedActions as string[]).length).toBeLessThanOrEqual(3);
     expect((createPayload.avoidToday as string[]).length).toBeLessThanOrEqual(3);
     expect(mocks.logAdminEventSafe).toHaveBeenCalledWith(
@@ -102,7 +106,7 @@ describe("fortune share snapshots", () => {
 
     expect(snapshot).toEqual({
       id: "snapshot-1",
-      payload: { displayName: "홍**" },
+      payload: { displayName: "홍*" },
       expiresAt: new Date("2026-04-09T00:00:00Z"),
     });
     expect(mocks.findUnique).toHaveBeenCalledWith({
@@ -113,5 +117,45 @@ describe("fortune share snapshots", () => {
         expiresAt: true,
       },
     });
+  });
+
+  it("normalizes legacy share payloads without signals", () => {
+    const normalized = normalizeFortuneSharePayload({
+      displayName: "홍*동",
+      score: 74,
+      grade: "길",
+      headline: "실천하면 성과가 쌓이는 날이로다.",
+      summary: "오늘은 순서를 세우면 흐름이 반듯하게 이어지오.",
+      caution: "서두른 답변은 한 박자 늦추시오.",
+      certainty: "exact",
+      uncertaintyMessage: null,
+      featuredInsight: {
+        label: "타이밍 포인트",
+        title: "오전에 흐름을 먼저 잡는 편이 좋소.",
+        summary: "오전 쪽에 맞춰 순서를 잡으면 오늘 흐름이 더 반듯하게 이어지오.",
+        action: "오전에 중요한 연락과 우선순위부터 정하시오.",
+        caution: "타이밍을 놓친 뒤 급히 만회하려 들지 마시오.",
+      },
+      avoidToday: ["서두른 답변은 한 박자 늦추시오."],
+      recommendedActions: ["오전에 중요한 연락부터 두시오."],
+      targetDateKey: "2026-03-10",
+    });
+
+    expect(normalized).not.toBeNull();
+    expect(normalized?.signals).toHaveLength(1);
+    expect(normalized?.signals[0]).toEqual(
+      expect.objectContaining({
+        key: "timing",
+        label: "타이밍 포인트",
+        title: "오전에 흐름을 먼저 잡는 편이 좋소.",
+      }),
+    );
+  });
+
+  it("shows caution only for caution-toned or friction signals", () => {
+    expect(shouldRenderSignalCaution({ key: "work", tone: "steady" })).toBe(false);
+    expect(shouldRenderSignalCaution({ key: "timing", tone: "push" })).toBe(false);
+    expect(shouldRenderSignalCaution({ key: "friction", tone: "steady" })).toBe(true);
+    expect(shouldRenderSignalCaution({ key: "money", tone: "caution" })).toBe(true);
   });
 });

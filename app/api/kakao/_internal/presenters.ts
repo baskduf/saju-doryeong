@@ -1,5 +1,5 @@
 import { generateDailyFortune } from "../../../../lib/fortune";
-import type { DailyFortuneInsightKey } from "../../../../lib/fortune";
+import type { FortuneSignalKey } from "../../../../lib/fortune";
 import { answerFortuneQuestion } from "../../../../lib/fortune-question";
 import type { FortuneQuestionAnswer } from "../../../../lib/fortune-question";
 import { upsertFortuneShareSnapshot } from "../../../../lib/fortune-share";
@@ -20,14 +20,14 @@ import {
 } from "./cards";
 import type { KakaoBasicCardResponse, KakaoProfileLike } from "./types";
 
-const INSIGHT_LABELS: Record<DailyFortuneInsightKey, string> = {
-  work: "오늘의 일운",
+const SIGNAL_LABELS: Record<FortuneSignalKey, string> = {
+  momentum: "추진 신호",
+  friction: "마찰 신호",
+  timing: "타이밍 신호",
+  work: "일과 흐름",
   money: "재물 흐름",
   relationship: "관계 흐름",
-  health: "건강 흐름",
-  timing: "타이밍 신호",
-  approach: "대응 방향",
-  risk: "주의 신호",
+  recovery: "회복 흐름",
 };
 
 function buildDailySourceLine(fortune: ReturnType<typeof generateDailyFortune>): string {
@@ -37,10 +37,11 @@ function buildDailySourceLine(fortune: ReturnType<typeof generateDailyFortune>):
 }
 
 function buildQuestionDecisionBasisLine(answer: FortuneQuestionAnswer): string {
-  const primary = INSIGHT_LABELS[answer.decisionBasis.primaryInsightKey] ?? answer.decisionBasis.primaryInsightKey;
+  const primary =
+    SIGNAL_LABELS[answer.decisionBasis.primarySignalKey] ?? answer.decisionBasis.primarySignalKey;
   const secondary =
-    INSIGHT_LABELS[answer.decisionBasis.secondaryInsightKey] ?? answer.decisionBasis.secondaryInsightKey;
-  return `짚은 흐름: ${primary}, ${secondary}`;
+    SIGNAL_LABELS[answer.decisionBasis.secondarySignalKey] ?? answer.decisionBasis.secondarySignalKey;
+  return `판단 신호: ${primary}, ${secondary}`;
 }
 
 function buildQuestionReferenceLine(answer: FortuneQuestionAnswer): string | null {
@@ -138,13 +139,13 @@ export async function createSharePromptCard(params: {
   });
 
   return createBasicCard({
-    title: "운세도령의 공유 카드",
+    title: "운세도령 공유 카드",
     description: [
       params.profile.name
-        ? `${params.profile.name} 님의 오늘 운세를 나눌 수 있소.`
-        : "오늘의 운세를 나눌 수 있소.",
+        ? `${params.profile.name} 님의 오늘 운세를 공유할 수 있소.`
+        : "오늘의 운세를 공유할 수 있소.",
       params.rewarded
-        ? `질문 1개를 추가로 받았소. 오늘 공유 보상 ${params.usage.rewardCountToday}/${DAILY_SHARE_REWARD_LIMIT}회`
+        ? `질문 1개를 추가로 받으며 오늘 공유 보상 ${params.usage.rewardCountToday}/${DAILY_SHARE_REWARD_LIMIT}회를 채웠소.`
         : `오늘 공유 보상은 이미 ${DAILY_SHARE_REWARD_LIMIT}회를 채웠소.`,
       `오늘 질문은 총 ${params.usage.totalLimitToday}회까지 가능하고 남은 횟수는 ${params.usage.remaining}회요.`,
       `운세 점수: ${fortune.score}점(${fortune.grade})`,

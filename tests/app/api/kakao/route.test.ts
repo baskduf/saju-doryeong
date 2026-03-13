@@ -187,11 +187,11 @@ describe("POST /api/kakao", () => {
         topic: "work",
         intent: "outcome",
         relationshipKind: "generic",
-        primaryInsightKey: "work",
-        secondaryInsightKey: "risk",
+        primarySignalKey: "work",
+        secondarySignalKey: "friction",
       },
       oracleInfluence: {
-        channels: ["direction", "caution"],
+        channels: ["direction"],
         summary: "육효는 방향과 주의 채널에서 답변을 보강하오.",
       },
       conflictResolution: {
@@ -336,7 +336,7 @@ describe("POST /api/kakao", () => {
     expect(profileMocks.incrementQuestionUsage).toHaveBeenCalledWith(expect.any(Object));
     expect(questionMocks.answerFortuneQuestion).toHaveBeenCalled();
     expect(card.title).toBe("도령의 일풀이");
-    expect(card.description).toContain("짚은 흐름: 오늘의 일운, 주의 신호");
+    expect(card.description).toContain("판단 신호: 일과 흐름, 마찰 신호");
     expect(card.description).toContain("남은 질문 3회");
     expect(card.description).not.toContain("육효 보강:");
     expect(card.description).not.toContain("판단 조정:");
@@ -351,8 +351,8 @@ describe("POST /api/kakao", () => {
 
     expect(profileMocks.incrementShareReward).toHaveBeenCalledWith(expect.any(Object));
     expect(shareMocks.upsertFortuneShareSnapshot).toHaveBeenCalled();
-    expect(card.title).toBe("운세도령의 공유 카드");
-    expect(card.description).toContain("질문 1개를 추가로 받았소. 오늘 공유 보상 1/10회");
+    expect(card.title).toBe("운세도령 공유 카드");
+    expect(card.description).toContain("질문 1개를 추가로 받으며 오늘 공유 보상 1/10회를 채웠소.");
     expect(card.buttons).toContain("공유 링크 보기");
   });
 

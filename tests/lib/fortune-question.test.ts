@@ -49,15 +49,15 @@ async function answerWithMockedOracle(params: {
         primaryHexagram: "건상 곤하",
         changedHexagram: "진상 건하",
         movingLines: [1, 3, 6],
-        answerTrend: "negative" as const,
+        answerTrend: "positive" as const,
         lines: [6, 7, 8, 9, 7, 8] as const,
         primaryBits: "101010",
         changedBits: "010101",
-        summary: "육효는 급하게 밀기보다 한 박자 늦추라 하오.",
-        action: "움직임을 줄이고 순서를 다시 세우시오.",
-        caution: "서두른 판단과 과한 확장은 피하시오.",
+        summary: "육효는 급하게 밀기보다 박자를 조절하라 하오.",
+        action: "움직임은 줄이고 순서를 다시 세우시오.",
+        caution: "서두르거나 억지 확장은 피하시오.",
         timingHint: "오후",
-        sourceLine: "육효 관상: 건상 곤하 -> 진상 건하",
+        sourceLine: "육효 괘상 건상 곤하 -> 진상 건하",
         network: {
           nodes: [],
           edges: [],
@@ -100,14 +100,14 @@ afterEach(() => {
 
 describe("fortune question fallback", () => {
   it("detects likely fortune questions", () => {
-    expect(isLikelyFortuneQuestion("오늘 고백해도 될까?")).toBe(true);
-    expect(isLikelyFortuneQuestion("오늘 돈 써도 괜찮아?")).toBe(true);
+    expect(isLikelyFortuneQuestion("오늘 고백해도 좋을까?")).toBe(true);
+    expect(isLikelyFortuneQuestion("오늘 시험도 괜찮을까?")).toBe(true);
     expect(isLikelyFortuneQuestion("안녕")).toBe(false);
   });
 
-  it("returns fallback advice with explanation metadata when llm is unavailable", async () => {
+  it("returns fallback advice with signal metadata when llm is unavailable", async () => {
     const answer = await answerFortuneQuestion({
-      question: "오늘 일은 어떻게 풀릴까?",
+      question: "오늘 일 어떻게 풀릴까?",
       fortune: buildUnknownFortune(),
       userId: "question-user",
       date: new Date("2026-03-10T09:00:00+09:00"),
@@ -116,14 +116,14 @@ describe("fortune question fallback", () => {
     expect(answer.usedLlm).toBe(false);
     expect(answer.sources).toEqual(["daily", "yukhyo"]);
     expect(answer.oracleMeta).toBeDefined();
-    expect(answer.decisionBasis.primaryInsightKey).toBeTruthy();
-    expect(answer.decisionBasis.secondaryInsightKey).toBeTruthy();
-    expect(answer.oracleInfluence.channels).toContain("caution");
+    expect(answer.decisionBasis.primarySignalKey).toBeTruthy();
+    expect(answer.decisionBasis.secondarySignalKey).toBeTruthy();
+    expect(answer.oracleInfluence.channels).not.toContain("caution");
     expect(answer.conflictResolution.status).toBe("reference-priority");
     expect(mocks.logAdminEventSafe).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: "openai_question_fallback",
-        questionText: "오늘 일은 어떻게 풀릴까?",
+        questionText: "오늘 일 어떻게 풀릴까?",
       }),
     );
   });
@@ -147,41 +147,40 @@ describe("fortune question fallback", () => {
     expect(first.conflictResolution).toEqual(second.conflictResolution);
   });
 
-  it("records question signal conflicts when oracle opposes the base insight", async () => {
+  it("records question signal conflicts when oracle opposes the base signal", async () => {
     const answer = await answerWithMockedOracle({
-      question: "오늘 일은 어떻게 풀릴까?",
+      question: "오늘 일 시작해도 될까?",
       fortune: buildExactFortune(),
     });
 
-    expect(answer.decisionBasis.primaryInsightKey).toBeTruthy();
+    expect(answer.decisionBasis.primarySignalKey).toBeTruthy();
     expect(answer.conflictResolution.status).toBe("question-signal-conflict");
-    expect(answer.conflictResolution.appliedPolicy).toBe("기회는 있으나 무리 금지");
+    expect(answer.conflictResolution.appliedPolicy).toBe("가능성은 보되 속도는 늦춤");
   });
 
-  it("keeps explanation metadata consistent on the llm path", async () => {
+  it("adds caution channel only for caution-oriented questions on the llm path", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({
           output_text: JSON.stringify({
-            title: "도령의 한마디",
-            description: "가능성은 있되 속도를 조절하시오. 무리만 피하면 흐름이 이어지오.",
+            title: "도령의 조언",
+            description: "무리하지 말고 박자를 먼저 고르시오. 중요한 결정은 한 번 더 확인하시오.",
           }),
         }),
       }),
     );
 
     const answer = await answerWithMockedOracle({
-      question: "오늘 일은 어떻게 풀릴까?",
+      question: "오늘 연애에서 뭘 조심해야 할까?",
       fortune: buildExactFortune(),
       usedLlm: true,
     });
 
     expect(answer.usedLlm).toBe(true);
-    expect(answer.decisionBasis.primaryInsightKey).toBeTruthy();
+    expect(answer.decisionBasis.primarySignalKey).toBe("friction");
     expect(answer.oracleInfluence.channels).toContain("caution");
-    expect(answer.conflictResolution.status).toBe("question-signal-conflict");
     expect(mocks.logAdminEventSafe).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: "question_answered",

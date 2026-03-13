@@ -77,8 +77,8 @@ function buildFortune() {
   return {
     score: 74,
     grade: "길",
-    headline: "차근히 가면 성과가 붙는 날이오.",
-    summary: "순서를 세우면 흐름이 한결 안정되오.",
+    headline: "차분히 밀면 성과가 붙는 날이오.",
+    summary: "순서를 세우면 흐름이 반듯하게 이어지오.",
     caution: "서두른 결정은 피하시오.",
     analysis: {
       hybrid: {
@@ -92,8 +92,8 @@ function buildFortune() {
 
 function buildAnswer(overrides: Record<string, unknown> = {}) {
   return {
-    title: "도령의 답변",
-    description: "오늘은 순서를 세워 움직이는 편이 좋소.",
+    title: "도령의 답",
+    description: "오늘은 순서를 먼저 세우고 움직이면 좋소.",
     topic: "work",
     usedLlm: false,
     sources: ["daily", "yukhyo"],
@@ -107,16 +107,16 @@ function buildAnswer(overrides: Record<string, unknown> = {}) {
       topic: "work",
       intent: "outcome",
       relationshipKind: "generic",
-      primaryInsightKey: "work",
-      secondaryInsightKey: "risk",
+      primarySignalKey: "work",
+      secondarySignalKey: "friction",
     },
     oracleInfluence: {
-      channels: ["direction", "caution"],
-      summary: "육효는 방향과 주의 채널에서 답변을 보강하오.",
+      channels: ["direction"],
+      summary: "육효는 방향 채널에서 보조 판단을 더하오.",
     },
     conflictResolution: {
       status: "aligned",
-      summary: "육효와 기본 인사이트가 크게 충돌하지 않아 같은 결로 답변을 정리하오.",
+      summary: "육효와 기본 신호가 크게 충돌하지 않아 같은 결로 정리하오.",
       appliedPolicy: "기본 흐름 유지",
     },
     ...overrides,
@@ -131,16 +131,16 @@ describe("kakao presenters", () => {
   });
 
   it("renders concise question answer metadata lines in the kakao card", async () => {
-    const card = await createQuestionAnswerCard(buildProfile(), "오늘 일은 어떻게 풀릴까?");
+    const card = await createQuestionAnswerCard(buildProfile(), "오늘 일 어떻게 풀릴까?");
     const basicCard = card.template.outputs[0].basicCard;
 
-    expect(basicCard.title).toBe("도령의 답변");
-    expect(basicCard.description).toContain("오늘은 순서를 세워 움직이는 편이 좋소.");
-    expect(basicCard.description).toContain("짚은 흐름: 오늘의 일운, 주의 신호");
+    expect(basicCard.title).toBe("도령의 답");
+    expect(basicCard.description).toContain("오늘은 순서를 먼저 세우고 움직이면 좋소.");
+    expect(basicCard.description).toContain("판단 신호: 일과 흐름, 마찰 신호");
     expect(basicCard.description).toContain("남은 질문 4회");
     expect(basicCard.description).not.toContain("육효 보강:");
     expect(basicCard.description).not.toContain("판단 조정:");
-    expect(basicCard.description).not.toContain("판단 근거: 오늘 운세 + 육효 관상");
+    expect(basicCard.description).not.toContain("판단 근거:");
   });
 
   it("renders conflict summaries when the oracle opposes the base flow", async () => {
@@ -148,14 +148,14 @@ describe("kakao presenters", () => {
       buildAnswer({
         conflictResolution: {
           status: "question-signal-conflict",
-          summary: "육효는 제동을 거나 기본 인사이트는 전진 쪽이라 속도를 조절하오.",
-          appliedPolicy: "기회는 있으나 무리 금지",
+          summary: "육효는 제동을 걸지만 기본 신호는 살아 있어 무리만 금하고 방향은 남기오.",
+          appliedPolicy: "기회가 있어도 무리 금지",
         },
       }),
     );
 
-    const card = await createQuestionAnswerCard(buildProfile(), "오늘 일은 어떻게 풀릴까?");
-    expect(card.template.outputs[0].basicCard.description).toContain("참고: 기회는 있으나 무리 금지");
+    const card = await createQuestionAnswerCard(buildProfile(), "오늘 일 어떻게 풀릴까?");
+    expect(card.template.outputs[0].basicCard.description).toContain("참고: 기회가 있어도 무리 금지");
   });
 
   it("renders reference summaries when calendar certainty is low", async () => {
@@ -163,7 +163,7 @@ describe("kakao presenters", () => {
       buildAnswer({
         conflictResolution: {
           status: "reference-priority",
-          summary: "달력 기준이 미확정이라 참고용 성격을 먼저 드러내오.",
+          summary: "달력 기준이 미확정이라 참고 흐름을 먼저 따르오.",
           appliedPolicy: "불확실성 우선",
         },
       }),
@@ -173,20 +173,20 @@ describe("kakao presenters", () => {
     expect(card.template.outputs[0].basicCard.description).toContain("참고: 불확실성 우선");
   });
 
-  it("maps insight keys to readable Korean labels", async () => {
+  it("maps signal keys to readable Korean labels", async () => {
     questionMocks.answerFortuneQuestion.mockResolvedValue(
       buildAnswer({
         decisionBasis: {
           topic: "relationship",
           intent: "timing",
           relationshipKind: "romance",
-          primaryInsightKey: "relationship",
-          secondaryInsightKey: "timing",
+          primarySignalKey: "relationship",
+          secondarySignalKey: "timing",
         },
       }),
     );
 
-    const card = await createQuestionAnswerCard(buildProfile(), "오늘 고백해도 될까?");
-    expect(card.template.outputs[0].basicCard.description).toContain("짚은 흐름: 관계 흐름, 타이밍 신호");
+    const card = await createQuestionAnswerCard(buildProfile(), "오늘 고백해도 좋을까?");
+    expect(card.template.outputs[0].basicCard.description).toContain("판단 신호: 관계 흐름, 타이밍 신호");
   });
 });

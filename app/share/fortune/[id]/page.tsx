@@ -5,7 +5,9 @@ import detailStyles from "../../../fortune/[id]/page.module.css";
 import { verifyShareAccessToken } from "../../../../lib/access-token";
 import {
   findFortuneShareSnapshotById,
-  type FortuneShareInsightPayload,
+  normalizeFortuneSharePayload,
+  shouldRenderSignalCaution,
+  type FortuneShareSignalPayload,
   type FortuneShareSnapshotPayload,
 } from "../../../../lib/fortune-share";
 import { ShareActions } from "./ShareActions";
@@ -79,13 +81,41 @@ const DEMO_SHARE_PAYLOAD: FortuneShareSnapshotPayload = {
   ],
   certainty: "exact",
   uncertaintyMessage: null,
-  featuredInsight: {
-    label: "타이밍 포인트",
-    title: "오전에 흐름을 먼저 잡는 편이 좋소.",
-    summary: "오전 쪽에 맞춰 순서를 잡으면 오늘 흐름이 더 반듯하게 이어지오.",
-    action: "오전에 중요한 연락과 우선순위부터 정하시오.",
-    caution: "타이밍을 놓친 뒤 급히 만회하려 들지 마시오.",
-  },
+  signals: [
+    {
+      key: "timing",
+      label: "타이밍 신호",
+      score: 72,
+      tone: "push",
+      title: "오전에 흐름을 먼저 잡는 편이 좋소.",
+      summary: "오전 쪽에 맞춰 순서를 잡으면 오늘 흐름이 더 반듯하게 이어지오.",
+      action: "오전에 중요한 연락과 우선순위부터 정하시오.",
+      caution: "타이밍을 놓친 뒤 급히 만회하려 들지 마시오.",
+      reasons: ["오전 리듬이 오늘 흐름을 반듯하게 받치오.", "순서를 먼저 세울수록 결과가 붙기 쉽소."],
+    },
+    {
+      key: "work",
+      label: "일과 흐름",
+      score: 69,
+      tone: "steady",
+      title: "일의 순서를 먼저 세우면 흐름이 고르오.",
+      summary: "한 번에 크게 벌리기보다 핵심 순서부터 정리할수록 결과가 붙기 쉽소.",
+      action: "핵심 일부터 먼저 확정하고 나머지는 뒤로 미루시오.",
+      caution: "한 번에 여러 답을 내려 하지 마시오.",
+      reasons: ["오늘은 순서가 성과를 가르오.", "과속만 줄이면 흐름이 무난하오."],
+    },
+    {
+      key: "relationship",
+      label: "관계 흐름",
+      score: 63,
+      tone: "steady",
+      title: "관계는 속도보다 결을 맞추는 편이 좋소.",
+      summary: "말의 톤을 부드럽게 맞추고 약속의 속도를 조율하면 마찰을 줄이기 쉽소.",
+      action: "먼저 말의 톤을 부드럽게 맞추고 다가가시오.",
+      caution: "감정이 앞서 말이 빨라지는 흐름을 경계하시오.",
+      reasons: ["사람과 약속은 부드럽게 조율하는 편이 낫소.", "감정보다 분위기를 먼저 다스리시오."],
+    },
+  ],
   recommendedActions: [
     "중요한 일은 오전에 우선순위를 먼저 적어 두시오.",
     "만남과 협의는 차분히 조율하며 속도를 고르게 맞추시오.",
@@ -93,47 +123,6 @@ const DEMO_SHARE_PAYLOAD: FortuneShareSnapshotPayload = {
   ],
   targetDateKey: "2026-03-10",
 };
-
-function isSharePayload(value: unknown): value is FortuneShareSnapshotPayload {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const payload = value as Record<string, unknown>;
-  return (
-    typeof payload.displayName === "string" &&
-    typeof payload.score === "number" &&
-    typeof payload.grade === "string" &&
-    typeof payload.headline === "string" &&
-    typeof payload.summary === "string" &&
-    typeof payload.caution === "string" &&
-    (payload.certainty === "exact" || payload.certainty === "calendar-unknown") &&
-    (payload.uncertaintyMessage === null ||
-      payload.uncertaintyMessage === undefined ||
-      typeof payload.uncertaintyMessage === "string") &&
-    (payload.featuredInsight === undefined ||
-      payload.featuredInsight === null ||
-      (typeof payload.featuredInsight === "object" &&
-        typeof (payload.featuredInsight as Record<string, unknown>).label === "string" &&
-        typeof (payload.featuredInsight as Record<string, unknown>).title === "string" &&
-        typeof (payload.featuredInsight as Record<string, unknown>).summary === "string" &&
-        typeof (payload.featuredInsight as Record<string, unknown>).action === "string" &&
-        typeof (payload.featuredInsight as Record<string, unknown>).caution === "string")) &&
-    (payload.avoidToday === undefined || Array.isArray(payload.avoidToday)) &&
-    Array.isArray(payload.recommendedActions) &&
-    typeof payload.targetDateKey === "string"
-  );
-}
-
-function buildFallbackFeaturedInsight(fortune: FortuneShareSnapshotPayload): FortuneShareInsightPayload {
-  return {
-    label: "오늘의 포인트",
-    title: "공유용 대표 흐름을 먼저 보시오.",
-    summary: fortune.summary,
-    action: fortune.recommendedActions[0] ?? "지금 할 수 있는 일부터 차분히 움직이시오.",
-    caution: fortune.avoidToday?.[0] ?? fortune.caution,
-  };
-}
 
 function renderHighlightedText(text: string): ReactNode {
   const parts = text.split(EMPHASIS_PATTERN).filter(Boolean);
@@ -161,13 +150,14 @@ export default async function SharedFortunePage({ params, searchParams }: PagePr
           }
 
           const snapshot = await findFortuneShareSnapshotById(params.id);
-          if (!snapshot || snapshot.expiresAt.getTime() <= Date.now() || !isSharePayload(snapshot.payload)) {
+          const payload = snapshot ? normalizeFortuneSharePayload(snapshot.payload) : null;
+          if (!snapshot || snapshot.expiresAt.getTime() <= Date.now() || !payload) {
             notFound();
           }
 
-          return snapshot.payload;
+          return payload;
         })();
-  const featuredInsight = fortune.featuredInsight ?? buildFallbackFeaturedInsight(fortune);
+  const signals = fortune.signals;
 
   return (
     <main className={detailStyles.container}>
@@ -220,32 +210,33 @@ export default async function SharedFortunePage({ params, searchParams }: PagePr
           </section>
 
           <section className={detailStyles.innerSection}>
-            <h2>오늘의 포인트</h2>
-            <div className={`${detailStyles.reasonCard} ${detailStyles.pointCard}`}>
-              <div className={detailStyles.reasonRow}>
-                <span className={detailStyles.reasonLabel}>{featuredInsight.label}</span>
-                <p className={detailStyles.reasonText}>
-                  <strong className={detailStyles.inlineHighlight}>{featuredInsight.title}</strong>{" "}
-                  {renderHighlightedText(featuredInsight.summary)}
-                </p>
-              </div>
-              <div className={detailStyles.reasonRow}>
-                <span className={detailStyles.reasonLabel}>움직임</span>
-                <p className={detailStyles.reasonText}>{renderHighlightedText(featuredInsight.action)}</p>
-              </div>
-              <div className={detailStyles.reasonRow}>
-                <span className={detailStyles.reasonLabel}>주의</span>
-                <p className={detailStyles.reasonText}>{renderHighlightedText(featuredInsight.caution)}</p>
-              </div>
-              <div className={detailStyles.pointFlowerOverlay} aria-hidden="true">
-                <Image
-                  src="/flower.png"
-                  alt=""
-                  width={180}
-                  height={180}
-                  className={detailStyles.pointFlower}
-                />
-              </div>
+            <h2>오늘의 신호</h2>
+            <div className={detailStyles.analysisGrid}>
+              {signals.map((signal) => (
+                <div key={signal.key} className={`${detailStyles.reasonCard} ${detailStyles.pointCard}`}>
+                  <div className={detailStyles.reasonRow}>
+                    <span className={detailStyles.reasonLabel}>{signal.label}</span>
+                    <p className={detailStyles.reasonText}>
+                      <strong className={detailStyles.inlineHighlight}>{signal.title}</strong>{" "}
+                      {renderHighlightedText(signal.summary)}
+                    </p>
+                  </div>
+                  <div className={detailStyles.reasonRow}>
+                    <span className={detailStyles.reasonLabel}>근거</span>
+                    <p className={detailStyles.reasonText}>{renderHighlightedText(signal.reasons.join(" "))}</p>
+                  </div>
+                  <div className={detailStyles.reasonRow}>
+                    <span className={detailStyles.reasonLabel}>움직임</span>
+                    <p className={detailStyles.reasonText}>{renderHighlightedText(signal.action)}</p>
+                  </div>
+                  {shouldRenderSignalCaution(signal) ? (
+                    <div className={detailStyles.reasonRow}>
+                      <span className={detailStyles.reasonLabel}>주의</span>
+                      <p className={detailStyles.reasonText}>{renderHighlightedText(signal.caution)}</p>
+                    </div>
+                  ) : null}
+                </div>
+              ))}
             </div>
           </section>
 

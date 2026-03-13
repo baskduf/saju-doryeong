@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildUnknownReferenceProfileData,
   generateDailyFortune,
+  selectTopFortuneSignals,
 } from "../../lib/fortune";
 
 describe("unknown calendar fortunes", () => {
@@ -17,7 +18,7 @@ describe("unknown calendar fortunes", () => {
     expect(reference?.uncertaintyMessage).toContain("참고");
   });
 
-  it("keeps unknown calendar fortunes as blended references", () => {
+  it("keeps unknown calendar fortunes as blended references with signals", () => {
     const fortune = generateDailyFortune({
       userId: "unknown-user",
       birthDate: new Date(Date.UTC(1995, 9, 21)),
@@ -30,13 +31,14 @@ describe("unknown calendar fortunes", () => {
     expect(fortune.analysis.certainty).toBe("calendar-unknown");
     expect(fortune.analysis.referenceMode).toBe("solar-lunar-blend");
     expect(fortune.manse).toBeNull();
-    expect(fortune.analysis.uncertaintyMessage).toContain("양력");
+    expect(fortune.analysis.uncertaintyMessage).toContain("달력");
     expect(fortune.analysis.patternName).toBe("양·음력 공통 흐름");
     expect(fortune.analysis.patternRevealLabel).toBe("양·음력 공통 참고");
-    expect(fortune.featuredInsight.title.length).toBeGreaterThan(0);
+    expect(fortune.analysis.signals.length).toBeGreaterThan(0);
+    expect(fortune.analysis.signals.some((signal) => signal.summary.includes("공통 흐름 기준으로"))).toBe(true);
   });
 
-  it("selects the same featured insight for the same user and date", () => {
+  it("selects the same top signals for the same user and date", () => {
     const params = {
       userId: "stable-user",
       birthDate: new Date(Date.UTC(1988, 3, 12)),
@@ -48,8 +50,10 @@ describe("unknown calendar fortunes", () => {
 
     const first = generateDailyFortune(params);
     const second = generateDailyFortune(params);
+    const firstTop = selectTopFortuneSignals(first.analysis.signals);
+    const secondTop = selectTopFortuneSignals(second.analysis.signals);
 
-    expect(first.featuredInsight.key).toBe(second.featuredInsight.key);
-    expect(first.featuredInsight.title).toBe(second.featuredInsight.title);
+    expect(firstTop.map((signal) => signal.key)).toEqual(secondTop.map((signal) => signal.key));
+    expect(firstTop.map((signal) => signal.title)).toEqual(secondTop.map((signal) => signal.title));
   });
 });

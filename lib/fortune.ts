@@ -25,30 +25,35 @@ export type { FiveElements } from "./saju";
 export type { HybridSourceBadge, KuseongDetail } from "./kuseong";
 
 export type ReferenceMode = "none" | "solar-lunar-blend";
-export type DailyFortuneInsightKey =
+export type FortuneSignalKey =
+  | "momentum"
+  | "friction"
+  | "timing"
   | "work"
   | "money"
   | "relationship"
-  | "health"
-  | "timing"
-  | "approach"
-  | "risk";
+  | "recovery";
+export type FortuneSignalTone = "push" | "steady" | "caution" | "recover";
 
-export type PublicFortuneInsight = {
+export type PublicFortuneSignal = {
+  key: FortuneSignalKey;
   label: string;
+  score: number;
+  tone: FortuneSignalTone;
   title: string;
   summary: string;
   action: string;
   caution: string;
+  reasons: string[];
 };
 
-export type DailyFortuneInsight = PublicFortuneInsight & {
-  key: DailyFortuneInsightKey;
-  priority: number;
-  publicSummary: string;
-  publicAction: string;
-  publicCaution: string;
+export type FortuneSignal = PublicFortuneSignal & {
+  sources: Array<"saju" | "kuseong">;
 };
+
+export function shouldRenderSignalCaution(signal: Pick<PublicFortuneSignal, "key" | "tone">): boolean {
+  return signal.key === "friction" || signal.tone === "caution";
+}
 
 export type HybridExplanationConflict = {
   type: "tone-conflict";
@@ -99,8 +104,6 @@ export type DailyFortune = {
     timing: string;
     number: string;
   };
-  insights: DailyFortuneInsight[];
-  featuredInsight: DailyFortuneInsight;
   elements: FiveElements;
   manse: {
     solarDateTime: string;
@@ -196,6 +199,7 @@ export type DailyFortune = {
       };
       kuseong?: KuseongDetail;
     };
+    signals: FortuneSignal[];
     hybridExplanation: HybridExplanation;
   };
 };
@@ -757,7 +761,9 @@ function buildTodayBranchSummary(interactions: TodayBranchInteraction[]): string
   return `${primary.description} ${primary.pillarLabel} 흐름이 부드럽게 이어질 수 있으니 만남과 협의를 차분히 이어 가시오.${extraPhrase}`;
 }
 
-type FortuneWithoutInsights = Omit<DailyFortune, "insights" | "featuredInsight">;
+type FortuneWithoutSignals = Omit<DailyFortune, "analysis"> & {
+  analysis: Omit<DailyFortune["analysis"], "signals">;
+};
 
 function explanationConfidenceMode(certainty: ChartCertainty): HybridExplanation["confidenceMode"] {
   return certainty === "calendar-unknown" ? "reference" : "exact";
@@ -766,7 +772,7 @@ function explanationConfidenceMode(certainty: ChartCertainty): HybridExplanation
 function inferSajuExplanationTone(params: {
   grade: DailyFortune["grade"];
   relation: TodayRelation;
-  categoryScores: FortuneWithoutInsights["categoryScores"];
+  categoryScores: FortuneWithoutSignals["categoryScores"];
 }): ExplanationTone {
   if (params.grade === "대길") {
     return "push";
@@ -797,7 +803,7 @@ function explanationTonesConflict(baseTone: ExplanationTone, supportTone: Explan
 }
 
 function buildHybridExplanation(params: {
-  fortune: FortuneWithoutInsights;
+  fortune: FortuneWithoutSignals;
   certainty: ChartCertainty;
   kuseong?: KuseongDetail;
 }): HybridExplanation {
@@ -850,7 +856,7 @@ function buildHybridExplanation(params: {
 }
 
 function buildInitialHybridAnalysis(params: {
-  fortune: FortuneWithoutInsights;
+  fortune: FortuneWithoutSignals;
   certainty: ChartCertainty;
 }): DailyFortune["analysis"]["hybrid"] {
   return {
@@ -933,12 +939,12 @@ function buildKuseongWeakCaution(kuseong: KuseongDetail): string {
 }
 
 function applyKuseongHybrid(params: {
-  fortune: FortuneWithoutInsights;
+  fortune: FortuneWithoutSignals;
   birthDate: Date;
   birthTime?: string;
   calendarType?: CalendarType;
   date?: Date;
-}): FortuneWithoutInsights {
+}): FortuneWithoutSignals {
   const kuseong = buildKuseongDetail({
     birthDate: params.birthDate,
     birthTime: params.birthTime,
@@ -1032,22 +1038,22 @@ function applyKuseongHybrid(params: {
   };
 }
 
-function insightLabel(key: DailyFortuneInsightKey): string {
+function signalLabel(key: FortuneSignalKey): string {
   switch (key) {
-    case "work":
-      return "일과 포인트";
-    case "money":
-      return "재물 포인트";
-    case "relationship":
-      return "관계 포인트";
-    case "health":
-      return "회복 포인트";
+    case "momentum":
+      return "추진 신호";
+    case "friction":
+      return "마찰 신호";
     case "timing":
-      return "타이밍 포인트";
-    case "approach":
-      return "움직임 포인트";
-    case "risk":
-      return "주의 포인트";
+      return "타이밍 신호";
+    case "work":
+      return "일과 흐름";
+    case "money":
+      return "재물 흐름";
+    case "relationship":
+      return "관계 흐름";
+    case "recovery":
+      return "회복 흐름";
   }
 }
 
@@ -1125,85 +1131,147 @@ function categoryInsightBoost(category: DailyFortune["categoryScores"][number]):
   return "방향은 유지하되 속도는 한 박자 늦추는 편이 낫소.";
 }
 
-function buildInsightSummary(params: {
-  fortune: FortuneWithoutInsights;
-  key: DailyFortuneInsightKey;
+function uniqueSignalReasons(reasons: Array<string | undefined | null>): string[] {
+  return Array.from(new Set(reasons.filter((reason): reason is string => Boolean(reason?.trim())))).slice(0, 3);
+}
+
+function buildSignalSources(params: {
+  fortune: FortuneWithoutSignals;
+  categoryKey?: CategoryKey;
+  includeKuseongWhenDelta?: boolean;
+}): Array<"saju" | "kuseong"> {
+  const sources = new Set<"saju" | "kuseong">(["saju"]);
+  const kuseong = params.fortune.analysis.hybrid.kuseong;
+  if (!kuseong) {
+    return [...sources];
+  }
+
+  const shouldIncludeKuseong =
+    (params.includeKuseongWhenDelta && params.fortune.analysis.hybrid.scoreBreakdown.kuseongDelta !== 0) ||
+    (params.categoryKey !== undefined &&
+      (kuseong.categoryAdjustments[params.categoryKey] !== 0 || kuseong.focusCategories.includes(params.categoryKey)));
+
+  if (shouldIncludeKuseong) {
+    sources.add("kuseong");
+  }
+
+  return [...sources];
+}
+
+function buildKuseongReason(params: {
+  fortune: FortuneWithoutSignals;
+  categoryKey?: CategoryKey;
+}): string | undefined {
+  const kuseong = params.fortune.analysis.hybrid.kuseong;
+  if (!kuseong) return undefined;
+
+  if (params.categoryKey !== undefined) {
+    if (kuseong.categoryAdjustments[params.categoryKey] !== 0 || kuseong.focusCategories.includes(params.categoryKey)) {
+      return `구성 보정은 ${kuseong.focusCategories.map((key) => categoryDisplayLabel(key as CategoryKey)).join("·")} 쪽을 함께 짚소.`;
+    }
+    return undefined;
+  }
+
+  if (params.fortune.analysis.hybrid.scoreBreakdown.kuseongDelta !== 0) {
+    return kuseong.summary;
+  }
+
+  return undefined;
+}
+
+function relationMomentumBias(relation: TodayRelation): number {
+  if (relation === "식상") return 8;
+  if (relation === "재성") return 6;
+  if (relation === "비겁") return 3;
+  if (relation === "관성") return 2;
+  if (relation === "인성") return -2;
+  return 0;
+}
+
+function toneFromCategoryScore(
+  key: "work" | "money" | "relationship" | "recovery",
+  score: number,
+): FortuneSignalTone {
+  if (key === "recovery") {
+    if (score >= 65) return "recover";
+    return score >= 50 ? "steady" : "caution";
+  }
+
+  if (score >= 78) return "push";
+  if (score >= 58) return "steady";
+  return "caution";
+}
+
+function signalKeyFromCategory(category: DailyFortune["categoryScores"][number]): FortuneSignalKey {
+  if (category.key === "health") {
+    return "recovery";
+  }
+  return category.key;
+}
+
+function buildSignal(params: {
+  key: FortuneSignalKey;
+  score: number;
+  tone: FortuneSignalTone;
+  title: string;
   summary: string;
   action: string;
   caution: string;
-  priority: number;
-  title: string;
-  publicSummary?: string;
-  publicAction?: string;
-  publicCaution?: string;
-}): DailyFortuneInsight {
+  reasons: Array<string | undefined | null>;
+  sources: Array<"saju" | "kuseong">;
+}): FortuneSignal {
   return {
     key: params.key,
-    label: insightLabel(params.key),
+    label: signalLabel(params.key),
+    score: clamp(params.score, 0, 100),
+    tone: params.tone,
     title: params.title,
     summary: params.summary,
     action: params.action,
     caution: params.caution,
-    priority: params.priority,
-    publicSummary: params.publicSummary ?? params.summary,
-    publicAction: params.publicAction ?? params.action,
-    publicCaution: params.publicCaution ?? params.caution,
+    reasons: uniqueSignalReasons(params.reasons),
+    sources: params.sources,
   };
 }
 
-function buildCategoryInsights(fortune: FortuneWithoutInsights): DailyFortuneInsight[] {
+function buildCategorySignals(fortune: FortuneWithoutSignals): FortuneSignal[] {
   const referenceLead =
     fortune.analysis.certainty === "calendar-unknown" ? "공통 흐름 기준으로 " : "";
 
   return fortune.categoryScores.map((category) => {
-    const title = categoryInsightTitle(category);
-    const action = categoryInsightAction(category);
-    const caution = categoryInsightCaution(category, fortune.avoidToday[0] ?? fortune.caution);
+    const signalKey = signalKeyFromCategory(category);
+    const tone = toneFromCategoryScore(signalKey as "work" | "money" | "relationship" | "recovery", category.score);
+    const caution = categoryInsightCaution(category, fortune.caution);
 
-    return buildInsightSummary({
-      fortune,
-      key: category.key,
-      title,
+    return buildSignal({
+      key: signalKey,
+      score: category.score,
+      tone,
+      title: categoryInsightTitle(category),
       summary: `${referenceLead}${category.summary} ${categoryInsightBoost(category)}`,
-      action,
+      action: categoryInsightAction(category),
       caution,
-      priority: category.score,
-      publicSummary: `${referenceLead}${category.summary}`,
-      publicAction: action,
-      publicCaution: caution,
+      reasons: [
+        category.summary,
+        fortune.analysis.relationStrengthSummary,
+        buildKuseongReason({ fortune, categoryKey: category.key }),
+      ],
+      sources: buildSignalSources({
+        fortune,
+        categoryKey: category.key,
+      }),
     });
   });
 }
 
-function buildTimingInsight(fortune: FortuneWithoutInsights): DailyFortuneInsight {
-  const referenceLead =
-    fortune.analysis.certainty === "calendar-unknown" ? "공통 흐름 기준으로 " : "";
-  const timing = fortune.luckyHints.timing;
-  const positive = fortune.analysis.directiveDelta >= 0;
-
-  return buildInsightSummary({
-    fortune,
-    key: "timing",
-    title: `${timing} 흐름을 먼저 쓰는 편이 좋소.`,
-    summary: `${referenceLead}${timing} 쪽이 오늘 호흡을 맞추기 좋소. ${
-      positive ? "움직일 일은 앞당기고" : "서두름은 줄이고"
-    } 리듬을 맞추는 편이 흐름이 고르오.`,
-    action: `${timing}에 중요한 연락과 결정부터 두시오.`,
-    caution: `${timing}을 놓친 뒤 급히 만회하려 들지 마시오.`,
-    priority:
-      55 +
-      Math.min(20, Math.abs(fortune.analysis.directiveDelta) * 4) +
-      (fortune.analysis.todayRelation === "식상" || fortune.analysis.todayRelation === "관성" ? 10 : 0),
-    publicSummary: `${referenceLead}${timing} 쪽에 맞춰 움직이는 편이 오늘은 더 자연스럽소.`,
-    publicAction: `${timing}에 중요한 순서를 먼저 잡으시오.`,
-    publicCaution: "때를 놓친 뒤 급히 속도를 올리려 하지 마시오.",
-  });
-}
-
-function buildApproachInsight(fortune: FortuneWithoutInsights): DailyFortuneInsight {
+function buildMomentumSignal(fortune: FortuneWithoutSignals): FortuneSignal {
   const referenceLead =
     fortune.analysis.certainty === "calendar-unknown" ? "공통 흐름 기준으로 " : "";
   const directiveDelta = fortune.analysis.directiveDelta;
+  const branchDrag = Math.max(0, -fortune.analysis.todayBranchImpact) * 2;
+  const score = Math.round(fortune.score + Math.max(0, directiveDelta) * 2 + relationMomentumBias(fortune.analysis.todayRelation) - branchDrag);
+  const tone: FortuneSignalTone =
+    directiveDelta >= 3 ? "push" : directiveDelta <= -3 ? "caution" : fortune.score >= 60 ? "steady" : "caution";
   const title =
     directiveDelta >= 3
       ? "밀기보다 결을 맞추면 성과가 붙는 날이오."
@@ -1211,115 +1279,197 @@ function buildApproachInsight(fortune: FortuneWithoutInsights): DailyFortuneInsi
         ? "서두르지 말고 보수적으로 다루는 편이 낫소."
         : "속도보다 결을 먼저 맞추는 편이 좋소.";
 
-  return buildInsightSummary({
-    fortune,
-    key: "approach",
+  return buildSignal({
+    key: "momentum",
+    score,
+    tone,
     title,
     summary: `${referenceLead}${fortune.analysis.relationStrengthSummary} ${fortune.analysis.directiveSummary}`,
     action: fortune.analysis.relationStrengthAction,
     caution: fortune.analysis.relationStrengthCaution,
-    priority: 50 + Math.min(15, Math.abs(directiveDelta) * 3) + (fortune.score >= 60 ? 10 : 0),
-    publicSummary: `${referenceLead}${fortune.analysis.relationStrengthSummary}`,
-    publicAction: fortune.analysis.relationStrengthAction,
-    publicCaution: fortune.analysis.relationStrengthCaution,
+    reasons: [
+      fortune.analysis.relationStrengthSummary,
+      fortune.analysis.directiveSummary,
+      buildKuseongReason({ fortune }),
+    ],
+    sources: buildSignalSources({
+      fortune,
+      includeKuseongWhenDelta: true,
+    }),
   });
 }
 
-function buildRiskInsight(fortune: FortuneWithoutInsights): DailyFortuneInsight {
+function branchPenaltyFromAnalysis(fortune: FortuneWithoutSignals): number {
+  return fortune.analysis.branchRelations.reduce(
+    (sum, pair) => sum + (pair.type === "충" ? 4 : pair.type === "형" ? 2 : -1),
+    0,
+  );
+}
+
+function buildFrictionSignal(fortune: FortuneWithoutSignals): FortuneSignal {
   const referenceLead =
     fortune.analysis.certainty === "calendar-unknown" ? "공통 흐름 기준으로 " : "";
-  const caution = fortune.avoidToday[0] ?? fortune.caution;
+  const branchPenalty = Math.max(0, branchPenaltyFromAnalysis(fortune));
+  const branchImpactPenalty = Math.max(0, -fortune.analysis.todayBranchImpact);
+  const directivePenalty = Math.max(0, -fortune.analysis.directiveDelta);
+  const score = Math.round(
+    28 +
+      branchPenalty * 4 +
+      branchImpactPenalty * 6 +
+      directivePenalty * 5 +
+      (fortune.grade === "주의" ? 14 : fortune.grade === "평" ? 6 : 0),
+  );
   const title =
-    fortune.grade === "주의" || fortune.analysis.directiveDelta <= -3
-      ? "오늘은 무리수 한 번이 크게 번질 수 있소."
-      : "작은 과속이 흐름을 거칠게 만들기 쉬운 날이오.";
+    score >= 70 ? "오늘은 무리수 한 번이 크게 번질 수 있소." : "작은 과속이 흐름을 거칠게 만들기 쉬운 날이오.";
+  const summary =
+    fortune.analysis.todayBranchImpact < 0 && fortune.analysis.certainty !== "calendar-unknown"
+      ? `${referenceLead}${fortune.analysis.todayBranchSummary}`
+      : `${referenceLead}${fortune.caution}`;
 
-  return buildInsightSummary({
-    fortune,
-    key: "risk",
+  return buildSignal({
+    key: "friction",
+    score,
+    tone: score >= 55 ? "caution" : "steady",
     title,
-    summary:
-      fortune.analysis.todayBranchImpact > 0 && fortune.analysis.certainty !== "calendar-unknown"
-        ? `${referenceLead}${fortune.analysis.todayBranchSummary}`
-        : `${referenceLead}${fortune.caution}`,
+    summary,
     action: "중요한 결정은 한 박자 늦추고 다시 확인하시오.",
-    caution,
-    priority:
-      45 +
-      Math.max(0, -fortune.analysis.directiveDelta) * 5 +
-      Math.min(20, Math.max(0, fortune.analysis.todayBranchImpact) * 4) +
-      (fortune.grade === "주의" ? 10 : 0),
-    publicSummary: `${referenceLead}${fortune.caution}`,
-    publicAction: "중요한 결정은 한 박자 늦추고 확인하시오.",
-    publicCaution: caution,
+    caution: fortune.caution,
+    reasons: [
+      fortune.caution,
+      fortune.analysis.todayBranchImpact < 0 ? fortune.analysis.todayBranchSummary : undefined,
+      buildKuseongReason({ fortune }),
+    ],
+    sources: buildSignalSources({
+      fortune,
+      includeKuseongWhenDelta: true,
+    }),
   });
 }
 
-function buildFortuneInsights(fortune: FortuneWithoutInsights): DailyFortuneInsight[] {
-  return [
-    ...buildCategoryInsights(fortune),
-    buildTimingInsight(fortune),
-    buildApproachInsight(fortune),
-    buildRiskInsight(fortune),
-  ];
+function buildTimingSignal(fortune: FortuneWithoutSignals): FortuneSignal {
+  const referenceLead =
+    fortune.analysis.certainty === "calendar-unknown" ? "공통 흐름 기준으로 " : "";
+  const timing = fortune.luckyHints.timing;
+  const positive = fortune.analysis.directiveDelta >= 0;
+  const score =
+    55 +
+    Math.min(20, Math.abs(fortune.analysis.directiveDelta) * 4) +
+    (fortune.analysis.todayRelation === "식상" || fortune.analysis.todayRelation === "관성" ? 10 : 0);
+
+  return buildSignal({
+    key: "timing",
+    score,
+    tone: score >= 72 ? "push" : score >= 60 ? "steady" : "caution",
+    title: `${timing} 흐름을 먼저 쓰는 편이 좋소.`,
+    summary: `${referenceLead}${timing} 쪽이 오늘 호흡을 맞추기 좋소. ${
+      positive ? "움직일 일은 앞당기고" : "서두름은 줄이고"
+    } 리듬을 맞추는 편이 흐름이 고르오.`,
+    action: `${timing}에 중요한 연락과 결정부터 두시오.`,
+    caution: `${timing}을 놓친 뒤 급히 만회하려 들지 마시오.`,
+    reasons: [
+      `${timing} 쪽이 오늘 리듬을 잡기 좋소.`,
+      fortune.analysis.directiveSummary,
+      buildKuseongReason({ fortune }),
+    ],
+    sources: buildSignalSources({
+      fortune,
+      includeKuseongWhenDelta: true,
+    }),
+  });
 }
 
-function stableHash(input: string): number {
-  let hash = 2166136261;
-  for (let index = 0; index < input.length; index += 1) {
-    hash ^= input.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
+function buildFortuneSignals(fortune: FortuneWithoutSignals): FortuneSignal[] {
+  return [
+    buildMomentumSignal(fortune),
+    buildFrictionSignal(fortune),
+    buildTimingSignal(fortune),
+    ...buildCategorySignals(fortune),
+  ].sort((left, right) => right.score - left.score || left.key.localeCompare(right.key));
+}
+
+export function selectTopFortuneSignals(signals: FortuneSignal[]): FortuneSignal[] {
+  const ranked = [...signals].sort((left, right) => right.score - left.score || left.key.localeCompare(right.key));
+  const momentum = ranked.find((signal) => signal.key === "momentum");
+  const work = ranked.find((signal) => signal.key === "work");
+  const suppressed = new Set<FortuneSignalKey>();
+
+  if (momentum && work && Math.abs(momentum.score - work.score) <= 8 && momentum.tone === work.tone) {
+    suppressed.add(momentum.score >= work.score ? "work" : "momentum");
   }
 
-  return Math.abs(hash >>> 0);
-}
-
-function selectFeaturedInsight(params: {
-  insights: DailyFortuneInsight[];
-  userId: string;
-  date?: Date;
-}): DailyFortuneInsight {
-  const ranked = [...params.insights].sort((left, right) => {
-    const priorityDiff = right.priority - left.priority;
-    if (priorityDiff !== 0) {
-      return priorityDiff;
-    }
-
-    return left.key.localeCompare(right.key);
+  const visibleCandidates = ranked.filter((signal) => {
+    if (suppressed.has(signal.key)) return false;
+    if (signal.key === "timing" && signal.score < 60) return false;
+    if (signal.key === "friction" && signal.score < 55) return false;
+    return true;
   });
-  const candidates = ranked.slice(0, Math.min(4, ranked.length));
-  const dateKey = getSeoulDateKey(params.date);
-  const index = stableHash(`${params.userId}:${dateKey}`) % Math.max(candidates.length, 1);
 
-  return candidates[index] ?? ranked[0];
+  const selected = visibleCandidates.slice(0, 3);
+  if (selected.length === 3) {
+    return selected;
+  }
+
+  for (const signal of ranked) {
+    if (suppressed.has(signal.key) || selected.some((item) => item.key === signal.key)) {
+      continue;
+    }
+    selected.push(signal);
+    if (selected.length === 3) {
+      break;
+    }
+  }
+
+  return selected;
 }
 
-function attachFortuneInsights(params: {
-  fortune: FortuneWithoutInsights;
-  userId: string;
-  date?: Date;
+function buildSignalDrivenAvoidToday(params: {
+  fortune: FortuneWithoutSignals;
+  signals: FortuneSignal[];
+}): string[] {
+  const weakest = weakestElement(params.fortune.elements);
+  const items = uniqueOrderedStrings([
+    params.signals.find((signal) => signal.key === "friction")?.caution ?? params.fortune.caution,
+    `${elementLabel(weakest)} 기운이 약하니 컨디션 관리 없는 무리수는 피하시오.`,
+    params.fortune.analysis.todayBranchImpact < 0 ? params.fortune.analysis.todayBranchSummary : undefined,
+  ]);
+
+  return items.slice(0, 3);
+}
+
+function attachFortuneSignals(params: {
+  fortune: FortuneWithoutSignals;
 }): DailyFortune {
-  const insights = buildFortuneInsights(params.fortune);
-  const featuredInsight = selectFeaturedInsight({
-    insights,
-    userId: params.userId,
-    date: params.date,
+  const signals = buildFortuneSignals(params.fortune);
+  const topSignals = selectTopFortuneSignals(signals);
+  const recommendedActions = uniqueOrderedStrings(topSignals.map((signal) => signal.action)).slice(0, 3);
+  const avoidToday = buildSignalDrivenAvoidToday({
+    fortune: params.fortune,
+    signals,
   });
 
   return {
     ...params.fortune,
-    insights,
-    featuredInsight,
+    caution: avoidToday[0] ?? params.fortune.caution,
+    recommendedActions,
+    avoidToday,
+    analysis: {
+      ...params.fortune.analysis,
+      signals,
+    },
   };
 }
 
-export function toPublicFortuneInsight(insight: DailyFortuneInsight): PublicFortuneInsight {
+export function toPublicFortuneSignal(signal: FortuneSignal): PublicFortuneSignal {
   return {
-    label: insight.label,
-    title: insight.title,
-    summary: insight.publicSummary,
-    action: insight.publicAction,
-    caution: insight.publicCaution,
+    key: signal.key,
+    label: signal.label,
+    score: signal.score,
+    tone: signal.tone,
+    title: signal.title,
+    summary: signal.summary,
+    action: signal.action,
+    caution: signal.caution,
+    reasons: signal.reasons,
   };
 }
 
@@ -1740,7 +1890,7 @@ function buildSolarLunarBlendedReferenceFortune(params: {
     relationAvoid: blended.relationStrengthAvoid,
   });
   const trimmedAvoidToday = uniqueOrderedStrings(avoidToday).slice(0, 3);
-  const baseFortune: FortuneWithoutInsights = {
+  const baseFortune: FortuneWithoutSignals = {
     score: blended.score,
     grade: blended.grade,
     headline,
@@ -1819,7 +1969,7 @@ function buildSolarLunarBlendedReferenceFortune(params: {
     certainty: "calendar-unknown",
   });
 
-  return attachFortuneInsights({
+  return attachFortuneSignals({
     fortune: applyKuseongHybrid({
       fortune: baseFortune,
       birthDate: params.birthDate,
@@ -1827,8 +1977,6 @@ function buildSolarLunarBlendedReferenceFortune(params: {
       calendarType: "unknown",
       date: params.date,
     }),
-    userId: params.userId,
-    date: params.date,
   });
 }
 
@@ -2224,7 +2372,7 @@ function generateBaseDailyFortune(params: {
   const trimmedAvoidToday = avoidToday.slice(0, 3);
   const luckyHints = ELEMENT_LUCK_MAP[yongShin];
 
-  const baseFortune: FortuneWithoutInsights = {
+  const baseFortune: FortuneWithoutSignals = {
     score,
     grade,
     headline: headlineByGrade[grade],
@@ -2403,7 +2551,7 @@ function generateBaseDailyFortune(params: {
     certainty,
   });
 
-  return attachFortuneInsights({
+  return attachFortuneSignals({
     fortune: applyKuseongHybrid({
       fortune: baseFortune,
       birthDate: params.birthDate,
@@ -2411,8 +2559,6 @@ function generateBaseDailyFortune(params: {
       calendarType: calendarTypeInput,
       date: today,
     }),
-    userId: params.userId,
-    date: today,
   });
 }
 

@@ -1240,6 +1240,11 @@
   margin-top: 18px;
 }
 
+.pointCard .analysisExpand {
+  position: relative;
+  z-index: 2;
+}
+
 .analysisExpand summary {
   cursor: pointer;
   list-style: none;

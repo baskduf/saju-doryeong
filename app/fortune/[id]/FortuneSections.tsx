@@ -268,6 +268,15 @@ export function FortuneSections({ fortune, userId, referenceDate }: Props) {
                       <p className={styles.reasonText}>{renderHighlightedText(signal.reasons.join(" "))}</p>
                     </details>
                   ) : null}
+                  <div className={styles.pointFlowerOverlay} aria-hidden="true">
+                    <Image
+                      src="/flower.png"
+                      alt=""
+                      width={180}
+                      height={180}
+                      className={styles.pointFlower}
+                    />
+                  </div>
                 </div>
               ))}
             </div>

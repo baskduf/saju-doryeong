@@ -236,6 +236,15 @@ export default async function SharedFortunePage({ params, searchParams }: PagePr
                       <p className={detailStyles.reasonText}>{renderHighlightedText(signal.reasons.join(" "))}</p>
                     </details>
                   ) : null}
+                  <div className={detailStyles.pointFlowerOverlay} aria-hidden="true">
+                    <Image
+                      src="/flower.png"
+                      alt=""
+                      width={180}
+                      height={180}
+                      className={detailStyles.pointFlower}
+                    />
+                  </div>
                 </div>
               ))}
             </div>

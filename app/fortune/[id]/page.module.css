@@ -397,6 +397,25 @@
   z-index: 2;
 }
 
+.historyCardFooter {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 2px;
+  padding-top: 6px;
+}
+
+.historyDateStamp {
+  display: inline-flex;
+  align-items: center;
+  color: #8b6037;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: right;
+}
+
 .pointFlowerOverlay {
   position: absolute;
   right: 6px;
@@ -1694,13 +1713,18 @@
 
   .sectionTabs {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     width: 100%;
+    gap: 6px;
+    padding: 4px;
   }
 
   .tabButton {
+    min-width: 0;
     width: 100%;
     justify-self: stretch;
+    padding: 10px 8px;
+    text-align: center;
   }
 
   .analysisTabs {

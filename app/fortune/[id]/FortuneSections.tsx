@@ -1,8 +1,9 @@
 ﻿"use client";
 
 import Image from "next/image";
-import { Fragment, useState, type ReactNode } from "react";
+import React, { Fragment, useState, type ReactNode } from "react";
 import { selectTopFortuneSignals, shouldRenderSignalCaution, type DailyFortune } from "../../../lib/fortune";
+import type { QuestionHistoryItem } from "../../../lib/fortune-question-history";
 import { kuseongFocusLabel, kuseongToneLabel } from "../../../lib/kuseong-labels";
 import { FiveElementsChart } from "./FiveElementsChart";
 import { KuseongChartSection, YukhyoChartSection } from "./HybridCharts";
@@ -12,9 +13,11 @@ type Props = {
   fortune: DailyFortune;
   userId: string;
   referenceDate: string;
+  questionHistory: QuestionHistoryItem[];
+  initialTab?: TabKey;
 };
 
-type TabKey = "fortune" | "analysis";
+type TabKey = "fortune" | "analysis" | "history";
 type AnalysisTabKey = "manse" | "interpretation" | "elements" | "kuseong" | "yukhyo";
 
 type ReadingGuideProps = {
@@ -91,6 +94,20 @@ function resolvedCalendarLabel(value: "solar" | "lunar" | "unknown"): string {
   return "달력 기준 미확정";
 }
 
+function signalLabel(value: QuestionHistoryItem["primarySignalKey"]): string {
+  const labels = {
+    momentum: "추진 신호",
+    friction: "마찰 신호",
+    timing: "타이밍 신호",
+    work: "일과 흐름",
+    money: "재물 흐름",
+    relationship: "관계 흐름",
+    recovery: "회복 흐름",
+  };
+
+  return labels[value];
+}
+
 function kuseongReasonText(fortune: DailyFortune): string {
   const kuseong = fortune.analysis.hybrid.kuseong;
   if (!kuseong) {
@@ -161,8 +178,8 @@ function ReadingGuide({ summary, intro, tips }: ReadingGuideProps) {
   );
 }
 
-export function FortuneSections({ fortune, userId, referenceDate }: Props) {
-  const [activeTab, setActiveTab] = useState<TabKey>("fortune");
+export function FortuneSections({ fortune, userId, referenceDate, questionHistory, initialTab = "fortune" }: Props) {
+  const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
   const [activeAnalysisTab, setActiveAnalysisTab] = useState<AnalysisTabKey>("manse");
   const topSignals = selectTopFortuneSignals(fortune.analysis.signals);
   const isCalendarUncertain = fortune.analysis.certainty === "calendar-unknown";
@@ -177,6 +194,7 @@ export function FortuneSections({ fortune, userId, referenceDate }: Props) {
     ? fortune.analysis.relationStrengthSummary
     : `오늘 일진 ${fortune.analysis.todayGanji}은 ${fortune.analysis.todayRelation} 흐름으로 들어오며, ${fortune.analysis.relationStrengthSummary}`;
   const fortuneLeadParagraphs = [fortune.headline, fortune.summary];
+  const visibleHistory = questionHistory.slice(0, 10);
 
   return (
     <section className={styles.section}>
@@ -198,6 +216,15 @@ export function FortuneSections({ fortune, userId, referenceDate }: Props) {
           onClick={() => setActiveTab("analysis")}
         >
           분석
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "history"}
+          className={`${styles.tabButton} ${activeTab === "history" ? styles.tabButtonActive : ""}`.trim()}
+          onClick={() => setActiveTab("history")}
+        >
+          기록
         </button>
       </div>
 
@@ -429,7 +456,7 @@ export function FortuneSections({ fortune, userId, referenceDate }: Props) {
             </div>
           </section>
         </div>
-      ) : (
+      ) : activeTab === "analysis" ? (
         <div className={styles.tabPanel}>
           <div className={styles.analysisTabs} role="tablist" aria-label="분석 세부 섹션">
             <button
@@ -902,6 +929,59 @@ export function FortuneSections({ fortune, userId, referenceDate }: Props) {
               <YukhyoChartSection userId={userId} referenceDate={referenceDate} />
             </section>
           ) : null}
+        </div>
+      ) : (
+        <div className={styles.tabPanel}>
+          <section className={styles.innerSection}>
+            <h2>질문 기록</h2>
+            {visibleHistory.length === 0 ? (
+              <div className={styles.reasonCard}>
+                <div className={styles.reasonRow}>
+                  <span className={styles.reasonLabel}>아직 기록이 없소</span>
+                  <p className={styles.reasonText}>
+                    카카오에서 질문을 남기면 답변이 여기에 차곡차곡 쌓이오. 지난 질문과 오늘 답을 나란히 보며 흐름을 비교하는 용도로 쓰시오.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className={styles.analysisGrid}>
+                {visibleHistory.map((item) => (
+                  <article key={item.id} className={`${styles.reasonCard} ${styles.pointCard}`}>
+                    <div className={styles.reasonRow}>
+                      <span className={styles.reasonLabel}>질문</span>
+                      <p className={styles.reasonText}>{renderHighlightedText(item.questionText)}</p>
+                    </div>
+                    <div className={styles.analysisMetaRow}>
+                      <span className={styles.analysisMetaPill}>{signalLabel(item.primarySignalKey)}</span>
+                      <span className={styles.analysisMetaPill}>{signalLabel(item.secondarySignalKey)}</span>
+                    </div>
+                    <div className={styles.reasonRow}>
+                      <span className={styles.reasonLabel}>{item.title}</span>
+                      <p className={styles.reasonText}>{renderHighlightedText(item.description)}</p>
+                    </div>
+                    {item.conflictResolutionPolicy ? (
+                      <div className={styles.reasonRow}>
+                        <span className={styles.reasonLabel}>참고 정책</span>
+                        <p className={styles.reasonText}>{renderHighlightedText(item.conflictResolutionPolicy)}</p>
+                      </div>
+                    ) : null}
+                    <div className={styles.historyCardFooter}>
+                      <span className={styles.historyDateStamp}>{item.createdAtLabel}</span>
+                    </div>
+                    <div className={styles.pointFlowerOverlay} aria-hidden="true">
+                      <Image
+                        src="/flower.png"
+                        alt=""
+                        width={180}
+                        height={180}
+                        className={styles.pointFlower}
+                      />
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
       )}
     </section>

@@ -8,10 +8,15 @@ import {
 
 const mocks = vi.hoisted(() => ({
   logAdminEventSafe: vi.fn(),
+  recordFortuneQuestionHistorySafe: vi.fn(),
 }));
 
 vi.mock("../../lib/admin-event-log", () => ({
   logAdminEventSafe: mocks.logAdminEventSafe,
+}));
+
+vi.mock("../../lib/fortune-question-history", () => ({
+  recordFortuneQuestionHistorySafe: mocks.recordFortuneQuestionHistorySafe,
 }));
 
 function buildUnknownFortune() {
@@ -169,6 +174,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   mocks.logAdminEventSafe.mockReset();
+  mocks.recordFortuneQuestionHistorySafe.mockReset();
 });
 
 describe("fortune question fallback", () => {
@@ -195,6 +201,15 @@ describe("fortune question fallback", () => {
     expect(answer.decisionBasis.secondarySignalKey).toBeTruthy();
     expect(answer.oracleInfluence.channels).not.toContain("caution");
     expect(answer.conflictResolution.status).toBe("reference-priority");
+    expect(mocks.recordFortuneQuestionHistorySafe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "question-user",
+        answer: expect.objectContaining({
+          title: answer.title,
+          description: answer.description,
+        }),
+      }),
+    );
     expect(mocks.logAdminEventSafe).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: "openai_question_fallback",
@@ -220,6 +235,7 @@ describe("fortune question fallback", () => {
     expect(first.decisionBasis).toEqual(second.decisionBasis);
     expect(first.oracleInfluence).toEqual(second.oracleInfluence);
     expect(first.conflictResolution).toEqual(second.conflictResolution);
+    expect(mocks.recordFortuneQuestionHistorySafe).toHaveBeenCalledTimes(2);
   });
 
   it("keeps question answers aligned when oracle does not overturn the base signal", async () => {
@@ -233,6 +249,31 @@ describe("fortune question fallback", () => {
     expect(answer.description).toContain(fortune.analysis.eventOutlook.reason);
     expect(answer.conflictResolution.status).toBe("aligned");
     expect(answer.conflictResolution.appliedPolicy).toBeTruthy();
+  });
+
+  it("does not persist history when user id is missing", async () => {
+    const fortune = buildUnknownFortune();
+    const answer = await answerFortuneQuestion({
+      question: "?ㅻ뒛 ?곕씫 蹂대궡???좉퉴?",
+      fortune,
+      date: new Date("2026-03-10T09:00:00+09:00"),
+    });
+
+    expect(answer.usedLlm).toBe(false);
+    expect(mocks.recordFortuneQuestionHistorySafe).not.toHaveBeenCalled();
+  });
+
+  it("keeps returning answers even when question history persistence fails", async () => {
+    mocks.recordFortuneQuestionHistorySafe.mockRejectedValueOnce(new Error("history write failed"));
+
+    const answer = await answerWithMockedOracle({
+      question: "?ㅻ뒛 ???쒖옉?대룄 ?좉퉴?",
+      fortune: buildCautiousWorkFortune(),
+    });
+
+    expect(answer.usedLlm).toBe(false);
+    expect(answer.title).toBeTruthy();
+    expect(answer.description).toContain("?");
   });
 
   it("does not foreground rest language for non-health fallback answers", async () => {
@@ -297,6 +338,15 @@ describe("fortune question fallback", () => {
     expect(answer.usedLlm).toBe(true);
     expect(answer.decisionBasis.primarySignalKey).toBe("friction");
     expect(answer.oracleInfluence.channels).toContain("caution");
+    expect(mocks.recordFortuneQuestionHistorySafe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "question-user",
+        answer: expect.objectContaining({
+          title: answer.title,
+          description: answer.description,
+        }),
+      }),
+    );
     expect(mocks.logAdminEventSafe).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: "question_answered",

@@ -1,7 +1,12 @@
+import React from "react";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { verifyFortuneAccessToken } from "../../../lib/access-token";
 import { generateDailyFortuneWithNarrative } from "../../../lib/fortune";
+import {
+  findRecentQuestionHistoryByUserId,
+  type QuestionHistoryItem,
+} from "../../../lib/fortune-question-history";
 import { formatSeoulDateLabel, formatStoredDate } from "../../../lib/seoul-time";
 import { FortuneSections } from "./FortuneSections";
 import styles from "./page.module.css";
@@ -30,6 +35,51 @@ const SAMPLE_PROFILE = {
     },
   },
 };
+
+const SAMPLE_QUESTION_HISTORY: QuestionHistoryItem[] = [
+  {
+    id: "sample-history-1",
+    questionText: "오늘 먼저 연락을 넣어도 괜찮을까?",
+    title: "도령의 관계 판단",
+    description:
+      "관계 흐름은 열려 있으나 말이 너무 길어지면 타이밍이 흐트러질 수 있소. 짧은 안부로 시작해 반응을 보고 다음 말을 잇는 편이 낫소.",
+    askedDateKey: "2026-03-10",
+    source: "kakao",
+    createdAtLabel: "03. 10. 08:40",
+    primarySignalKey: "relationship",
+    secondarySignalKey: "timing",
+    conflictResolutionStatus: "aligned",
+    conflictResolutionPolicy: null,
+  },
+  {
+    id: "sample-history-2",
+    questionText: "오늘 계약 이야기를 바로 꺼내도 될까?",
+    title: "도령의 계약 판단",
+    description:
+      "재물 쪽 기회는 있으나 마찰 신호도 함께 올라오는 날이오. 성급히 결론을 밀기보다 조건표와 순서를 먼저 세우는 편이 꼬임을 줄이오.",
+    askedDateKey: "2026-03-09",
+    source: "kakao",
+    createdAtLabel: "03. 09. 19:20",
+    primarySignalKey: "money",
+    secondarySignalKey: "friction",
+    conflictResolutionStatus: "question-signal-conflict",
+    conflictResolutionPolicy: "기회가 보여도 오늘은 속도를 앞세우기보다 확인과 정리를 먼저 두는 쪽이 맞는 날이오.",
+  },
+  {
+    id: "sample-history-3",
+    questionText: "오늘 할 일을 강하게 밀어붙여도 될까?",
+    title: "도령의 일운 판단",
+    description:
+      "일과 흐름과 추진 신호가 같이 살아 있어 추진은 가능하오. 다만 중간 점검 없이 밀어붙이면 피로가 빨리 올라오니 한 번씩 호흡을 끊어 가며 가는 편이 좋소.",
+    askedDateKey: "2026-03-08",
+    source: "kakao",
+    createdAtLabel: "03. 08. 14:05",
+    primarySignalKey: "work",
+    secondarySignalKey: "momentum",
+    conflictResolutionStatus: "aligned",
+    conflictResolutionPolicy: null,
+  },
+];
 
 function calendarTypeLabel(value: string): string {
   if (value === "solar") return "양력";
@@ -76,6 +126,9 @@ export default async function FortuneDetailPage({ params, searchParams }: PagePr
   }
 
   const today = new Date();
+  const questionHistory = isSampleProfile
+    ? SAMPLE_QUESTION_HISTORY
+    : await findRecentQuestionHistoryByUserId(profile.userId);
   const fortune = await generateDailyFortuneWithNarrative({
     userId: profile.userId,
     birthDate: profile.birthDate,
@@ -119,7 +172,12 @@ export default async function FortuneDetailPage({ params, searchParams }: PagePr
           </div>
         </section>
 
-        <FortuneSections fortune={fortune} userId={profile.userId} referenceDate={today.toISOString()} />
+        <FortuneSections
+          fortune={fortune}
+          userId={profile.userId}
+          referenceDate={today.toISOString()}
+          questionHistory={questionHistory}
+        />
       </section>
     </main>
   );

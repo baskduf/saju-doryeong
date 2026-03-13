@@ -2,6 +2,7 @@ import { selectTopFortuneSignals } from "./fortune";
 import type { DailyFortune, FortuneSignal, FortuneSignalKey } from "./fortune";
 import { logAdminEventSafe } from "./admin-event-log";
 import { describeTimingWindow, isStrongTimingSignal } from "./fortune-guidance";
+import { recordFortuneQuestionHistorySafe } from "./fortune-question-history";
 import { getSeoulDateKey } from "./seoul-time";
 import {
   buildYukhyoReading,
@@ -737,6 +738,30 @@ function buildFallbackAnswer(params: {
   };
 }
 
+async function finalizeQuestionAnswer(params: {
+  answer: FortuneQuestionAnswer;
+  question: string;
+  userId?: string;
+  date: Date;
+}): Promise<FortuneQuestionAnswer> {
+  if (!params.userId) {
+    return params.answer;
+  }
+
+  try {
+    await recordFortuneQuestionHistorySafe({
+      userId: params.userId,
+      questionText: params.question,
+      answer: params.answer,
+      date: params.date,
+    });
+  } catch (error) {
+    console.error("[fortune-question] failed to finalize question history", error);
+  }
+
+  return params.answer;
+}
+
 export async function answerFortuneQuestion(params: {
   question: string;
   fortune: DailyFortune;
@@ -788,7 +813,12 @@ export async function answerFortuneQuestion(params: {
         reason: "missing_api_key",
       },
     });
-    return fallback;
+    return finalizeQuestionAnswer({
+      answer: fallback,
+      question: params.question,
+      userId: params.userId,
+      date,
+    });
   }
 
   pruneCache();
@@ -804,7 +834,12 @@ export async function answerFortuneQuestion(params: {
 
   const cached = questionCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
-    return cached.value;
+    return finalizeQuestionAnswer({
+      answer: cached.value,
+      question: params.question,
+      userId: params.userId,
+      date,
+    });
   }
 
   try {
@@ -842,13 +877,18 @@ export async function answerFortuneQuestion(params: {
         userId: params.userId,
         questionText: params.question,
         message: `질문 OpenAI 응답이 실패해 fallback을 사용했습니다. status=${response.status}`,
-        metadata: {
-          ...baseLogMetadata,
-          reason: "response_not_ok",
-          httpStatus: response.status,
-        },
+      metadata: {
+        ...baseLogMetadata,
+        reason: "response_not_ok",
+        httpStatus: response.status,
+      },
+    });
+      return finalizeQuestionAnswer({
+        answer: fallback,
+        question: params.question,
+        userId: params.userId,
+        date,
       });
-      return fallback;
     }
 
     const payload = (await response.json()) as Record<string, unknown>;
@@ -866,7 +906,12 @@ export async function answerFortuneQuestion(params: {
           reason: "empty_output_text",
         },
       });
-      return fallback;
+      return finalizeQuestionAnswer({
+        answer: fallback,
+        question: params.question,
+        userId: params.userId,
+        date,
+      });
     }
 
     const parsed = parseQuestionAnswer(JSON.parse(cleanModelJson(outputText)), analysis.topic, {
@@ -887,7 +932,12 @@ export async function answerFortuneQuestion(params: {
           reason: "invalid_payload",
         },
       });
-      return fallback;
+      return finalizeQuestionAnswer({
+        answer: fallback,
+        question: params.question,
+        userId: params.userId,
+        date,
+      });
     }
 
     const answer = {
@@ -919,7 +969,12 @@ export async function answerFortuneQuestion(params: {
       },
     });
 
-    return answer;
+    return finalizeQuestionAnswer({
+      answer,
+      question: params.question,
+      userId: params.userId,
+      date,
+    });
   } catch {
     void logAdminEventSafe({
       eventType: "openai_question_fallback",
@@ -933,6 +988,11 @@ export async function answerFortuneQuestion(params: {
         reason: "unexpected_error",
       },
     });
-    return fallback;
+    return finalizeQuestionAnswer({
+      answer: fallback,
+      question: params.question,
+      userId: params.userId,
+      date,
+    });
   }
 }

@@ -21,6 +21,7 @@ model SajuProfile {
   shareRewardCount         Int                   @default(0)
   pendingQuestionInput     Boolean               @default(false)
   pendingQuestionExpiresAt DateTime?
+  questionHistories        FortuneQuestionHistory[]
   shareSnapshots           FortuneShareSnapshot[]
   createdAt                DateTime              @default(now())
   updatedAt                DateTime              @updatedAt
@@ -36,6 +37,19 @@ model FortuneShareSnapshot {
   profile       SajuProfile @relation(fields: [userId], references: [userId], onDelete: Cascade)
 
   @@unique([userId, targetDateKey])
+}
+
+model FortuneQuestionHistory {
+  id           String   @id @default(cuid())
+  userId       String
+  askedDateKey String
+  questionText String
+  payload      Json
+  source       String   @default("kakao")
+  createdAt    DateTime @default(now())
+  profile      SajuProfile @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 model AdminEventLog {

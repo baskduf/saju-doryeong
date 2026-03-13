@@ -34,7 +34,7 @@ export type UpsertProfileInput = {
   sajuData: Prisma.InputJsonValue;
 };
 
-export const BASE_DAILY_QUESTION_LIMIT = 5;
+export const BASE_DAILY_QUESTION_LIMIT = 3;
 export const DAILY_SHARE_REWARD_LIMIT = 10;
 const QUESTION_MODE_TTL_MS = 90 * 1000;
 

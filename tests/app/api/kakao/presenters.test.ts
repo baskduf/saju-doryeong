@@ -17,7 +17,7 @@ const shareMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../../lib/profile", () => ({
-  BASE_DAILY_QUESTION_LIMIT: 5,
+  BASE_DAILY_QUESTION_LIMIT: 3,
   DAILY_SHARE_REWARD_LIMIT: 10,
   getQuestionUsageSummary: profileMocks.getQuestionUsageSummary,
 }));
@@ -64,11 +64,11 @@ function buildUsage() {
   return {
     count: 1,
     usedCount: 1,
-    baseLimit: 5,
+    baseLimit: 3,
     rewardCountToday: 0,
     rewardRemainingToday: 10,
-    totalLimitToday: 5,
-    remaining: 4,
+    totalLimitToday: 3,
+    remaining: 2,
     isLimited: false,
   };
 }
@@ -137,7 +137,7 @@ describe("kakao presenters", () => {
     expect(basicCard.title).toBe("도령의 답");
     expect(basicCard.description).toContain("오늘은 순서를 먼저 세우고 움직이면 좋소.");
     expect(basicCard.description).toContain("판단 신호: 일과 흐름, 마찰 신호");
-    expect(basicCard.description).toContain("남은 질문 4회");
+    expect(basicCard.description).toContain("남은 질문 2회");
     expect(basicCard.description).not.toContain("육효 보강:");
     expect(basicCard.description).not.toContain("판단 조정:");
     expect(basicCard.description).not.toContain("판단 근거:");

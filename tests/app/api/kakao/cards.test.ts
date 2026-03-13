@@ -42,13 +42,13 @@ describe("kakao card builders", () => {
   it("builds question usage lines with optional share hints", () => {
     const withHint = buildQuestionUsageLines(
       {
-        count: 3,
-        usedCount: 3,
-        baseLimit: 5,
+        count: 2,
+        usedCount: 2,
+        baseLimit: 3,
         rewardCountToday: 2,
         rewardRemainingToday: 8,
-        totalLimitToday: 7,
-        remaining: 4,
+        totalLimitToday: 5,
+        remaining: 3,
         isLimited: false,
       },
       { includeShareHint: true },
@@ -58,11 +58,11 @@ describe("kakao card builders", () => {
       {
         count: 0,
         usedCount: 0,
-        baseLimit: 5,
+        baseLimit: 3,
         rewardCountToday: 0,
         rewardRemainingToday: 10,
-        totalLimitToday: 5,
-        remaining: 5,
+        totalLimitToday: 3,
+        remaining: 3,
         isLimited: false,
       },
       { includeShareHint: false },
@@ -79,11 +79,11 @@ describe("kakao card builders", () => {
       usage: {
         count: 1,
         usedCount: 1,
-        baseLimit: 5,
+        baseLimit: 3,
         rewardCountToday: 0,
         rewardRemainingToday: 10,
-        totalLimitToday: 5,
-        remaining: 4,
+        totalLimitToday: 3,
+        remaining: 2,
         isLimited: false,
       },
     });
@@ -103,27 +103,28 @@ describe("kakao card builders", () => {
 
   it("creates question limit cards for both remaining-share branches", () => {
     const withRewards = createQuestionLimitCard({
-      count: 5,
-      usedCount: 5,
-      baseLimit: 5,
+      count: 3,
+      usedCount: 3,
+      baseLimit: 3,
       rewardCountToday: 2,
       rewardRemainingToday: 8,
-      totalLimitToday: 7,
+      totalLimitToday: 5,
       remaining: 0,
       isLimited: true,
     });
     const capped = createQuestionLimitCard({
-      count: 15,
-      usedCount: 15,
-      baseLimit: 5,
+      count: 13,
+      usedCount: 13,
+      baseLimit: 3,
       rewardCountToday: 10,
       rewardRemainingToday: 0,
-      totalLimitToday: 15,
+      totalLimitToday: 13,
       remaining: 0,
       isLimited: true,
     });
 
     expect(withRewards.template.outputs[0].basicCard.description).toContain("친구에게 공유하기로 질문 8회까지 더 적립할 수 있소.");
+    expect(withRewards.template.outputs[0].basicCard.buttons?.map((button) => button.label)).toContain("공유링크 만들기");
     expect(capped.template.outputs[0].basicCard.description).toContain("오늘 공유 적립도 10회를 모두 채웠으니 내일 다시 물어보시오.");
   });
 

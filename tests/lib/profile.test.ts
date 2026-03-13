@@ -106,8 +106,8 @@ describe("profile policy helpers", () => {
 
     expect(summary.usedCount).toBe(4);
     expect(summary.rewardCountToday).toBe(3);
-    expect(summary.totalLimitToday).toBe(8);
-    expect(summary.remaining).toBe(4);
+    expect(summary.totalLimitToday).toBe(6);
+    expect(summary.remaining).toBe(2);
     expect(summary.isLimited).toBe(false);
   });
 
@@ -129,11 +129,11 @@ describe("profile policy helpers", () => {
 
     expect(staleSummary.usedCount).toBe(0);
     expect(staleSummary.rewardCountToday).toBe(0);
-    expect(staleSummary.totalLimitToday).toBe(5);
+    expect(staleSummary.totalLimitToday).toBe(3);
 
     expect(cappedSummary.rewardCountToday).toBe(10);
     expect(cappedSummary.rewardRemainingToday).toBe(0);
-    expect(cappedSummary.totalLimitToday).toBe(15);
+    expect(cappedSummary.totalLimitToday).toBe(13);
   });
 
   it("expires pending question mode when ttl has passed", () => {

@@ -21,7 +21,6 @@ import {
   FORTUNE_COMMAND,
   QUESTION_COMMAND,
   REREGISTER_COMMAND,
-  SHARE_COMMAND,
 } from "./constants";
 import {
   createFortuneCard,
@@ -32,6 +31,8 @@ import {
   extractKakaoActionParams,
   getKakaoUserId,
   getKakaoUtterance,
+  isQuestionExampleUtterance,
+  isSharePromptUtterance,
   isReservedUtterance,
 } from "./request";
 import type { KakaoDispatchResult } from "./types";
@@ -39,6 +40,7 @@ import type { KakaoDispatchResult } from "./types";
 export async function handleKakaoSkillPayload(payload: unknown): Promise<KakaoDispatchResult> {
   const userId = getKakaoUserId(payload);
   const utterance = getKakaoUtterance(payload)?.trim();
+  const questionExampleUtterance = isQuestionExampleUtterance(utterance);
   const registrationParams = extractKakaoActionParams(payload);
 
   if (!userId) {
@@ -94,7 +96,7 @@ export async function handleKakaoSkillPayload(payload: unknown): Promise<KakaoDi
     };
   }
 
-  if (!registrationParams.hasAny && utterance === SHARE_COMMAND) {
+  if (!registrationParams.hasAny && isSharePromptUtterance(utterance)) {
     if (!profile) {
       return {
         body: createRegistrationGuideCard(undefined, undefined, userId),
@@ -171,15 +173,24 @@ export async function handleKakaoSkillPayload(payload: unknown): Promise<KakaoDi
     };
   }
 
-  if (utterance && !registrationParams.hasAny && !isReservedUtterance(utterance) && pendingQuestionInput) {
+  if (
+    utterance &&
+    !registrationParams.hasAny &&
+    !isReservedUtterance(utterance) &&
+    (pendingQuestionInput || questionExampleUtterance)
+  ) {
     if (questionUsage.isLimited) {
-      await setPendingQuestionInput(profile, false);
+      if (pendingQuestionInput) {
+        await setPendingQuestionInput(profile, false);
+      }
       return {
         body: createQuestionLimitCard(questionUsage),
       };
     }
 
-    await setPendingQuestionInput(profile, false);
+    if (pendingQuestionInput) {
+      await setPendingQuestionInput(profile, false);
+    }
     const updatedProfile = await incrementQuestionUsage(profile);
     return {
       body: await createQuestionAnswerCard(updatedProfile, utterance),

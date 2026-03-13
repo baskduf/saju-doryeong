@@ -4,6 +4,7 @@ export const REREGISTER_COMMAND = "정보 재등록";
 export const FORTUNE_COMMAND = "오늘의 운세";
 export const QUESTION_COMMAND = "운세 질문";
 export const SHARE_COMMAND = "친구에게 공유하기";
+export const SHARE_LINK_BUTTON_LABEL = "공유링크 만들기";
 
 export const DEFAULT_QUICK_REPLIES: KakaoQuickReply[] = [
   { label: REREGISTER_COMMAND, action: "message", messageText: REREGISTER_COMMAND },

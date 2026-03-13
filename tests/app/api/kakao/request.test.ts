@@ -6,6 +6,7 @@ import {
   getKakaoUserId,
   getKakaoUtterance,
   isAuthorizedKakaoSkillRequest,
+  isQuestionExampleUtterance,
   isReservedUtterance,
 } from "../../../../app/api/kakao/_internal/request";
 
@@ -91,7 +92,14 @@ describe("kakao request helpers", () => {
     expect(isReservedUtterance("오늘의 운세")).toBe(true);
     expect(isReservedUtterance("운세 질문")).toBe(true);
     expect(isReservedUtterance("친구에게 공유하기")).toBe(true);
+    expect(isReservedUtterance("공유링크 만들기")).toBe(true);
     expect(isReservedUtterance("그냥 잡담")).toBe(false);
+  });
+
+  it("recognizes question example utterances from quick replies", () => {
+    expect(isQuestionExampleUtterance("오늘 연애운 어때?")).toBe(true);
+    expect(isQuestionExampleUtterance("직장운 질문")).toBe(true);
+    expect(isQuestionExampleUtterance("그냥 잡담")).toBe(false);
   });
 
   it("validates kakao shared secret requests", () => {

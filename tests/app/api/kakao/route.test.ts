@@ -34,7 +34,7 @@ const shareMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../../lib/profile", () => ({
-  BASE_DAILY_QUESTION_LIMIT: 5,
+  BASE_DAILY_QUESTION_LIMIT: 3,
   DAILY_SHARE_REWARD_LIMIT: 10,
   buildInitialSajuData: profileMocks.buildInitialSajuData,
   findProfileByUserId: profileMocks.findProfileByUserId,
@@ -92,11 +92,11 @@ function buildUsage(overrides: Record<string, unknown> = {}) {
   return {
     count: 1,
     usedCount: 1,
-    baseLimit: 5,
+    baseLimit: 3,
     rewardCountToday: 0,
     rewardRemainingToday: 10,
-    totalLimitToday: 5,
-    remaining: 4,
+    totalLimitToday: 3,
+    remaining: 2,
     isLimited: false,
     ...overrides,
   };
@@ -165,7 +165,7 @@ describe("POST /api/kakao", () => {
     profileMocks.incrementQuestionUsage.mockResolvedValue(buildProfile());
     profileMocks.incrementShareReward.mockResolvedValue({
       profile: buildProfile(),
-      usage: buildUsage({ rewardCountToday: 1, totalLimitToday: 6, remaining: 5 }),
+      usage: buildUsage({ rewardCountToday: 1, totalLimitToday: 4, remaining: 3 }),
       rewarded: true,
     });
     accessTokenMocks.createFortuneAccessToken.mockReturnValue("fortune-token");
@@ -280,7 +280,7 @@ describe("POST /api/kakao", () => {
     expect(card.title).toBe("운세도령의 오늘 운세");
     expect(card.description).toContain("운세 점수: 74점(길)");
     expect(card.description).toContain("판단 근거: 사주 기본 + 구성 보정(+3)");
-    expect(card.buttons).toContain("친구에게 공유하기");
+    expect(card.buttons).toContain("공유링크 만들기");
   });
 
   it("guides unregistered users before question mode", async () => {
@@ -305,8 +305,8 @@ describe("POST /api/kakao", () => {
     profileMocks.findProfileByUserId.mockResolvedValue(buildProfile());
     profileMocks.getQuestionUsageSummary.mockReturnValue(
       buildUsage({
-        usedCount: 5,
-        totalLimitToday: 5,
+        usedCount: 3,
+        totalLimitToday: 3,
         remaining: 0,
         rewardRemainingToday: 2,
         isLimited: true,
@@ -317,8 +317,9 @@ describe("POST /api/kakao", () => {
     const card = await readCard(response);
 
     expect(profileMocks.setPendingQuestionInput).toHaveBeenCalledWith(expect.any(Object), false);
-    expect(card.description).toContain("오늘 질문 5회는 모두 썼소.");
+    expect(card.description).toContain("오늘 질문 3회는 모두 썼소.");
     expect(card.description).toContain("친구에게 공유하기로 질문 2회까지 더 적립할 수 있소.");
+    expect(card.buttons).toContain("공유링크 만들기");
   });
 
   it("answers freeform questions when pending input is active", async () => {
@@ -327,7 +328,7 @@ describe("POST /api/kakao", () => {
     profileMocks.findProfileByUserId.mockResolvedValue(buildProfile());
     profileMocks.hasPendingQuestionInput.mockReturnValue(true);
     profileMocks.incrementQuestionUsage.mockResolvedValue(updatedProfile);
-    profileMocks.getQuestionUsageSummary.mockReturnValue(buildUsage({ usedCount: 2, remaining: 3 }));
+    profileMocks.getQuestionUsageSummary.mockReturnValue(buildUsage({ usedCount: 2, remaining: 1 }));
 
     const response = await callRoute(buildKakaoPayload({ utterance: "오늘 일은 어떻게 풀릴까?" }));
     const card = await readCard(response);
@@ -337,16 +338,37 @@ describe("POST /api/kakao", () => {
     expect(questionMocks.answerFortuneQuestion).toHaveBeenCalled();
     expect(card.title).toBe("도령의 일풀이");
     expect(card.description).toContain("판단 신호: 일과 흐름, 마찰 신호");
-    expect(card.description).toContain("남은 질문 3회");
+    expect(card.description).toContain("남은 질문 1회");
     expect(card.description).not.toContain("육효 보강:");
     expect(card.description).not.toContain("판단 조정:");
     expect(card.quickReplies).toContain("재물운 질문");
   });
 
+  it("answers question example quick replies outside pending mode", async () => {
+    const updatedProfile = buildProfile({ questionUsageCount: 2 });
+
+    profileMocks.findProfileByUserId.mockResolvedValue(buildProfile());
+    profileMocks.incrementQuestionUsage.mockResolvedValue(updatedProfile);
+    profileMocks.getQuestionUsageSummary.mockReturnValue(buildUsage({ usedCount: 2, remaining: 1 }));
+
+    const response = await callRoute(buildKakaoPayload({ utterance: "오늘 일은 어떻게 풀릴까?" }));
+    const card = await readCard(response);
+
+    expect(profileMocks.setPendingQuestionInput).not.toHaveBeenCalled();
+    expect(profileMocks.incrementQuestionUsage).toHaveBeenCalledWith(expect.any(Object));
+    expect(questionMocks.answerFortuneQuestion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        question: "오늘 일은 어떻게 풀릴까?",
+      }),
+    );
+    expect(card.title).toBe("도령의 일풀이");
+    expect(card.quickReplies).toContain("직장운 질문");
+  });
+
   it("creates share cards and rewards extra questions", async () => {
     profileMocks.findProfileByUserId.mockResolvedValue(buildProfile());
 
-    const response = await callRoute(buildKakaoPayload({ utterance: "친구에게 공유하기" }));
+    const response = await callRoute(buildKakaoPayload({ utterance: "공유링크 만들기" }));
     const card = await readCard(response);
 
     expect(profileMocks.incrementShareReward).toHaveBeenCalledWith(expect.any(Object));

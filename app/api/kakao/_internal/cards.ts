@@ -11,6 +11,7 @@ import {
   DEFAULT_QUICK_REPLIES,
   QUESTION_EXAMPLE_QUICK_REPLIES,
   SHARE_COMMAND,
+  SHARE_LINK_BUTTON_LABEL,
 } from "./constants";
 import type { KakaoBasicCardResponse, KakaoCardButton, KakaoQuickReply } from "./types";
 
@@ -75,6 +76,14 @@ export function buildQuestionUsageLines(
   return lines;
 }
 
+function createSharePromptMessageButton(): KakaoCardButton {
+  return {
+    action: "message",
+    label: SHARE_LINK_BUTTON_LABEL,
+    messageText: SHARE_COMMAND,
+  };
+}
+
 export function createBasicCard(params: {
   title: string;
   description: string;
@@ -133,11 +142,7 @@ export function createFortuneButtons(detailUrl: string): KakaoCardButton[] {
       label: "상세 운세 보러가기",
       webLinkUrl: detailUrl,
     },
-    {
-      action: "message",
-      label: SHARE_COMMAND,
-      messageText: SHARE_COMMAND,
-    },
+    createSharePromptMessageButton(),
   ];
 }
 
@@ -216,10 +221,12 @@ export function createQuestionGuideCard(params: {
 }
 
 export function createQuestionLimitCard(usage: QuestionUsageSummary): KakaoBasicCardResponse {
+  const hasRewardRoom = usage.rewardRemainingToday > 0;
+
   return createBasicCard({
     title: "운세도령",
     description:
-      usage.rewardRemainingToday > 0
+      hasRewardRoom
         ? [
             `오늘 질문 ${usage.usedCount}회는 모두 썼소.`,
             `친구에게 공유하기로 질문 ${usage.rewardRemainingToday}회까지 더 적립할 수 있소.`,
@@ -229,6 +236,7 @@ export function createQuestionLimitCard(usage: QuestionUsageSummary): KakaoBasic
             `오늘 질문 ${usage.usedCount}회는 모두 썼소.`,
             `오늘 공유 적립도 ${DAILY_SHARE_REWARD_LIMIT}회를 모두 채웠으니 내일 다시 물어보시오.`,
           ].join("\n"),
+    buttons: hasRewardRoom ? [createSharePromptMessageButton()] : undefined,
   });
 }
 

@@ -3,8 +3,10 @@ import { isNonEmptyString } from "../../../../lib/profile";
 import {
   FORTUNE_COMMAND,
   QUESTION_COMMAND,
+  QUESTION_EXAMPLE_QUICK_REPLIES,
   REREGISTER_COMMAND,
   SHARE_COMMAND,
+  SHARE_LINK_BUTTON_LABEL,
 } from "./constants";
 import type { KakaoActionParams } from "./types";
 
@@ -82,6 +84,11 @@ function summarizeForDebug(value: unknown): string {
     return "<unserializable>";
   }
 }
+
+const QUESTION_EXAMPLE_UTTERANCES = new Set(
+  QUESTION_EXAMPLE_QUICK_REPLIES.flatMap((reply) => [reply.label, reply.messageText]),
+);
+const SHARE_PROMPT_UTTERANCES = new Set([SHARE_COMMAND, SHARE_LINK_BUTTON_LABEL]);
 
 export function getKakaoUserId(payload: unknown): string | undefined {
   const root = asRecord(payload);
@@ -184,8 +191,16 @@ export function isReservedUtterance(utterance?: string): boolean {
     utterance === REREGISTER_COMMAND ||
     utterance === FORTUNE_COMMAND ||
     utterance === QUESTION_COMMAND ||
-    utterance === SHARE_COMMAND
+    isSharePromptUtterance(utterance)
   );
+}
+
+export function isQuestionExampleUtterance(utterance?: string): boolean {
+  return Boolean(utterance && QUESTION_EXAMPLE_UTTERANCES.has(utterance));
+}
+
+export function isSharePromptUtterance(utterance?: string): boolean {
+  return Boolean(utterance && SHARE_PROMPT_UTTERANCES.has(utterance));
 }
 
 export function isAuthorizedKakaoSkillRequest(request: NextRequest): boolean {

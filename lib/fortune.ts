@@ -872,6 +872,10 @@ function buildFortuneFact(params: Omit<FortuneFact, "strength" | "risk" | "oppor
 function buildTimingFacts(fortune: FortuneWithoutSignals): FortuneFact[] {
   const window = describeTimingWindow(fortune.luckyHints.timing);
   const positive = fortune.analysis.directiveDelta >= 0;
+  const domains: FortuneSignalKey[] =
+    window.phase === "early" || window.phase === "late"
+      ? ["timing", "momentum"]
+      : ["timing"];
 
   return [
     buildFortuneFact({
@@ -879,7 +883,7 @@ function buildTimingFacts(fortune: FortuneWithoutSignals): FortuneFact[] {
       source: "timing",
       kind: "timing",
       subtype: `timing-${window.phase}`,
-      domains: ["timing", ...(window.phase === "early" || window.phase === "late" ? ["momentum"] : [])],
+      domains,
       polarity: positive ? "opportunity" : "mixed",
       strength: window.phase === "mid" ? 2 : 3,
       risk: positive ? 1 : 2,

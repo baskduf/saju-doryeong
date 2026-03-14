@@ -370,15 +370,3 @@
     display: none;
   }
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .mobileHeroVideo {
-    display: none;
-  }
-
-  .mobileHero {
-    background:
-      linear-gradient(180deg, rgba(12, 8, 7, 0.3), rgba(12, 8, 7, 0.72)),
-      url("/background.png") center center / cover no-repeat;
-  }
-}

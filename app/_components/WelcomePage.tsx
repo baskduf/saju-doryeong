@@ -1,5 +1,6 @@
 import React from "react";
 import Image from "next/image";
+import { AutoplayVideo } from "./AutoplayVideo";
 import { KakaoChannelActions } from "./KakaoChannelActions";
 import { MobileViewportHeight } from "./MobileViewportHeight";
 import styles from "./welcome-page.module.css";
@@ -18,7 +19,7 @@ export function WelcomePage() {
     <main className={styles.page}>
       <MobileViewportHeight />
       <section className={styles.mobileHero} aria-label="운세도령 모바일 시작 화면">
-        <video
+        <AutoplayVideo
           className={styles.mobileHeroVideo}
           autoPlay
           muted
@@ -29,7 +30,7 @@ export function WelcomePage() {
           aria-hidden="true"
         >
           <source src={HOME_VIDEO_SRC} type="video/mp4" />
-        </video>
+        </AutoplayVideo>
         <div className={styles.mobileHeroOverlay} />
         <div className={styles.mobileHeroContent}>
           <div className={styles.mobileHeroBrand}>

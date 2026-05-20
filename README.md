@@ -1,52 +1,34 @@
-# 운세도령
-
 <p align="center">
-  <img src="./public/logo-Photoroom.png" alt="운세도령 로고" width="220" />
-</p>
-
-<p align="center">
-  사주 정보를 바탕으로 오늘의 흐름을 풀이하고,<br/>
-  카카오톡에서 가볍게 다시 찾아볼 수 있는 운세 서비스입니다.
-</p>
-
-<p align="center">
-  <a href="http://pf.kakao.com/_IjiZX">
-    <img src="https://img.shields.io/badge/KakaoTalk-운세도령-FFE812?style=for-the-badge&logo=kakao&logoColor=000000" alt="운세도령 카카오톡 채널" />
+  <a href="https://saju-doryeong.vercel.app/">
+    <img src="./public/logo-Photoroom.png" alt="운세도령" width="180" />
   </a>
 </p>
 
-## 어떤 서비스인가요?
+<h1 align="center">운세도령</h1>
 
-운세도령은 카카오톡 챗봇과 웹 페이지를 연결해 사용자의 사주 정보를 등록하고, 오늘의 운세를 자연스럽게 확인할 수 있게 돕는 서비스입니다.
+<p align="center">
+  카카오톡에서 사주를 등록하고 오늘의 운세를 확인하는 서비스
+</p>
 
-처음에는 카카오톡에서 안내를 따라 생년월일과 출생시간을 등록합니다. 이후 오늘의 운세를 확인하거나, 더 자세한 해석 페이지를 열어 오행 흐름과 하루의 포인트를 살펴볼 수 있습니다.
+<table align="center">
+  <tr>
+    <td align="center" width="520">
+      <br/>
+      <strong>운세도령과 대화를 시작해보세요</strong>
+      <br/>
+      <sub>사주 등록 · 오늘의 운세 · 운세 질문 · 공유 카드</sub>
+      <br/><br/>
+      <a href="https://saju-doryeong.vercel.app/">
+        <img src="https://img.shields.io/badge/서비스_바로가기-000000?style=for-the-badge&logo=vercel&logoColor=white" alt="서비스 바로가기" />
+      </a>
+      <a href="https://pf.kakao.com/_IjiZX/chat">
+        <img src="https://img.shields.io/badge/카카오톡_채널-FFE812?style=for-the-badge&logo=kakao&logoColor=000000" alt="카카오톡 채널" />
+      </a>
+      <br/><br/>
+    </td>
+  </tr>
+</table>
 
-## 주요 경험
-
-- 카카오톡에서 사주 정보 등록
-- 오늘의 운세 확인
-- 비공개 상세 운세 페이지 제공
-- 친구에게 보여줄 수 있는 공유용 운세 카드 생성
-- 자유 문장으로 운세 질문하기
-- 양력, 음력, 모름 기준을 고려한 운세 풀이
-
-## 이용 흐름
-
-```text
-카카오톡 채널 입장
-  -> 사주 정보 등록
-  -> 오늘의 운세 확인
-  -> 상세 운세 페이지 열기
-  -> 공유 카드 생성 또는 운세 질문
-```
-
-## 서비스가 지향하는 것
-
-운세도령은 무거운 점술 서비스보다, 하루를 시작하기 전에 가볍게 마음을 정리할 수 있는 작은 안내자에 가깝습니다.
-
-정답을 단정하기보다 오늘의 흐름, 조심하면 좋은 점, 힘을 실어볼 만한 방향을 부드럽게 제안합니다.
-
-## 시작하기
-
-- 카카오톡 채널: [운세도령](http://pf.kakao.com/_IjiZX)
-- 바로 대화하기: [운세도령과 이야기](https://pf.kakao.com/_IjiZX/chat)
+<p align="center">
+  <sub>오늘의 흐름을 가볍게 살펴보고, 필요한 말만 편하게 받아보세요.</sub>
+</p>

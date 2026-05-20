@@ -1,4 +1,6 @@
-# Handoff for Next Agent
+# Handoff Archive
+
+이 문서는 과거 작업 인수인계 기록입니다. 현재 프로젝트 소개는 루트 `README.md`, 개발/운영 가이드는 `docs/project-guide.md`를 기준으로 봅니다.
 
 ## 1) 현재 상태 요약
 
